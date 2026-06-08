@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { supabase } from './supabaseClient';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -133,19 +134,90 @@ const healthScore = (savingsRate, diversification, debtRatio) => {
   return Math.round((s * 0.4 + d * 0.35 + dr * 0.25));
 };
 
+// ── Auth Screen ───────────────────────────────────────────────────────────────
+function AuthScreen() {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState("");
+
+  const handle = async (e) => {
+    e.preventDefault();
+    setError(""); setSuccess(""); setLoading(true);
+    try {
+      if (mode === "register") {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        setSuccess("Compte créé ! Vérifiez votre email pour activer votre compte.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const aInp = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#f1f5f9", padding: "10px 12px", fontSize: 13, width: "100%", fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+  const aLbl = { fontSize: 11, color: "#6b7280", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: ".04em" };
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>◈</div>
+          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-.02em" }}>FinLib</div>
+          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>Votre patrimoine, en clair</div>
+        </div>
+        <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "32px 28px" }}>
+          <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 24, textAlign: "center" }}>
+            {mode === "login" ? "Connexion" : "Créer un compte"}
+          </h2>
+          <form onSubmit={handle}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={aLbl}>Email</label>
+              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="vous@exemple.com" style={aInp} />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={aLbl}>Mot de passe</label>
+              <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} placeholder="6 caractères minimum" style={aInp} />
+            </div>
+            {error && <div style={{ background: "rgba(248,113,113,.1)", border: "1px solid rgba(248,113,113,.2)", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#f87171", marginBottom: 14 }}>{error}</div>}
+            {success && <div style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.2)", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#4ade80", marginBottom: 14 }}>{success}</div>}
+            <button type="submit" disabled={loading} style={{ width: "100%", background: "linear-gradient(135deg,#10b981,#059669)", border: "none", borderRadius: 8, color: "#fff", padding: 11, fontSize: 14, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", opacity: loading ? 0.7 : 1 }}>
+              {loading ? "…" : mode === "login" ? "Se connecter" : "Créer le compte"}
+            </button>
+          </form>
+          <div style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "#6b7280" }}>
+            {mode === "login" ? "Pas encore de compte ?" : "Déjà un compte ?"}
+            <button onClick={() => { setMode(m => m === "login" ? "register" : "login"); setError(""); setSuccess(""); }}
+              style={{ background: "none", border: "none", color: "#10b981", cursor: "pointer", fontWeight: 600, marginLeft: 6, fontFamily: "inherit", fontSize: 13 }}>
+              {mode === "login" ? "S'inscrire" : "Se connecter"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [tab, setTab] = useState("overview");
 
-  // State persisted
-  const [transactions, setTransactions] = useState(() => load("fl_tx", SEED_TX));
-  const [investments, setInvestments] = useState(() => load("fl_inv", SEED_INV));
-  const [healthAssets, setHealthAssets] = useState(() => load("fl_health", SEED_HEALTH));
-  const [budgets, setBudgets] = useState(() => load("fl_budgets", SEED_BUDGETS));
-  const [goals, setGoals] = useState(() => load("fl_goals", SEED_GOALS));
-  const [savings, setSavings] = useState(() => load("fl_savings", SEED_CASH));
-  const [listings, setListings] = useState(() => load("fl_listings", SEED_LISTINGS));
-  const [soldHistory, setSoldHistory] = useState(() => load("fl_sold", SEED_SOLD));
+  // State (seeds par défaut — écrasés depuis Supabase après login)
+  const [transactions, setTransactions] = useState(SEED_TX);
+  const [investments, setInvestments] = useState(SEED_INV);
+  const [healthAssets, setHealthAssets] = useState(SEED_HEALTH);
+  const [budgets, setBudgets] = useState(SEED_BUDGETS);
+  const [goals, setGoals] = useState(SEED_GOALS);
+  const [savings, setSavings] = useState(SEED_CASH);
+  const [listings, setListings] = useState(SEED_LISTINGS);
+  const [soldHistory, setSoldHistory] = useState(SEED_SOLD);
   const [projYears, setProjYears] = useState(10);
   const [projRate, setProjRate] = useState(7);
   const [projMonthly, setProjMonthly] = useState(500);
@@ -171,15 +243,72 @@ export default function App() {
   const [cashForm, setCashForm] = useState(emptyCash);
   const [listingForm, setListingForm] = useState(emptyListing);
 
-  // Persist on change
-  useEffect(() => save("fl_tx", transactions), [transactions]);
-  useEffect(() => save("fl_inv", investments), [investments]);
-  useEffect(() => save("fl_health", healthAssets), [healthAssets]);
-  useEffect(() => save("fl_budgets", budgets), [budgets]);
-  useEffect(() => save("fl_goals", goals), [goals]);
-  useEffect(() => save("fl_savings", savings), [savings]);
-  useEffect(() => save("fl_listings", listings), [listings]);
-  useEffect(() => save("fl_sold", soldHistory), [soldHistory]);
+  // ── Auth & sync Supabase ─────────────────────────────────────────────────────
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const dataLoaded = useRef(false);
+  const saveTimer = useRef(null);
+  const userRef = useRef(null);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  const loadUserData = useCallback(async (uid) => {
+    try {
+      const { data } = await supabase.from("user_data").select("*").eq("user_id", uid).single();
+      if (data) {
+        if (data.transactions?.length) setTransactions(data.transactions);
+        if (data.investments?.length) setInvestments(data.investments);
+        if (data.health_assets?.length) setHealthAssets(data.health_assets);
+        if (data.budgets && Object.keys(data.budgets).length) setBudgets(data.budgets);
+        if (data.goals?.length) setGoals(data.goals);
+        if (data.savings?.length) setSavings(data.savings);
+        if (data.listings?.length) setListings(data.listings);
+        if (data.sold_history?.length) setSoldHistory(data.sold_history);
+        if (data.proj_years) setProjYears(data.proj_years);
+        if (data.proj_rate) setProjRate(data.proj_rate);
+        if (data.proj_monthly !== undefined) setProjMonthly(data.proj_monthly);
+      }
+    } catch {}
+    dataLoaded.current = true;
+    setAuthLoading(false);
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) loadUserData(u.id);
+      else setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) { dataLoaded.current = false; loadUserData(u.id); }
+      else { dataLoaded.current = false; setAuthLoading(false); }
+    });
+    return () => subscription.unsubscribe();
+  }, [loadUserData]);
+
+  useEffect(() => {
+    if (!userRef.current || !dataLoaded.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      await supabase.from("user_data").upsert({
+        user_id: userRef.current.id,
+        transactions, investments, health_assets: healthAssets,
+        budgets, goals, savings, listings, sold_history: soldHistory,
+        proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
+        updated_at: new Date().toISOString(),
+      });
+    }, 1500);
+  }, [transactions, investments, healthAssets, budgets, goals, savings, listings, soldHistory, projYears, projRate, projMonthly]);
+
+  const handleLogout = async () => {
+    dataLoaded.current = false;
+    await supabase.auth.signOut();
+    setTransactions(SEED_TX); setInvestments(SEED_INV); setHealthAssets(SEED_HEALTH);
+    setBudgets(SEED_BUDGETS); setGoals(SEED_GOALS); setSavings(SEED_CASH);
+    setListings(SEED_LISTINGS); setSoldHistory(SEED_SOLD);
+  };
 
   // ── Prix en temps réel ────────────────────────────────────────────────────
   const [prices, setPrices] = useState({});
@@ -451,6 +580,15 @@ export default function App() {
         }
       `}</style>
 
+      {authLoading ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: 16 }}>
+          <div style={{ fontSize: 36, animation: "pulse 1.5s infinite" }}>◈</div>
+          <div style={{ fontSize: 14, color: "#4b5563" }}>Chargement…</div>
+        </div>
+      ) : !user ? (
+        <AuthScreen />
+      ) : (<>
+
       {/* Header */}
       <div className="hdr-outer" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", position: "sticky", top: 0, background: "#080e1a", zIndex: 50 }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58 }}>
@@ -468,7 +606,11 @@ export default function App() {
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {alerts.length > 0 && <div style={{ background: "rgba(251,146,60,.15)", color: "#fb923c", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 600 }}>⚠ {alerts.length} alerte{alerts.length > 1 ? "s" : ""}</div>}
-            <div style={{ fontSize: 11, color: "#4b5563" }}>{new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</div>
+            <div style={{ fontSize: 11, color: "#4b5563", textAlign: "right" }}>
+              <div>{new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</div>
+              <div style={{ color: "#374151", fontSize: 10 }}>{user?.email}</div>
+            </div>
+            <button onClick={handleLogout} style={{ ...btnS, fontSize: 11, padding: "5px 12px" }}>⎋ Déco</button>
           </div>
         </div>
       </div>
@@ -1472,6 +1614,7 @@ export default function App() {
           </div>
         </Modal>
       )}
+      </>)}
     </div>
   );
 }
