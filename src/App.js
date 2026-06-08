@@ -133,7 +133,7 @@ const healthScore = (savingsRate, diversification, debtRatio) => {
 };
 
 // ── Auth Screen ───────────────────────────────────────────────────────────────
-function AuthScreen() {
+function AuthScreen({ onDemo }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -197,6 +197,11 @@ function AuthScreen() {
               {mode === "login" ? "S'inscrire" : "Se connecter"}
             </button>
           </div>
+          <div style={{ textAlign: "center", marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <button onClick={onDemo} style={{ background: "none", border: "none", color: "#4b5563", cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>
+              Explorer sans compte — mode démo →
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -207,15 +212,15 @@ function AuthScreen() {
 export default function App() {
   const [tab, setTab] = useState("overview");
 
-  // State (seeds par défaut — écrasés depuis Supabase après login)
-  const [transactions, setTransactions] = useState(SEED_TX);
-  const [investments, setInvestments] = useState(SEED_INV);
-  const [healthAssets, setHealthAssets] = useState(SEED_HEALTH);
+  // State (vide pour les vrais utilisateurs — seeds uniquement en mode démo)
+  const [transactions, setTransactions] = useState([]);
+  const [investments, setInvestments] = useState([]);
+  const [healthAssets, setHealthAssets] = useState([]);
   const [budgets, setBudgets] = useState(SEED_BUDGETS);
-  const [goals, setGoals] = useState(SEED_GOALS);
-  const [savings, setSavings] = useState(SEED_CASH);
-  const [listings, setListings] = useState(SEED_LISTINGS);
-  const [soldHistory, setSoldHistory] = useState(SEED_SOLD);
+  const [goals, setGoals] = useState([]);
+  const [savings, setSavings] = useState([]);
+  const [listings, setListings] = useState([]);
+  const [soldHistory, setSoldHistory] = useState([]);
   const [projYears, setProjYears] = useState(10);
   const [projRate, setProjRate] = useState(7);
   const [projMonthly, setProjMonthly] = useState(500);
@@ -244,6 +249,7 @@ export default function App() {
   // ── Auth & sync Supabase ─────────────────────────────────────────────────────
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
   const dataLoaded = useRef(false);
   const saveTimer = useRef(null);
   const userRef = useRef(null);
@@ -280,7 +286,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) { dataLoaded.current = false; loadUserData(u.id); }
+      if (u) { setDemoMode(false); dataLoaded.current = false; loadUserData(u.id); }
       else { dataLoaded.current = false; setAuthLoading(false); }
     });
     return () => subscription.unsubscribe();
@@ -302,10 +308,11 @@ export default function App() {
 
   const handleLogout = async () => {
     dataLoaded.current = false;
+    setDemoMode(false);
     await supabase.auth.signOut();
-    setTransactions(SEED_TX); setInvestments(SEED_INV); setHealthAssets(SEED_HEALTH);
-    setBudgets(SEED_BUDGETS); setGoals(SEED_GOALS); setSavings(SEED_CASH);
-    setListings(SEED_LISTINGS); setSoldHistory(SEED_SOLD);
+    setTransactions([]); setInvestments([]); setHealthAssets([]);
+    setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]);
+    setListings([]); setSoldHistory([]);
   };
 
   // ── Prix en temps réel ────────────────────────────────────────────────────
@@ -583,8 +590,13 @@ export default function App() {
           <div style={{ fontSize: 36, animation: "pulse 1.5s infinite" }}>◈</div>
           <div style={{ fontSize: 14, color: "#4b5563" }}>Chargement…</div>
         </div>
-      ) : !user ? (
-        <AuthScreen />
+      ) : !user && !demoMode ? (
+        <AuthScreen onDemo={() => {
+          setTransactions(SEED_TX); setInvestments(SEED_INV); setHealthAssets(SEED_HEALTH);
+          setBudgets(SEED_BUDGETS); setGoals(SEED_GOALS); setSavings(SEED_CASH);
+          setListings(SEED_LISTINGS); setSoldHistory(SEED_SOLD);
+          setDemoMode(true);
+        }} />
       ) : (<>
 
       {/* Header */}
@@ -604,11 +616,23 @@ export default function App() {
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {alerts.length > 0 && <div style={{ background: "rgba(251,146,60,.15)", color: "#fb923c", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 600 }}>⚠ {alerts.length} alerte{alerts.length > 1 ? "s" : ""}</div>}
-            <div style={{ fontSize: 11, color: "#4b5563", textAlign: "right" }}>
-              <div>{new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</div>
-              <div style={{ color: "#374151", fontSize: 10 }}>{user?.email}</div>
-            </div>
-            <button onClick={handleLogout} style={{ ...btnS, fontSize: 11, padding: "5px 12px" }}>⎋ Déco</button>
+            {demoMode ? (
+              <>
+                <span style={{ fontSize: 10, background: "rgba(251,146,60,.15)", color: "#fb923c", padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>MODE DÉMO</span>
+                <button onClick={() => { setDemoMode(false); setTransactions([]); setInvestments([]); setHealthAssets([]); setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]); setListings([]); setSoldHistory([]); }}
+                  style={{ ...btnS, fontSize: 11, padding: "5px 12px", background: "linear-gradient(135deg,#10b981,#059669)", color: "#fff" }}>
+                  Se connecter →
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 11, color: "#4b5563", textAlign: "right" }}>
+                  <div>{new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</div>
+                  <div style={{ color: "#374151", fontSize: 10 }}>{user?.email}</div>
+                </div>
+                <button onClick={handleLogout} style={{ ...btnS, fontSize: 11, padding: "5px 12px" }}>⎋ Déco</button>
+              </>
+            )}
           </div>
         </div>
       </div>
