@@ -35,9 +35,7 @@ const LISTING_PLATFORMS = ["Vinted","eBay","LeBonCoin","Binance","Bourse Direct"
 const LISTING_CAT_COLORS = { "Objet physique":"#fb923c", "Crypto":"#f59e0b", "Action":"#10b981", "ETF":"#60a5fa" };
 const LISTING_PLATFORM_ICONS = { "Vinted":"👗", "eBay":"🛍️", "LeBonCoin":"📦", "Binance":"🪙", "Bourse Direct":"📈", "Autre":"🏷️" };
 
-// ── Persist ───────────────────────────────────────────────────────────────────
-const load = (key, def) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } };
-const save = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+
 
 // ── Default seeds ─────────────────────────────────────────────────────────────
 const SEED_TX = [
