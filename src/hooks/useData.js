@@ -1,0 +1,330 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '../supabaseClient';
+import {
+  uid, today, MONTHS, INV_COLORS, CAT_COLORS,
+  SEED_TX, SEED_INV, SEED_HEALTH, SEED_BUDGETS, SEED_GOALS, SEED_CASH, SEED_LISTINGS,
+  calcScore, fEur,
+} from '../utils/constants';
+
+const API_BASE = process.env.REACT_APP_API_URL || '';
+
+const mkTx = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false });
+const mkInv = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
+const mkHealth = () => ({ name: '', category: 'Voiture', buyPrice: '', currentValue: '', date: today(), notes: '' });
+const mkPos = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '' });
+const mkGoal = () => ({ name: '', target: '', deadline: '', color: '#10b981' });
+const mkCash = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
+const mkListing = () => ({ name: '', category: 'Objet physique', platform: 'eBay', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '' });
+
+export function useData() {
+  // ── Raw state ──────────────────────────────────────────────────────────────
+  const [transactions, setTransactions] = useState([]);
+  const [investments, setInvestments] = useState([]);
+  const [healthAssets, setHealthAssets] = useState([]);
+  const [budgets, setBudgets] = useState(SEED_BUDGETS);
+  const [goals, setGoals] = useState([]);
+  const [savings, setSavings] = useState([]);
+  const [listings, setListings] = useState([]);
+  const [soldHistory, setSoldHistory] = useState([]);
+  const [projYears, setProjYears] = useState(10);
+  const [projRate, setProjRate] = useState(7);
+  const [projMonthly, setProjMonthly] = useState(500);
+
+  // ── Modal / form state ──────────────────────────────────────────────────────
+  const [modal, setModal] = useState(null);
+  const [editItem, setEditItem] = useState(null);
+  const [drillInv, setDrillInv] = useState(null);
+  const [txForm, setTxForm] = useState(mkTx);
+  const [invForm, setInvForm] = useState(mkInv);
+  const [healthForm, setHealthForm] = useState(mkHealth);
+  const [posForm, setPosForm] = useState(mkPos);
+  const [goalForm, setGoalForm] = useState(mkGoal);
+  const [cashForm, setCashForm] = useState(mkCash);
+  const [listingForm, setListingForm] = useState(mkListing);
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
+  const dataLoaded = useRef(false);
+  const saveTimer = useRef(null);
+  const userRef = useRef(null);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  const loadUserData = useCallback(async (userId) => {
+    try {
+      const { data } = await supabase.from('user_data').select('*').eq('user_id', userId).single();
+      if (data) {
+        if (data.transactions?.length) setTransactions(data.transactions);
+        if (data.investments?.length) setInvestments(data.investments);
+        if (data.health_assets?.length) setHealthAssets(data.health_assets);
+        if (data.budgets && Object.keys(data.budgets).length) setBudgets(data.budgets);
+        if (data.goals?.length) setGoals(data.goals);
+        if (data.savings?.length) setSavings(data.savings);
+        if (data.listings?.length) setListings(data.listings);
+        if (data.sold_history?.length) setSoldHistory(data.sold_history);
+        if (data.proj_years) setProjYears(data.proj_years);
+        if (data.proj_rate) setProjRate(data.proj_rate);
+        if (data.proj_monthly !== undefined) setProjMonthly(data.proj_monthly);
+      }
+    } catch {}
+    dataLoaded.current = true;
+    setAuthLoading(false);
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) loadUserData(u.id);
+      else setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) { setDemoMode(false); dataLoaded.current = false; loadUserData(u.id); }
+      else { dataLoaded.current = false; setAuthLoading(false); }
+    });
+    return () => subscription.unsubscribe();
+  }, [loadUserData]);
+
+  useEffect(() => {
+    if (!userRef.current || !dataLoaded.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      await supabase.from('user_data').upsert({
+        user_id: userRef.current.id,
+        transactions, investments, health_assets: healthAssets,
+        budgets, goals, savings, listings, sold_history: soldHistory,
+        proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
+        updated_at: new Date().toISOString(),
+      });
+    }, 1500);
+  }, [transactions, investments, healthAssets, budgets, goals, savings, listings, soldHistory, projYears, projRate, projMonthly]);
+
+  const handleLogout = async () => {
+    dataLoaded.current = false;
+    setDemoMode(false);
+    await supabase.auth.signOut();
+    setTransactions([]); setInvestments([]); setHealthAssets([]);
+    setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]);
+    setListings([]); setSoldHistory([]);
+  };
+
+  const activateDemo = () => {
+    setTransactions(SEED_TX); setInvestments(SEED_INV); setHealthAssets(SEED_HEALTH);
+    setBudgets(SEED_BUDGETS); setGoals(SEED_GOALS); setSavings(SEED_CASH);
+    setListings(SEED_LISTINGS); setSoldHistory([]);
+    setDemoMode(true);
+  };
+
+  // ── Prices ────────────────────────────────────────────────────────────────
+  const [prices, setPrices] = useState({});
+  const [priceStatus, setPriceStatus] = useState('idle');
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const invRef = useRef(investments);
+  useEffect(() => { invRef.current = investments; }, [investments]);
+
+  const fetchPrices = useCallback(async () => {
+    const tickers = [...new Set(invRef.current.flatMap(inv => (inv.positions || []).map(p => p.ticker).filter(Boolean)))];
+    if (!tickers.length) return;
+    setPriceStatus('loading');
+    try {
+      const res = await fetch(`${API_BASE}/api/prices?tickers=${tickers.join(',')}`);
+      if (!res.ok) throw new Error('server');
+      const data = await res.json();
+      setPrices(data); setLastUpdated(new Date()); setPriceStatus('ok');
+    } catch { setPriceStatus('error'); }
+  }, []);
+
+  useEffect(() => {
+    fetchPrices();
+    const id = setInterval(fetchPrices, 60000);
+    return () => clearInterval(id);
+  }, [fetchPrices]);
+
+  const fetchTickerPrice = useCallback(async (ticker) => {
+    if (!ticker) return;
+    setFetchingPrice(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/price/${ticker}`);
+      const data = await res.json();
+      if (data.price != null) setPosForm(p => ({ ...p, currentPrice: String(Math.round(data.price * 100) / 100) }));
+    } catch {}
+    setFetchingPrice(false);
+  }, []);
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+  const invLiveValue = inv => {
+    if (!inv.positions?.length) return inv.value;
+    const v = inv.positions.reduce((s, p) => s + p.shares * (prices[p.ticker] ?? p.currentPrice), 0);
+    return v > 0 ? Math.round(v) : inv.value;
+  };
+
+  const invTotal = investments.reduce((s, inv) => s + invLiveValue(inv), 0);
+  const invInvested = investments.reduce((s, i) => s + i.invested, 0);
+  const healthTotal = healthAssets.reduce((s, h) => s + h.currentValue, 0);
+  const healthCost = healthAssets.reduce((s, h) => s + h.buyPrice, 0);
+  const cashTotal = savings.reduce((s, c) => s + c.balance, 0);
+  const annualInterests = savings.reduce((s, c) => s + c.balance * (c.rate / 100), 0);
+  const avgRate = cashTotal > 0 ? (annualInterests / cashTotal) * 100 : 0;
+  const listingsBuyTotal = listings.reduce((s, l) => s + l.buyPrice, 0);
+  const listingsSellTotal = listings.reduce((s, l) => s + l.sellPrice, 0);
+  const listingsExpectedProfit = listings.reduce((s, l) => s + (l.sellPrice - l.buyPrice - (l.fees || 0)), 0);
+  const soldProfit = soldHistory.reduce((s, x) => s + x.profit, 0);
+  const patrimoine = invTotal + cashTotal + healthTotal;
+  const pnlTotal = (invTotal - invInvested) + (healthTotal - healthCost);
+
+  const now = new Date();
+  const cm = now.getMonth(), cy = now.getFullYear();
+  const monthTx = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === cm && d.getFullYear() === cy; });
+  const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const expense = Math.abs(monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+  const balance = income - expense;
+  const savingsRate = income > 0 ? (balance / income) * 100 : 0;
+
+  const budgetProgress = {};
+  Object.keys(budgets).forEach(cat => {
+    const spent = Math.abs(monthTx.filter(t => t.category === cat && t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+    budgetProgress[cat] = { spent, limit: budgets[cat], pct: budgets[cat] > 0 ? (spent / budgets[cat]) * 100 : 0 };
+  });
+
+  const monthlyData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(cy, cm - 5 + i, 1);
+    const m = d.getMonth(), y = d.getFullYear();
+    const txs = transactions.filter(t => { const td = new Date(t.date); return td.getMonth() === m && td.getFullYear() === y; });
+    const inc = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const exp = Math.abs(txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+    return { month: MONTHS[m], Revenus: inc, Dépenses: exp, Épargne: Math.max(0, inc - exp) };
+  });
+
+  const catMap = {};
+  monthTx.filter(t => t.type === 'expense').forEach(t => { catMap[t.category] = (catMap[t.category] || 0) + Math.abs(t.amount); });
+  const catData = Object.entries(catMap).map(([name, value]) => ({ name, value, color: CAT_COLORS[name] || '#94a3b8' }));
+
+  const projData = Array.from({ length: projYears + 1 }, (_, i) => {
+    const r = projRate / 100;
+    const future = patrimoine * Math.pow(1 + r, i) + (r > 0 ? projMonthly * 12 * (Math.pow(1 + r, i) - 1) / r : projMonthly * 12 * i);
+    return { year: `+${i}a`, Projection: Math.round(future), Base: Math.round(patrimoine + projMonthly * 12 * i) };
+  });
+
+  const diversif = [...new Set(investments.map(i => i.category))].length;
+  const score = calcScore(savingsRate, diversif, 0);
+
+  const alerts = [];
+  Object.entries(budgetProgress).forEach(([cat, { pct, spent, limit }]) => {
+    if (pct >= 90) alerts.push({ msg: `Budget ${cat} : ${Math.round(pct)}% utilisé (${fEur(spent)} / ${fEur(limit)})` });
+  });
+
+  // ── CRUD ──────────────────────────────────────────────────────────────────
+  const saveTx = () => {
+    if (!txForm.date || !txForm.label || !txForm.amount) return;
+    const amt = parseFloat(txForm.amount);
+    const item = { ...txForm, id: editItem?.id || uid(), amount: txForm.type === 'expense' ? -Math.abs(amt) : Math.abs(amt) };
+    setTransactions(p => editItem ? p.map(t => t.id === editItem.id ? item : t) : [item, ...p]);
+    setTxForm(mkTx()); setEditItem(null); setModal(null);
+  };
+  const delTx = id => setTransactions(p => p.filter(t => t.id !== id));
+  const openEditTx = t => { setEditItem(t); setTxForm({ ...t, amount: Math.abs(t.amount) }); setModal('tx'); };
+
+  const saveInv = () => {
+    if (!invForm.name || !invForm.value || !invForm.invested) return;
+    const idx = investments.findIndex(i => i.id === editItem?.id);
+    const item = { ...invForm, id: editItem?.id || uid(), value: parseFloat(invForm.value), invested: parseFloat(invForm.invested), color: editItem?.color || INV_COLORS[investments.length % INV_COLORS.length], positions: editItem?.positions || [] };
+    setInvestments(p => idx >= 0 ? p.map((x, i) => i === idx ? item : x) : [...p, item]);
+    setInvForm(mkInv()); setEditItem(null); setModal(null);
+  };
+  const delInv = id => setInvestments(p => p.filter(i => i.id !== id));
+  const openEditInv = inv => { setEditItem(inv); setInvForm({ name: inv.name, category: inv.category, value: inv.value, invested: inv.invested, notes: inv.notes || '' }); setModal('inv'); };
+
+  const saveHealth = () => {
+    if (!healthForm.name || !healthForm.currentValue || !healthForm.buyPrice) return;
+    const item = { ...healthForm, id: editItem?.id || uid(), buyPrice: parseFloat(healthForm.buyPrice), currentValue: parseFloat(healthForm.currentValue) };
+    setHealthAssets(p => editItem ? p.map(h => h.id === editItem.id ? item : h) : [...p, item]);
+    setHealthForm(mkHealth()); setEditItem(null); setModal(null);
+  };
+  const delHealth = id => setHealthAssets(p => p.filter(h => h.id !== id));
+  const openEditHealth = h => { setEditItem(h); setHealthForm(h); setModal('health'); };
+
+  const savePosition = () => {
+    if (!posForm.ticker || !posForm.shares || !posForm.buyPrice) return;
+    const livePrc = prices[posForm.ticker];
+    const currentPrice = parseFloat(posForm.currentPrice) || livePrc || 0;
+    const pos = { ...posForm, id: editItem?.posId || uid(), shares: parseFloat(posForm.shares), buyPrice: parseFloat(posForm.buyPrice), currentPrice };
+    setInvestments(p => p.map(inv => {
+      if (inv.id !== drillInv?.id) return inv;
+      const positions = editItem?.posId ? inv.positions.map(x => x.id === editItem.posId ? pos : x) : [...(inv.positions || []), pos];
+      const newValue = positions.reduce((s, x) => s + x.shares * x.currentPrice, 0) || inv.value;
+      const newInvested = positions.reduce((s, x) => s + x.shares * x.buyPrice, 0) || inv.invested;
+      return { ...inv, positions, value: Math.round(newValue), invested: Math.round(newInvested) };
+    }));
+    setPosForm(mkPos()); setEditItem(null); setModal('drill');
+  };
+
+  const saveListing = () => {
+    if (!listingForm.name || listingForm.buyPrice === '' || listingForm.sellPrice === '') return;
+    const item = { ...listingForm, id: editItem?.id || uid(), buyPrice: parseFloat(listingForm.buyPrice) || 0, sellPrice: parseFloat(listingForm.sellPrice) || 0, fees: parseFloat(listingForm.fees) || 0 };
+    setListings(p => editItem ? p.map(l => l.id === editItem.id ? item : l) : [...p, item]);
+    setListingForm(mkListing()); setEditItem(null); setModal(null);
+  };
+  const delListing = id => setListings(p => p.filter(l => l.id !== id));
+  const openEditListing = l => { setEditItem(l); setListingForm(l); setModal('listing'); };
+  const markSold = listing => {
+    const profit = listing.sellPrice - listing.buyPrice - (listing.fees || 0);
+    setSoldHistory(p => [{ ...listing, profit, soldDate: today() }, ...p]);
+    setListings(p => p.filter(l => l.id !== listing.id));
+  };
+
+  const saveCash = () => {
+    if (!cashForm.name || cashForm.balance === '') return;
+    const item = { ...cashForm, id: editItem?.id || uid(), balance: parseFloat(cashForm.balance) || 0, rate: parseFloat(cashForm.rate) || 0 };
+    setSavings(p => editItem ? p.map(c => c.id === editItem.id ? item : c) : [...p, item]);
+    setCashForm(mkCash()); setEditItem(null); setModal(null);
+  };
+  const delCash = id => setSavings(p => p.filter(c => c.id !== id));
+  const openEditCash = c => { setEditItem(c); setCashForm(c); setModal('cash'); };
+
+  const saveGoal = () => {
+    if (!goalForm.name || !goalForm.target || !goalForm.deadline) return;
+    const item = { ...goalForm, id: editItem?.id || uid(), target: parseFloat(goalForm.target) };
+    setGoals(p => editItem ? p.map(g => g.id === editItem.id ? item : g) : [...p, item]);
+    setGoalForm(mkGoal()); setEditItem(null); setModal(null);
+  };
+  const delGoal = id => setGoals(p => p.filter(g => g.id !== id));
+
+  const exportCSV = () => {
+    const rows = [['Date', 'Libellé', 'Catégorie', 'Type', 'Montant'], ...transactions.map(t => [t.date, t.label, t.category, t.type, t.amount])];
+    const csv = rows.map(r => r.join(';')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'transactions.csv';
+    a.click();
+  };
+
+  return {
+    user, authLoading, demoMode, handleLogout, activateDemo,
+    transactions, investments, healthAssets, budgets, setBudgets,
+    goals, savings, listings, soldHistory, setSoldHistory,
+    projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly,
+    prices, priceStatus, lastUpdated, fetchPrices, fetchingPrice, fetchTickerPrice,
+    modal, setModal, editItem, setEditItem, drillInv, setDrillInv,
+    txForm, setTxForm, invForm, setInvForm, healthForm, setHealthForm,
+    posForm, setPosForm, goalForm, setGoalForm, cashForm, setCashForm,
+    listingForm, setListingForm,
+    mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing,
+    patrimoine, invTotal, invInvested, cashTotal, healthTotal, healthCost,
+    annualInterests, avgRate,
+    listingsBuyTotal, listingsSellTotal, listingsExpectedProfit, soldProfit,
+    income, expense, balance, savingsRate, pnlTotal,
+    score, alerts, budgetProgress, monthlyData, catData, projData,
+    invLiveValue, setInvestments, exportCSV,
+    saveTx, delTx, openEditTx,
+    saveInv, delInv, openEditInv,
+    saveHealth, delHealth, openEditHealth,
+    savePosition,
+    saveListing, delListing, openEditListing, markSold,
+    saveCash, delCash, openEditCash,
+    saveGoal, delGoal,
+  };
+}
