@@ -1,0 +1,19 @@
+{
+  "appId": "com.cashtrack.app",
+  "appName": "CashTrack",
+  "webDir": "build",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#080e1a",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#080e1a"
+    }
+  }
+}

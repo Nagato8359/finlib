@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CashTrack</string>
+    <string name="title_activity_main">CashTrack</string>
+    <string name="package_name">com.cashtrack.app</string>
+    <string name="custom_url_scheme">com.cashtrack.app</string>
+</resources>
