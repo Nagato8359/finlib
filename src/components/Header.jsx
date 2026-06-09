@@ -14,8 +14,8 @@ export default function Header({ T, darkMode, setDarkMode, tab, setTab, TABS, da
           <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-.03em', color: T.text }}>CashTrack</span>
         </div>
 
-        {/* Desktop nav */}
-        <nav className="top-nav" style={{ display: 'flex', gap: 2 }}>
+        {/* Desktop nav — visibility controlled by .top-nav CSS class, no inline display */}
+        <nav className="top-nav" style={{ gap: 2 }}>
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ background: tab === t.id ? 'rgba(16,185,129,.12)' : 'transparent', border: 'none', color: tab === t.id ? '#10b981' : T.textMuted, padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: tab === t.id ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s', whiteSpace: 'nowrap' }}>

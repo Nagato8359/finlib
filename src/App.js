@@ -12,11 +12,11 @@ import Investir from './components/Investir';
 import Modals from './components/Modals';
 
 const TABS = [
-  { id: 'accueil', label: 'Accueil', icon: '🏠' },
-  { id: 'patrimoine', label: 'Patrimoine', icon: '◈' },
-  { id: 'budget', label: 'Budget', icon: '📊' },
-  { id: 'flux', label: 'Flux', icon: '↕' },
-  { id: 'investir', label: 'Investir', icon: '🚀' },
+  { id: 'accueil',    label: 'Accueil',    short: 'Accueil',   icon: '🏠' },
+  { id: 'patrimoine', label: 'Patrimoine', short: 'Patrimoine', icon: '◈' },
+  { id: 'budget',     label: 'Budget',     short: 'Budget',    icon: '📊' },
+  { id: 'flux',       label: 'Flux',       short: 'Flux',      icon: '↕' },
+  { id: 'investir',   label: 'Investir',   short: 'Investir',  icon: '🚀' },
 ];
 
 const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted }) => (
@@ -47,13 +47,17 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     .frow-2 { grid-template-columns: 1fr 1fr; }
     .frow-3 { grid-template-columns: 1fr 1fr 1fr; }
     .top-nav { display: flex; }
-    .bot-nav { display: none; }
+    .bot-nav {
+      display: none;
+      align-items: stretch;
+      min-height: 56px;
+    }
     .pill-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .pill-nav::-webkit-scrollbar { display: none; }
     input[type=range] { accent-color: #10b981; cursor: pointer; width: 100%; }
-    @media (max-width: 700px) {
-      .top-nav { display: none; }
-      .bot-nav { display: flex; }
+    @media (max-width: 768px) {
+      .top-nav { display: none !important; }
+      .bot-nav { display: flex !important; }
       .g2 { grid-template-columns: 1fr 1fr; }
       .g3 { grid-template-columns: 1fr 1fr; }
       .g4 { grid-template-columns: 1fr 1fr; }
@@ -113,7 +117,7 @@ export default function App() {
           TABS={TABS}
           data={data}
         />
-        <main style={{ flex: 1, maxWidth: 1200, width: '100%', margin: '0 auto', padding: '24px 20px 100px', boxSizing: 'border-box' }}>
+        <main style={{ flex: 1, maxWidth: 1200, width: '100%', margin: '0 auto', padding: '24px 20px', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>
           {tabContent[tab] || tabContent.accueil}
         </main>
         <Navigation T={T} tab={tab} setTab={setTab} TABS={TABS} />
