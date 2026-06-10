@@ -48,14 +48,23 @@ export const INV_COLORS = ['#10b981', '#f59e0b', '#60a5fa', '#a78bfa', '#34d399'
 
 // ── Portfolio (enveloppes) ────────────────────────────────────────────────────
 export const PORTFOLIO_TYPES = ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Immobilier', 'Épargne salariale', 'Autre'];
-// Maps envelope type OR old category → position form type used by PositionFormModal
-export const PORTFOLIO_FORM_TYPE = {
-  PEA: 'stock', CTO: 'stock', Autre: 'stock',
-  Crypto: 'crypto',
-  Immobilier: 'realestate',
-  'Assurance-vie': 'bond', 'Épargne salariale': 'bond',
-  // Legacy category values (old saveInv system)
-  Actions: 'stock', Obligataire: 'bond', 'Épargne liquide': 'bond', Autres: 'commodity',
+// Returns the position form type ('stock'|'crypto'|'realestate'|'bond'|'commodity')
+// for an investment envelope. Checks BOTH type AND category so old investments work.
+export const getInvFormType = inv => {
+  const t = inv.type  || '';
+  const c = inv.category || '';
+  if (t === 'Crypto'      || c === 'Crypto')      return 'crypto';
+  if (t === 'Immobilier'  || c === 'Immobilier')  return 'realestate';
+  if (t === 'Assurance-vie' || t === 'Épargne salariale' ||
+      c === 'Obligataire'   || c === 'Épargne liquide')  return 'bond';
+  if (c === 'Autres') return 'commodity';
+  return 'stock'; // PEA, CTO, Autre, Actions — and final default
+};
+// Legacy category → correct portfolio type (used when editing old investments)
+export const CAT_TO_PORTFOLIO_TYPE = {
+  'Crypto': 'Crypto', 'Immobilier': 'Immobilier',
+  'Actions': 'CTO', 'Obligataire': 'Assurance-vie',
+  'Épargne liquide': 'Autre', 'Autres': 'Autre',
 };
 export const PORTFOLIO_TYPE_ICON = { PEA: '🏛️', CTO: '📈', 'Assurance-vie': '🛡️', Crypto: '🪙', Immobilier: '🏠', 'Épargne salariale': '💼', Autre: '📦' };
 export const PORTFOLIO_TYPE_COLOR = { PEA: '#10b981', CTO: '#60a5fa', 'Assurance-vie': '#a78bfa', Crypto: '#f59e0b', Immobilier: '#fb923c', 'Épargne salariale': '#34d399', Autre: '#94a3b8' };

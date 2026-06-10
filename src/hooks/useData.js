@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import {
   uid, today, MONTHS, INV_COLORS, CAT_COLORS, CAT_KEYWORDS,
   SEED_TX, SEED_INV, SEED_HEALTH, SEED_BUDGETS, SEED_GOALS, SEED_CASH, SEED_LISTINGS,
-  calcScore, fEur, PORTFOLIO_TYPE_COLOR,
+  calcScore, fEur, PORTFOLIO_TYPE_COLOR, CAT_TO_PORTFOLIO_TYPE,
 } from '../utils/constants';
 import { notify } from '../utils/notifications';
 
@@ -541,6 +541,7 @@ export function useData() {
     if (!portfolioForm.name) return;
     const color = editItem?.color || PORTFOLIO_TYPE_COLOR[portfolioForm.type] || INV_COLORS[investments.length % INV_COLORS.length];
     const item = {
+      ...(editItem?.category ? { category: editItem.category } : {}),
       ...portfolioForm,
       id: editItem?.id || uid(),
       color,
@@ -557,7 +558,7 @@ export function useData() {
   const openEditPortfolio = inv => {
     setEditItem(inv);
     setPortfolioForm({
-      name: inv.name, type: inv.type || 'Autre',
+      name: inv.name, type: inv.type || CAT_TO_PORTFOLIO_TYPE[inv.category] || 'Autre',
       courtier: inv.courtier || '', openDate: inv.openDate || '', devise: inv.devise || 'EUR',
       assureur: inv.assureur || '', avType: inv.avType || 'Fonds euros',
       platform: inv.platform || '', walletType: inv.walletType || 'CEX',

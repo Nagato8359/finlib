@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, PORTFOLIO_FORM_TYPE } from '../utils/constants';
+import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType } from '../utils/constants';
 
 const SECTIONS = [
   { id: 'invest', label: '◈ Investissements' },
@@ -72,7 +72,7 @@ export default function Patrimoine({ T, data }) {
   );
 
   // ── Investissements ────────────────────────────────────────────────────────
-  const invFormType = inv => PORTFOLIO_FORM_TYPE[inv.type] ?? PORTFOLIO_FORM_TYPE[inv.category] ?? 'stock';
+  const invFormType = getInvFormType;
 
   const renderInvest = () => {
     // ── Vue détail (drill-down) ───────────────────────────────────────────────

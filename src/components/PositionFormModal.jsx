@@ -1,19 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { makeS, fEur, today, uid, PORTFOLIO_IMMO_TYPES } from '../utils/constants';
+import { makeS, fEur, today, uid, PORTFOLIO_IMMO_TYPES, getInvFormType } from '../utils/constants';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const FORM_TYPES = {
-  PEA: 'stock', CTO: 'stock',
-  Crypto: 'crypto',
-  Immobilier: 'realestate',
-  'Assurance-vie': 'bond',
-  'Épargne salariale': 'bond',
-  // Old category fallbacks (investments without a 'type' field)
-  Actions: 'stock',
-  Obligataire: 'bond',
-  'Épargne liquide': 'bond',
-  Autres: 'commodity',
-};
 const META = {
   stock:      { icon: '📈', label: 'Action / ETF',        color: '#10b981', grad: 'linear-gradient(135deg,#052e16,#065f46)' },
   crypto:     { icon: '🪙', label: 'Cryptomonnaie',       color: '#f59e0b', grad: 'linear-gradient(135deg,#451a03,#78350f)' },
@@ -80,7 +68,7 @@ export default function PositionFormModal({ T, data }) {
 
   if (modal !== 'drill' || !drillInv) return null;
 
-  const formType = posForm.posType || (FORM_TYPES[drillInv.type] ?? FORM_TYPES[drillInv.category] ?? 'stock');
+  const formType = posForm.posType || getInvFormType(drillInv);
   const meta = META[formType];
   const mark = (...fields) => setAutoFilled(prev => new Set([...prev, ...fields]));
   const isAuto = f => autoFilled.has(f);
