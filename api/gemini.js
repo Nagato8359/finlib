@@ -43,16 +43,19 @@ module.exports = async function handler(req, res) {
         }),
       });
     } catch (err) {
+      console.error(`[gemini] fetch error (${model}):`, err.message);
       lastError = err.message;
       continue;
     }
     data = await apiRes.json().catch(() => ({}));
     if (apiRes.ok) break;
+    console.error(`[gemini] ${model} → HTTP ${apiRes.status}`, JSON.stringify(data));
     lastError = data.error?.message || `Erreur OpenRouter ${apiRes.status} (${model})`;
     apiRes = null;
   }
 
   if (!apiRes?.ok) {
+    console.error('[gemini] tous les modèles ont échoué. Dernière erreur :', lastError);
     return res.status(502).json({ error: lastError });
   }
 
