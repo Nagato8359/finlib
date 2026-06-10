@@ -11,6 +11,7 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  try {
   console.log('OPENROUTER_API_KEY present:', !!process.env.OPENROUTER_API_KEY);
   console.log('OPENROUTER_API_KEY prefix:', process.env.OPENROUTER_API_KEY?.substring(0, 10));
 
@@ -68,4 +69,9 @@ module.exports = async function handler(req, res) {
   return res.status(200).json({
     candidates: [{ content: { parts: [{ text }] } }],
   });
+
+  } catch (err) {
+    console.error('[gemini] exception non gérée:', err.message, err.stack);
+    return res.status(500).json({ error: `Erreur serveur : ${err.message}` });
+  }
 };
