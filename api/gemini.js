@@ -20,32 +20,40 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY non configurée' });
 
-  const body = {
-    model: 'google/gemini-2.0-flash-exp:free',
-    messages: toMessages(contents),
-    temperature: generationConfig?.temperature ?? 0.7,
-    max_tokens: generationConfig?.maxOutputTokens ?? 2048,
+  const models = ['google/gemini-flash-1.5-8b:free', 'meta-llama/llama-3.1-8b-instruct:free'];
+  const messages = toMessages(contents);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`,
+    'HTTP-Referer': 'https://finlib-six.vercel.app',
+    'X-Title': 'Capitaly',
   };
 
-  let apiRes;
-  try {
-    apiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://finlib-six.vercel.app',
-        'X-Title': 'Capitaly',
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    return res.status(502).json({ error: err.message });
+  let apiRes, data, lastError;
+  for (const model of models) {
+    try {
+      apiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: generationConfig?.temperature ?? 0.7,
+          max_tokens: generationConfig?.maxOutputTokens ?? 2048,
+        }),
+      });
+    } catch (err) {
+      lastError = err.message;
+      continue;
+    }
+    data = await apiRes.json().catch(() => ({}));
+    if (apiRes.ok) break;
+    lastError = data.error?.message || `Erreur OpenRouter ${apiRes.status} (${model})`;
+    apiRes = null;
   }
 
-  const data = await apiRes.json().catch(() => ({}));
-  if (!apiRes.ok) {
-    return res.status(apiRes.status).json({ error: data.error?.message || `Erreur OpenRouter (${apiRes.status})` });
+  if (!apiRes?.ok) {
+    return res.status(502).json({ error: lastError });
   }
 
   // Re-shape to Gemini response format so the frontend needs no changes
