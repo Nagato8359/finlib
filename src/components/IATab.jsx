@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 
 const KEY = process.env.REACT_APP_GEMINI_API_KEY;
-const MODELS = ['gemini-2.0-flash', 'gemini-pro'];
+const MODELS = ['gemini-2.0-flash-exp', 'gemini-1.5-pro-latest'];
 
 function geminiUrl(model) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${KEY}`;
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 }
 
 async function callGemini(contents) {
@@ -12,7 +12,10 @@ async function callGemini(contents) {
   for (const model of MODELS) {
     const res = await fetch(geminiUrl(model), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + KEY,
+      },
       body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } }),
     });
     if (res.ok) {
