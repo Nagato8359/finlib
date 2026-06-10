@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 
 export default function Header({ T, darkMode, setDarkMode, tab, setTab, TABS, data }) {
-  const { user, demoMode, handleLogout, alerts } = data;
+  const { user, demoMode, handleLogout } = data;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -22,14 +22,8 @@ export default function Header({ T, darkMode, setDarkMode, tab, setTab, TABS, da
     <header className="hdr" style={{ borderBottom: `1px solid ${T.cardBorder}`, position: 'sticky', top: 0, background: T.bg, zIndex: 50, transition: 'background .2s', paddingTop: 'env(safe-area-inset-top)' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr 48px', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
-        {/* Left — alerts badge (desktop) or empty */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          {alerts.length > 0 && (
-            <div style={{ background: 'rgba(251,146,60,.12)', color: '#fb923c', borderRadius: 20, padding: '3px 8px', fontSize: 11, fontWeight: 600 }}>
-              ⚠ {alerts.length}
-            </div>
-          )}
-        </div>
+        {/* Left — empty placeholder for grid balance */}
+        <div />
 
         {/* Center — title + desktop nav */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
