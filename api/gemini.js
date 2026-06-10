@@ -1,4 +1,10 @@
-const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro-latest'];
+// Converts Gemini-format contents to OpenAI-compatible messages for OpenRouter
+function toMessages(contents) {
+  return contents.map(({ role, parts }) => ({
+    role: role === 'model' ? 'assistant' : role,
+    content: parts.map(p => p.text).join(''),
+  }));
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,32 +17,40 @@ module.exports = async function handler(req, res) {
   const { contents, generationConfig } = req.body || {};
   if (!contents) return res.status(400).json({ error: 'Missing contents' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY non configurée' });
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY non configurée' });
 
-  let lastError;
-  for (const model of MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    let apiRes;
-    try {
-      apiRes = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents, generationConfig }),
-      });
-    } catch (err) {
-      lastError = err.message;
-      continue;
-    }
+  const body = {
+    model: 'google/gemini-2.0-flash-exp:free',
+    messages: toMessages(contents),
+    temperature: generationConfig?.temperature ?? 0.7,
+    max_tokens: generationConfig?.maxOutputTokens ?? 2048,
+  };
 
-    if (apiRes.ok) {
-      const data = await apiRes.json();
-      return res.status(200).json(data);
-    }
-
-    const errBody = await apiRes.json().catch(() => ({}));
-    lastError = errBody.error?.message || `Erreur Gemini ${apiRes.status} (${model})`;
+  let apiRes;
+  try {
+    apiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://finlib-six.vercel.app',
+        'X-Title': 'Capitaly',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    return res.status(502).json({ error: err.message });
   }
 
-  return res.status(502).json({ error: lastError });
+  const data = await apiRes.json().catch(() => ({}));
+  if (!apiRes.ok) {
+    return res.status(apiRes.status).json({ error: data.error?.message || `Erreur OpenRouter (${apiRes.status})` });
+  }
+
+  // Re-shape to Gemini response format so the frontend needs no changes
+  const text = data.choices?.[0]?.message?.content ?? '';
+  return res.status(200).json({
+    candidates: [{ content: { parts: [{ text }] } }],
+  });
 };
