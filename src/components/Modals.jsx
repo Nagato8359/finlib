@@ -172,7 +172,7 @@ export default function Modals({ T, data }) {
           <FField style={f} label="Nom de l'enveloppe"><input type="text" placeholder="Ex : PEA Boursobank, Crypto Binance…" style={S.inp} value={portfolioForm.name} onChange={e => setPortfolioForm(p => ({ ...p, name: e.target.value }))} /></FField>
           <FField style={f} label="Type">
             <select style={S.inp} value={portfolioForm.type} onChange={e => setPortfolioForm(p => ({ ...p, type: e.target.value }))}>
-              {PORTFOLIO_TYPES.map(t => <option key={t}>{PORTFOLIO_TYPE_ICON[t]} {t}</option>)}
+              {PORTFOLIO_TYPES.map(t => <option key={t} value={t}>{PORTFOLIO_TYPE_ICON[t]} {t}</option>)}
             </select>
           </FField>
         </FRow>

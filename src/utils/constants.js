@@ -48,17 +48,20 @@ export const INV_COLORS = ['#10b981', '#f59e0b', '#60a5fa', '#a78bfa', '#34d399'
 
 // ── Portfolio (enveloppes) ────────────────────────────────────────────────────
 export const PORTFOLIO_TYPES = ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Immobilier', 'Épargne salariale', 'Autre'];
+// Strip emoji prefix that may be stored in type field due to missing value= on <option>
+const stripEmoji = s => s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '').trim();
+
 // Returns the position form type ('stock'|'crypto'|'realestate'|'bond'|'commodity')
-// for an investment envelope. Checks BOTH type AND category so old investments work.
+// Strips emojis first to handle data stored as "🪙 Crypto" instead of "Crypto"
 export const getInvFormType = inv => {
-  const t = inv.type  || '';
-  const c = inv.category || '';
-  if (t === 'Crypto'      || c === 'Crypto')      return 'crypto';
-  if (t === 'Immobilier'  || c === 'Immobilier')  return 'realestate';
+  const t = stripEmoji(inv.type     || '');
+  const c = stripEmoji(inv.category || '');
+  if (t === 'Crypto'        || c === 'Crypto')        return 'crypto';
+  if (t === 'Immobilier'    || c === 'Immobilier')    return 'realestate';
   if (t === 'Assurance-vie' || t === 'Épargne salariale' ||
-      c === 'Obligataire'   || c === 'Épargne liquide')  return 'bond';
+      c === 'Obligataire'   || c === 'Épargne liquide')   return 'bond';
   if (c === 'Autres') return 'commodity';
-  return 'stock'; // PEA, CTO, Autre, Actions — and final default
+  return 'stock';
 };
 // Legacy category → correct portfolio type (used when editing old investments)
 export const CAT_TO_PORTFOLIO_TYPE = {
