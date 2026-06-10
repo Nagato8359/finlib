@@ -7,9 +7,10 @@ const META = {
   crypto:     { icon: '🪙', label: 'Cryptomonnaie',       color: '#f59e0b', grad: 'linear-gradient(135deg,#451a03,#78350f)' },
   realestate: { icon: '🏠', label: 'Bien immobilier',     color: '#fb923c', grad: 'linear-gradient(135deg,#431407,#9a3412)' },
   bond:       { icon: '🛡️', label: 'Fonds / Obligations', color: '#a78bfa', grad: 'linear-gradient(135deg,#2e1065,#4c1d95)' },
-  commodity:  { icon: '🥇', label: 'Matière première',    color: '#facc15', grad: 'linear-gradient(135deg,#422006,#854d0e)' },
+  commodity:  { icon: '🥇', label: 'Matière première',    color: '#EAB308', grad: 'linear-gradient(135deg,#422006,#854d0e)' },
+  other:      { icon: '📦', label: 'Actif divers',         color: '#94a3b8', grad: 'linear-gradient(135deg,#0f172a,#1e293b)' },
 };
-const COMMODITY_TYPES = ['Or', 'Argent', 'Platine', 'Palladium', 'Cuivre', 'Autre'];
+const COMMODITY_TYPES = ['Or', 'Argent', 'Platine', 'Palladium', 'Pétrole', 'Cuivre', 'Autre'];
 const COMMODITY_UNITS = ['grammes', 'onces troy', 'kilogrammes'];
 const CRYPTO_PLATFORMS = ['Binance', 'Coinbase', 'Kraken', 'Bybit', 'Ledger (HW)', 'Trezor (HW)', 'MetaMask', 'Autre'];
 const AV_INSURERS = ['AXA', 'Generali', 'Spirica', 'Apicil', 'Suravenir', 'Predica (CA)', 'Autre'];
@@ -528,17 +529,50 @@ export default function PositionFormModal({ T, data }) {
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
                 </FF>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
                 <FF label="Prix actuel unitaire (€)">
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
                 <FF label="Lieu de stockage">
                   <input type="text" placeholder="Coffre bancaire, Domicile…" style={inp} value={posForm.storageLocation || ''} onChange={e => setPosForm(p => ({ ...p, storageLocation: e.target.value }))} />
                 </FF>
+                <FF label="Date d'achat">
+                  <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                </FF>
               </div>
               <div style={{ marginBottom: 14 }}>
                 <FF label="Notes">
                   <input type="text" placeholder="Lingot certifié, pièces millésime…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
+                </FF>
+              </div>
+            </>
+          )}
+
+          {/* ══ OTHER ════════════════════════════════════════════════════════════ */}
+          {formType === 'other' && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <FF label="Nom de l'actif" span={2}>
+                  <input type="text" placeholder="Ex : NFT, Option, Billet de collection…" style={{ ...inp }} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} />
+                </FF>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
+                <FF label="Quantité">
+                  <input type="number" placeholder="1" min="0" step="any" style={inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} />
+                </FF>
+                <FF label="Prix d'achat unitaire (€)">
+                  <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
+                </FF>
+                <FF label="Prix actuel unitaire (€)">
+                  <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
+                </FF>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <FF label="Date d'achat">
+                  <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                </FF>
+                <FF label="Notes">
+                  <input type="text" placeholder="Remarques…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
                 </FF>
               </div>
             </>

@@ -47,7 +47,7 @@ export const INV_CATS = ['Actions', 'Crypto', 'Obligataire', 'Immobilier', 'Épa
 export const INV_COLORS = ['#10b981', '#f59e0b', '#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fb923c', '#facc15'];
 
 // ── Portfolio (enveloppes) ────────────────────────────────────────────────────
-export const PORTFOLIO_TYPES = ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Immobilier', 'Épargne salariale', 'Autre'];
+export const PORTFOLIO_TYPES = ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Immobilier', 'Épargne salariale', 'Matières premières', 'Autre'];
 // Strip emoji prefix that may be stored in type field due to missing value= on <option>
 const stripEmoji = s => s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '').trim();
 
@@ -56,11 +56,12 @@ const stripEmoji = s => s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, ''
 export const getInvFormType = inv => {
   const t = stripEmoji(inv.type     || '');
   const c = stripEmoji(inv.category || '');
-  if (t === 'Crypto'        || c === 'Crypto')        return 'crypto';
-  if (t === 'Immobilier'    || c === 'Immobilier')    return 'realestate';
-  if (t === 'Assurance-vie' || t === 'Épargne salariale' ||
-      c === 'Obligataire'   || c === 'Épargne liquide')   return 'bond';
-  if (c === 'Autres') return 'commodity';
+  if (t === 'Crypto'           || c === 'Crypto')           return 'crypto';
+  if (t === 'Immobilier'       || c === 'Immobilier')       return 'realestate';
+  if (t === 'Assurance-vie'    || t === 'Épargne salariale' ||
+      c === 'Obligataire'      || c === 'Épargne liquide')  return 'bond';
+  if (t === 'Matières premières' || c === 'Matières premières' || c === 'Autres') return 'commodity';
+  if (t === 'Autre') return 'other';
   return 'stock';
 };
 // Legacy category → correct portfolio type (used when editing old investments)
@@ -69,8 +70,8 @@ export const CAT_TO_PORTFOLIO_TYPE = {
   'Actions': 'CTO', 'Obligataire': 'Assurance-vie',
   'Épargne liquide': 'Autre', 'Autres': 'Autre',
 };
-export const PORTFOLIO_TYPE_ICON = { PEA: '🏛️', CTO: '📈', 'Assurance-vie': '🛡️', Crypto: '🪙', Immobilier: '🏠', 'Épargne salariale': '💼', Autre: '📦' };
-export const PORTFOLIO_TYPE_COLOR = { PEA: '#10b981', CTO: '#60a5fa', 'Assurance-vie': '#a78bfa', Crypto: '#f59e0b', Immobilier: '#fb923c', 'Épargne salariale': '#34d399', Autre: '#94a3b8' };
+export const PORTFOLIO_TYPE_ICON = { PEA: '🏛️', CTO: '📈', 'Assurance-vie': '🛡️', Crypto: '🪙', Immobilier: '🏠', 'Épargne salariale': '💼', 'Matières premières': '🥇', Autre: '📦' };
+export const PORTFOLIO_TYPE_COLOR = { PEA: '#10b981', CTO: '#60a5fa', 'Assurance-vie': '#a78bfa', Crypto: '#f59e0b', Immobilier: '#fb923c', 'Épargne salariale': '#34d399', 'Matières premières': '#EAB308', Autre: '#94a3b8' };
 export const PORTFOLIO_BROKERS_PEA = ['Boursobank', 'Bourse Direct', 'Fortuneo', 'Saxo', 'BNP Paribas', 'Société Générale', 'Crédit Agricole', 'Autre'];
 export const PORTFOLIO_BROKERS_CTO = ['Boursobank', 'Bourse Direct', 'DEGIRO', 'Trade Republic', 'Interactive Brokers', 'Saxo', 'eToro', 'Autre'];
 export const PORTFOLIO_AV_TYPES = ['Fonds euros', 'Unités de compte', 'Mixte'];
