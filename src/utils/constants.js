@@ -48,6 +48,15 @@ export const INV_COLORS = ['#10b981', '#f59e0b', '#60a5fa', '#a78bfa', '#34d399'
 
 // ── Portfolio (enveloppes) ────────────────────────────────────────────────────
 export const PORTFOLIO_TYPES = ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Immobilier', 'Épargne salariale', 'Autre'];
+// Maps envelope type OR old category → position form type used by PositionFormModal
+export const PORTFOLIO_FORM_TYPE = {
+  PEA: 'stock', CTO: 'stock', Autre: 'stock',
+  Crypto: 'crypto',
+  Immobilier: 'realestate',
+  'Assurance-vie': 'bond', 'Épargne salariale': 'bond',
+  // Legacy category values (old saveInv system)
+  Actions: 'stock', Obligataire: 'bond', 'Épargne liquide': 'bond', Autres: 'commodity',
+};
 export const PORTFOLIO_TYPE_ICON = { PEA: '🏛️', CTO: '📈', 'Assurance-vie': '🛡️', Crypto: '🪙', Immobilier: '🏠', 'Épargne salariale': '💼', Autre: '📦' };
 export const PORTFOLIO_TYPE_COLOR = { PEA: '#10b981', CTO: '#60a5fa', 'Assurance-vie': '#a78bfa', Crypto: '#f59e0b', Immobilier: '#fb923c', 'Épargne salariale': '#34d399', Autre: '#94a3b8' };
 export const PORTFOLIO_BROKERS_PEA = ['Boursobank', 'Bourse Direct', 'Fortuneo', 'Saxo', 'BNP Paribas', 'Société Générale', 'Crédit Agricole', 'Autre'];

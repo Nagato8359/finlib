@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR } from '../utils/constants';
+import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, PORTFOLIO_FORM_TYPE } from '../utils/constants';
 
 const SECTIONS = [
   { id: 'invest', label: '◈ Investissements' },
@@ -72,6 +72,8 @@ export default function Patrimoine({ T, data }) {
   );
 
   // ── Investissements ────────────────────────────────────────────────────────
+  const invFormType = inv => PORTFOLIO_FORM_TYPE[inv.type] ?? PORTFOLIO_FORM_TYPE[inv.category] ?? 'stock';
+
   const renderInvest = () => {
     // ── Vue détail (drill-down) ───────────────────────────────────────────────
     if (drillInv) {
@@ -170,7 +172,7 @@ export default function Patrimoine({ T, data }) {
             <div style={{ ...S.card }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Positions ({(cur.positions || []).length})</h3>
-                <button onClick={() => { setPosForm(mkPos()); setModal('drill'); }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>+ Position</button>
+                <button onClick={() => { setPosForm({ ...mkPos(), posType: invFormType(cur) }); setModal('drill'); }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>+ Position</button>
               </div>
               {(cur.positions || []).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: T.textFaint, fontSize: 13 }}>Aucune position — cliquez "+ Position" pour ajouter</div>
@@ -202,7 +204,7 @@ export default function Patrimoine({ T, data }) {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                          <button onClick={() => { setEditItem({ posId: pos.id }); setPosForm({ ticker: pos.ticker, name: pos.name, shares: pos.shares, buyPrice: pos.buyPrice, currentPrice: pos.currentPrice, divYield: pos.divYield ?? '' }); setModal('drill'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
+                          <button onClick={() => { setEditItem({ posId: pos.id }); setPosForm({ ...mkPos(), posType: invFormType(cur), ticker: pos.ticker || '', name: pos.name || '', shares: pos.shares, buyPrice: pos.buyPrice, currentPrice: pos.currentPrice, divYield: pos.divYield ?? '', isin: pos.isin || '', exchange: pos.exchange || '', currency: pos.currency || 'EUR', platform: pos.platform || '', notes: pos.notes || '' }); setModal('drill'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
                           <button onClick={() => setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, positions: inv.positions.filter(x => x.id !== pos.id) }))} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
                         </div>
                       </div>

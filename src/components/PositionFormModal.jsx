@@ -80,7 +80,7 @@ export default function PositionFormModal({ T, data }) {
 
   if (modal !== 'drill' || !drillInv) return null;
 
-  const formType = FORM_TYPES[drillInv.type] ?? FORM_TYPES[drillInv.category] ?? 'stock';
+  const formType = posForm.posType || (FORM_TYPES[drillInv.type] ?? FORM_TYPES[drillInv.category] ?? 'stock');
   const meta = META[formType];
   const mark = (...fields) => setAutoFilled(prev => new Set([...prev, ...fields]));
   const isAuto = f => autoFilled.has(f);
