@@ -336,7 +336,6 @@ export function useData() {
   const avgRate    = cashTotal > 0 ? (annualInterests / cashTotal) * 100 : 0;
   const listingsExpectedProfit = listings.reduce((s, l) => s + (l.sellPrice - l.buyPrice - (l.fees || 0)), 0);
   const soldProfit = soldHistory.reduce((s, x) => s + x.profit, 0);
-  const soldProfitThisYear = soldHistory.filter(x => x.soldDate?.startsWith(String(cy))).reduce((s, x) => s + x.profit, 0);
   const patrimoine = invTotal + cashTotal + healthTotal;
   const pnlTotal   = (invTotal - invInvested) + (healthTotal - healthCost);
 
@@ -348,6 +347,7 @@ export function useData() {
 
   const now = new Date();
   const cm = now.getMonth(), cy = now.getFullYear();
+  const soldProfitThisYear = soldHistory.filter(x => x.soldDate?.startsWith(String(cy))).reduce((s, x) => s + x.profit, 0);
   const monthTx = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === cm && d.getFullYear() === cy; });
   const income  = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expense = Math.abs(monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
@@ -582,7 +582,7 @@ export function useData() {
   const delListing = id => setListings(p => p.filter(l => l.id !== id));
   const openEditListing = l => { setEditItem(l); setListingForm(l); setModal('listing'); };
   const markSold = listing => {
-    const profit = listing.sellPrice - listing.buyPrice - (listing.fees || 0);
+    const profit = (parseFloat(listing.sellPrice) || 0) - (parseFloat(listing.buyPrice) || 0) - (parseFloat(listing.fees) || 0);
     setSoldHistory(p => [{ ...listing, profit, soldDate: today() }, ...p]);
     setListings(p => p.filter(l => l.id !== listing.id));
   };
