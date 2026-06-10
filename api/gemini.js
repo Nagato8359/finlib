@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY non configurée' });
 
-  const models = ['meta-llama/llama-3.1-8b-instruct:free', 'qwen/qwen-2-7b-instruct:free', 'microsoft/phi-3-mini-128k-instruct:free'];
+  const models = ['meta-llama/llama-3.3-70b-instruct:free', 'meta-llama/llama-3.2-3b-instruct:free', 'nousresearch/hermes-3-llama-3.1-405b:free'];
   const messages = toMessages(contents);
   const headers = {
     'Content-Type': 'application/json',
