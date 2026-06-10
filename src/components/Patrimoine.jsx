@@ -27,7 +27,7 @@ export default function Patrimoine({ T, data }) {
     savings, cashTotal, annualInterests, avgRate,
     healthAssets, healthTotal, healthCost,
     listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit,
-    loans, totalLoanDebt, monthlyDebtPayments,
+    loans, totalLoanDebt,
     patrimoine, projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly, projData,
     setModal, setEditItem, setDrillInv,
     openEditInv, delInv, openEditCash, delCash, openEditHealth, delHealth,
