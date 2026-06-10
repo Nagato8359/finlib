@@ -172,7 +172,18 @@ export default function Patrimoine({ T, data }) {
             <div style={{ ...S.card }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Positions ({(cur.positions || []).length})</h3>
-                <button onClick={() => { setPosForm({ ...mkPos(), posType: invFormType(cur) }); setModal('drill'); }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>+ Position</button>
+                <button onClick={() => {
+                  console.log('=== DEBUG POSITION ===');
+                  console.log('drillInv:', JSON.stringify(drillInv));
+                  console.log('drillInv.type:', drillInv?.type);
+                  console.log('drillInv.category:', drillInv?.category);
+                  console.log('cur:', JSON.stringify(cur));
+                  console.log('cur.type:', cur?.type);
+                  console.log('cur.category:', cur?.category);
+                  console.log('invFormType(cur):', invFormType(cur));
+                  console.log('invFormType(drillInv):', invFormType(drillInv));
+                  setPosForm({ ...mkPos(), posType: invFormType(cur) }); setModal('drill');
+                }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>+ Position</button>
               </div>
               {(cur.positions || []).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: T.textFaint, fontSize: 13 }}>Aucune position — cliquez "+ Position" pour ajouter</div>
