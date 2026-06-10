@@ -41,7 +41,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { contents, generationConfig } = req.body || {};
+  const { contents, generationConfig, isAutoAnalysis } = req.body || {};
   if (!contents) return res.status(400).json({ error: 'Missing contents' });
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -49,20 +49,19 @@ module.exports = async function handler(req, res) {
 
   const messages = toMessages(contents);
 
-  // Validation longueur : uniquement sur les messages chat (contents.length > 1)
-  // L'analyse automatique du patrimoine (contents.length === 1) n'a pas de limite
-  if (contents.length > 1) {
+  if (!isAutoAnalysis) {
+    // Validation longueur sur les messages chat manuels
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
     if (lastUser && lastUser.content.length > 500) {
       return res.status(400).json({ error: 'Message trop long (maximum 500 caractères).' });
     }
-  }
 
-  // Garde-fou hors-sujet — réponse directe sans appel API
-  if (isOffTopic(messages)) {
-    return res.status(200).json({
-      candidates: [{ content: { parts: [{ text: OFF_TOPIC_REPLY }] } }],
-    });
+    // Garde-fou hors-sujet — réponse directe sans appel API
+    if (isOffTopic(messages)) {
+      return res.status(200).json({
+        candidates: [{ content: { parts: [{ text: OFF_TOPIC_REPLY }] } }],
+      });
+    }
   }
 
   // Injection du prompt système en tête de conversation

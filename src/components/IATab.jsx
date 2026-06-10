@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 
-async function callGemini(contents) {
+async function callGemini(contents, isAutoAnalysis = false) {
   const res = await fetch('/api/gemini', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } }),
+    body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }, isAutoAnalysis }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Erreur API (${res.status})`);
@@ -230,7 +230,7 @@ export default function IATab({ T, data }) {
     setAnalysisError('');
     try {
       console.log('=== CONTEXTE ENVOYÉ À L\'IA ===', ctx.current);
-      const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(ctx.current) }] }]);
+      const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(ctx.current) }] }], true);
       setAnalysis(text);
       setAnalysisState('done');
     } catch (err) {
