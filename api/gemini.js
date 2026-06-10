@@ -1,20 +1,4 @@
-const { GoogleAuth } = require('google-auth-library');
-
-const MODELS = ['gemini-2.0-flash-exp', 'gemini-1.5-pro-latest'];
-
-async function getAccessToken() {
-  const auth = new GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-      project_id: process.env.GOOGLE_PROJECT_ID,
-    },
-    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-  });
-  const client = await auth.getClient();
-  const { token } = await client.getAccessToken();
-  return token;
-}
+const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro-latest'];
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -27,24 +11,17 @@ module.exports = async function handler(req, res) {
   const { contents, generationConfig } = req.body || {};
   if (!contents) return res.status(400).json({ error: 'Missing contents' });
 
-  let token;
-  try {
-    token = await getAccessToken();
-  } catch (err) {
-    return res.status(500).json({ error: `Authentification Google échouée : ${err.message}` });
-  }
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY non configurée' });
 
   let lastError;
   for (const model of MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     let apiRes;
     try {
       apiRes = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents, generationConfig }),
       });
     } catch (err) {
