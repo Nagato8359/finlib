@@ -1,3 +1,26 @@
+const SYSTEM_PROMPT = `Tu es Capitaly IA, un assistant financier personnel. Tu réponds UNIQUEMENT aux questions concernant les finances personnelles, l'épargne, les investissements, le budget, les dettes, le patrimoine et la fiscalité. Si l'utilisateur pose une question hors de ces sujets, réponds poliment : "Je suis spécialisé uniquement dans les finances personnelles. Je ne peux pas répondre à cette question. Posez-moi une question sur votre patrimoine, vos investissements ou votre budget."`;
+
+const OFF_TOPIC_KEYWORDS = [
+  'recette', 'cuisine', 'cuisinier', 'ingrédient', 'plat', 'repas', 'nourriture',
+  'sport', 'football', 'tennis', 'match', 'équipe', 'joueur',
+  'film', 'cinéma', 'série', 'acteur', 'réalisateur',
+  'musique', 'chanson', 'artiste', 'album', 'concert',
+  'jeu', 'jeux vidéo', 'gaming', 'console',
+  'météo', 'temps', 'température',
+  'politique', 'élection', 'président',
+  'blague', 'histoire drôle', 'humour',
+  'poème', 'roman', 'littérature',
+];
+
+const OFF_TOPIC_REPLY = "Je suis spécialisé uniquement dans les finances personnelles. Je ne peux pas répondre à cette question. Posez-moi une question sur votre patrimoine, vos investissements ou votre budget.";
+
+function isOffTopic(messages) {
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+  if (!lastUserMsg) return false;
+  const text = lastUserMsg.content.toLowerCase();
+  return OFF_TOPIC_KEYWORDS.some(kw => text.includes(kw));
+}
+
 // Converts Gemini-format contents to OpenAI-compatible messages for OpenRouter
 function toMessages(contents) {
   return contents.map(({ role, parts }) => ({
@@ -24,8 +47,28 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY non configurée' });
 
-  const models = ['qwen/qwen3-235b-a22b:free', 'nvidia/nemotron-nano-9b-v2:free', 'openai/gpt-oss-20b:free'];
   const messages = toMessages(contents);
+
+  // Validation longueur du dernier message utilisateur
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  if (lastUser && lastUser.content.length > 500) {
+    return res.status(400).json({ error: 'Message trop long (maximum 500 caractères).' });
+  }
+
+  // Garde-fou hors-sujet — réponse directe sans appel API
+  if (isOffTopic(messages)) {
+    return res.status(200).json({
+      candidates: [{ content: { parts: [{ text: OFF_TOPIC_REPLY }] } }],
+    });
+  }
+
+  // Injection du prompt système en tête de conversation
+  const messagesWithSystem = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...messages,
+  ];
+
+  const models = ['qwen/qwen3-235b-a22b:free', 'nvidia/nemotron-nano-9b-v2:free', 'openai/gpt-oss-20b:free'];
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${apiKey}`,
@@ -41,7 +84,7 @@ module.exports = async function handler(req, res) {
         headers,
         body: JSON.stringify({
           model,
-          messages,
+          messages: messagesWithSystem,
           temperature: generationConfig?.temperature ?? 0.7,
           max_tokens: generationConfig?.maxOutputTokens ?? 2048,
         }),
