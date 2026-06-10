@@ -23,7 +23,7 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY non configurée' });
 
-  const models = ['meta-llama/llama-3.3-70b-instruct:free', 'meta-llama/llama-3.2-3b-instruct:free', 'nousresearch/hermes-3-llama-3.1-405b:free'];
+  const models = ['qwen/qwen3-235b-a22b:free', 'nvidia/nemotron-nano-9b-v2:free', 'openai/gpt-oss-20b:free'];
   const messages = toMessages(contents);
   const headers = {
     'Content-Type': 'application/json',
@@ -55,6 +55,7 @@ module.exports = async function handler(req, res) {
     console.error(`[gemini] ${model} → HTTP ${apiRes.status}`, JSON.stringify(data));
     lastError = data.error?.message || `Erreur OpenRouter ${apiRes.status} (${model})`;
     apiRes = null;
+    await new Promise(r => setTimeout(r, 2000));
   }
 
   if (!apiRes?.ok) {
