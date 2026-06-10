@@ -458,21 +458,44 @@ export default function Modals({ T, data }) {
     const isCrypto = invType === 'Crypto';
     const isAV = invType === 'Assurance-vie';
     const isPE = invType === 'Épargne salariale';
-    const tickerLabel = isCrypto ? 'Coin (ex: BTC, ETH)' : isAV || isPE ? 'ISIN / Nom du fonds' : 'Ticker (quittez pour fetch)';
-    const tickerPlaceholder = isCrypto ? 'Ex: BTC, ETH, SOL' : isAV ? 'Ex: FR0010149799' : 'Ex: CW8, AAPL';
     const sharesLabel = isCrypto ? 'Quantité' : 'Nb de parts';
     const buyPriceLabel = isCrypto ? 'DCA / Prix moyen (€)' : isAV || isPE ? 'VL souscription (€)' : 'PRU (€)';
-    const currentPriceLabel = isAV || isPE ? 'VL actuelle (€)' : fetchingPrice ? 'Récupération…' : prices[posForm.ticker] != null ? 'Prix actuel ● LIVE' : 'Prix actuel (€)';
+    const liveKey = posForm.isin || posForm.ticker;
+    const currentPriceLabel = isAV || isPE ? 'VL actuelle (€)' : fetchingPrice ? 'Récupération…' : prices[liveKey] != null ? 'Prix actuel ● LIVE' : 'Prix actuel (€)';
     return (
       <ModalShell T={T} title={editItem?.posId ? `Modifier la position — ${drillInv.name}` : `Nouvelle position — ${drillInv.name}`} onClose={() => { setModal(null); setPosForm(mkPos()); setEditItem(null); }}>
-        <FRow cols={2}>
-          <FField label={tickerLabel}>
-            <input type="text" placeholder={tickerPlaceholder} style={S.inp} value={posForm.ticker}
-              onChange={e => setPosForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))}
-              onBlur={e => !isCrypto && fetchTickerPrice(e.target.value.toUpperCase())} />
-          </FField>
-          <FField label="Nom complet"><input type="text" placeholder="Nom ou description" style={S.inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} /></FField>
-        </FRow>
+        {isCrypto ? (
+          <FRow cols={2}>
+            <FField label="Coin (ex: BTC, ETH)">
+              <input type="text" placeholder="Ex: BTC, ETH, SOL" style={S.inp} value={posForm.ticker}
+                onChange={e => setPosForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))} />
+            </FField>
+            <FField label="Nom complet"><input type="text" placeholder="Bitcoin, Ethereum…" style={S.inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} /></FField>
+          </FRow>
+        ) : (
+          <>
+            <FRow cols={2}>
+              <FField label="ISIN (ex: IE00B4L5Y983)">
+                <input type="text" placeholder="Code ISIN à 12 caractères" style={S.inp} value={posForm.isin}
+                  onChange={e => setPosForm(p => ({ ...p, isin: e.target.value.toUpperCase() }))}
+                  onBlur={e => fetchTickerPrice(e.target.value.toUpperCase())} />
+              </FField>
+              <FField label="Nom complet"><input type="text" placeholder="Ex: MSCI World UCITS ETF" style={S.inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} /></FField>
+            </FRow>
+            <FRow cols={2}>
+              <FField label="Ticker Yahoo Finance (optionnel)">
+                <input type="text" placeholder="Ex: CW8.PA, AAPL — auto-résolu via ISIN" style={S.inp} value={posForm.ticker}
+                  onChange={e => setPosForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))}
+                  onBlur={e => !posForm.isin && fetchTickerPrice(e.target.value.toUpperCase())} />
+              </FField>
+              <FField label="Exchange / Place de cotation (optionnel)">
+                <input type="text" placeholder="Ex: Euronext Paris, NYSE" style={S.inp} value={posForm.exchange || ''}
+                  onChange={e => setPosForm(p => ({ ...p, exchange: e.target.value }))} />
+              </FField>
+            </FRow>
+          </>
+        )}
+
         <FRow cols={3}>
           <FField label={sharesLabel}><input type="number" placeholder="0" style={S.inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} /></FField>
           <FField label={buyPriceLabel}><input type="number" placeholder="0" style={S.inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>

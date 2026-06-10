@@ -19,7 +19,7 @@ const mkPortfolio = () => ({
   value: '', invested: '', notes: '',
 });
 const mkHealth  = () => ({ name: '', category: '', buyPrice: '', currentValue: '', date: today(), notes: '', condition: 'Bon état', storageLocation: '' });
-const mkPos     = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '', divYield: '' });
+const mkPos     = () => ({ isin: '', ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '', divYield: '' });
 const mkGoal    = () => ({ name: '', target: '', deadline: '', color: '#10b981' });
 const mkCash    = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
 const mkListing = () => ({ name: '', category: '', platform: '', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '', condition: 'Bon état', storageLocation: '' });
@@ -254,11 +254,14 @@ export function useData() {
   useEffect(() => { invRef.current = investments; }, [investments]);
 
   const fetchPrices = useCallback(async () => {
-    const tickers = [...new Set(invRef.current.flatMap(inv => (inv.positions || []).map(p => p.ticker).filter(Boolean)))];
-    if (!tickers.length) return;
+    // Use ISIN when available, fall back to ticker
+    const keys = [...new Set(invRef.current.flatMap(inv =>
+      (inv.positions || []).map(p => (p.isin || p.ticker)).filter(Boolean)
+    ))];
+    if (!keys.length) return;
     setPriceStatus('loading');
     try {
-      const res = await fetch(`${API_BASE}/api/prices?tickers=${tickers.join(',')}`);
+      const res = await fetch(`${API_BASE}/api/prices?tickers=${keys.join(',')}`);
       if (!res.ok) throw new Error('server');
       const data = await res.json();
       setPrices(data); setLastUpdated(new Date()); setPriceStatus('ok');
@@ -271,11 +274,12 @@ export function useData() {
     return () => clearInterval(id);
   }, [fetchPrices]);
 
-  const fetchTickerPrice = useCallback(async (ticker) => {
-    if (!ticker) return;
+  // Accepts either an ISIN (IE00B4L5Y983) or a ticker (BTC, CW8.PA)
+  const fetchTickerPrice = useCallback(async (key) => {
+    if (!key) return;
     setFetchingPrice(true);
     try {
-      const res = await fetch(`${API_BASE}/api/price/${ticker}`);
+      const res = await fetch(`${API_BASE}/api/price/${encodeURIComponent(key)}`);
       const data = await res.json();
       if (data.price != null) setPosForm(p => ({ ...p, currentPrice: String(Math.round(data.price * 100) / 100) }));
     } catch {}
@@ -285,7 +289,7 @@ export function useData() {
   // ── Computed ──────────────────────────────────────────────────────────────
   const invLiveValue = inv => {
     if (inv.type === 'Immobilier' || !inv.positions?.length) return parseFloat(inv.value) || 0;
-    const v = inv.positions.reduce((s, p) => s + p.shares * (prices[p.ticker] ?? p.currentPrice), 0);
+    const v = inv.positions.reduce((s, p) => s + p.shares * (prices[p.isin || p.ticker] ?? p.currentPrice), 0);
     return v > 0 ? Math.round(v) : parseFloat(inv.value) || 0;
   };
 
