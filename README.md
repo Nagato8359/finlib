@@ -1,4 +1,4 @@
-# FinLib
+# Capitaly
 
 Dashboard de gestion financière personnelle — actifs, épargne, investissements, budget, projections et achats/ventes.
 

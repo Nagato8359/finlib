@@ -33,7 +33,7 @@ export default function AuthScreen({ onDemo }) {
       <div style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ textAlign: 'center', marginBottom: 44 }}>
           <div style={{ width: 60, height: 60, background: 'linear-gradient(135deg,#10b981,#059669)', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 16px' }}>💰</div>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.04em', color: '#f1f5f9' }}>CashTrack</div>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.04em', color: '#f1f5f9' }}>Capitaly</div>
           <div style={{ fontSize: 14, color: '#4b5563', marginTop: 6 }}>Votre patrimoine, en clair</div>
         </div>
 

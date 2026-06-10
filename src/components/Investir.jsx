@@ -49,7 +49,7 @@ export default function Investir({ T }) {
       </div>
 
       <div style={{ background: 'rgba(251,146,60,.06)', border: '1px solid rgba(251,146,60,.15)', borderRadius: 12, padding: '14px 18px', fontSize: 13, color: '#fb923c' }}>
-        ⚠ Ces liens sont fournis à titre informatif. CashTrack ne perçoit aucune commission d'affiliation. Investir comporte des risques — lisez les conditions générales de chaque plateforme.
+        ⚠ Ces liens sont fournis à titre informatif. Capitaly ne perçoit aucune commission d'affiliation. Investir comporte des risques — lisez les conditions générales de chaque plateforme.
       </div>
     </div>
   );

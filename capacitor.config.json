@@ -1,6 +1,6 @@
 {
   "appId": "com.cashtrack.app",
-  "appName": "CashTrack",
+  "appName": "Capitaly",
   "webDir": "build",
   "server": {
     "androidScheme": "https"

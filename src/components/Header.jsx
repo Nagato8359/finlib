@@ -27,7 +27,7 @@ export default function Header({ T, darkMode, setDarkMode, tab, setTab, TABS, da
 
         {/* Center — title + desktop nav */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
-          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-.03em', color: T.text, lineHeight: 1 }}>CashTrack</span>
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-.03em', color: T.text, lineHeight: 1 }}>Capitaly</span>
 
           {/* Desktop nav */}
           <nav className="top-nav" style={{ gap: 2, marginTop: 2 }}>
