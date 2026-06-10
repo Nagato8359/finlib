@@ -19,7 +19,15 @@
       "PowerShell(Set-Location \"C:\\\\Users\\\\alexa\\\\finlib\"; npx cap sync android 2>&1; Write-Output \"SYNC_EXIT:$LASTEXITCODE\")",
       "Bash(npm run *)",
       "Bash(npx cap *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(node *)",
+      "Bash(npx eslint *)",
+      "Bash(npx react-scripts *)",
+      "Bash(Select-Object Name)",
+      "Bash(npx vercel *)",
+      "Bash(vercel logs *)",
+      "PowerShell(Get-Content *)",
+      "Bash(git restore *)"
     ]
   }
 }
