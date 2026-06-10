@@ -7,7 +7,7 @@ import {
 } from '../utils/constants';
 import { notify } from '../utils/notifications';
 
-const API_BASE = process.env.REACT_APP_API_URL || '';
+const API_BASE = '';
 
 const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false, accountId: '', destAccountId: '', loanId: '' });
 const mkInv     = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });

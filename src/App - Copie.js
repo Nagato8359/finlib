@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -290,7 +290,7 @@ export default function App() {
         <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15 }}>₣</div>
-            <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-.02em" }}>FinLib</span>
+            <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-.02em" }}>Capitaly</span>
             <span style={{ fontSize: 10, background: "rgba(16,185,129,.15)", color: "#10b981", padding: "2px 8px", borderRadius: 20, marginLeft: 4 }}>PRO</span>
           </div>
           <nav style={{ display: "flex", gap: 2 }}>

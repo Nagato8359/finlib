@@ -20,7 +20,7 @@ Dashboard de gestion financière personnelle — actifs, épargne, investissemen
 
 ```bash
 git clone <url-du-repo>
-cd finlib
+cd capitaly
 npm install
 ```
 
@@ -76,7 +76,7 @@ Le serveur Express (`server.js`) doit être déployé séparément (Railway, Ren
 ## Structure du projet
 
 ```
-finlib/
+capitaly/
 ├── public/
 │   └── logo.png
 ├── src/

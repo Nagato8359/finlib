@@ -1,14 +1,5 @@
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
-const express = require('express');
-const cors = require('cors');
 const axios = require('axios');
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Crypto ticker → CoinGecko coin ID
 const CRYPTO_MAP = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', BNB: 'binancecoin',
   ADA: 'cardano', XRP: 'ripple', DOGE: 'dogecoin', DOT: 'polkadot',
@@ -20,7 +11,7 @@ const CRYPTO_MAP = {
 };
 
 const cache = {};
-const CACHE_TTL = 30_000;
+const CACHE_TTL = 60_000;
 const EURUSD_TTL = 300_000;
 const YF_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
@@ -63,7 +54,6 @@ async function fetchStock(ticker) {
     const eurusd = await getEURUSD();
     priceEur = price / eurusd;
   }
-
   return { price: priceEur, source: 'Yahoo Finance' };
 }
 
@@ -77,36 +67,4 @@ async function resolvePrice(ticker) {
   return entry;
 }
 
-// Single ticker
-app.get('/api/price/:ticker', async (req, res) => {
-  try {
-    const data = await resolvePrice(req.params.ticker.toUpperCase());
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message, ticker: req.params.ticker.toUpperCase() });
-  }
-});
-
-// Batch tickers
-app.get('/api/prices', async (req, res) => {
-  const tickers = String(req.query.tickers || '')
-    .split(',')
-    .map(t => t.trim().toUpperCase())
-    .filter(Boolean);
-
-  const out = {};
-  await Promise.allSettled(tickers.map(async ticker => {
-    try {
-      const data = await resolvePrice(ticker);
-      if (data.price != null) out[ticker] = data.price;
-    } catch {}
-  }));
-  res.json(out);
-});
-
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`\n✓  Capitaly prix en direct → http://localhost:${PORT}`);
-  console.log(`   /api/price/:ticker  — prix unique`);
-  console.log(`   /api/prices?tickers=BTC,ETH,CW8  — lot\n`);
-});
+module.exports = { resolvePrice };

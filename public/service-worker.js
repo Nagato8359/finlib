@@ -1,4 +1,4 @@
-const CACHE = 'cashtrack-v1';
+const CACHE = 'capitaly-v1';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
