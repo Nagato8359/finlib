@@ -8,13 +8,15 @@ import {
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
-const mkTx = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false });
-const mkInv = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
-const mkHealth = () => ({ name: '', category: 'Voiture', buyPrice: '', currentValue: '', date: today(), notes: '' });
-const mkPos = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '' });
-const mkGoal = () => ({ name: '', target: '', deadline: '', color: '#10b981' });
-const mkCash = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
+const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false });
+const mkInv     = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
+const mkHealth  = () => ({ name: '', category: 'Voiture', buyPrice: '', currentValue: '', date: today(), notes: '' });
+const mkPos     = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '' });
+const mkGoal    = () => ({ name: '', target: '', deadline: '', color: '#10b981' });
+const mkCash    = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
 const mkListing = () => ({ name: '', category: 'Objet physique', platform: 'eBay', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '' });
+const mkLoan    = () => ({ name: '', lender: '', capitalBorrowed: '', capitalRemaining: '', monthlyPayment: '', rate: '', insuranceAmount: '', insuranceOrganisme: '', insuranceRate: '', startDate: today(), endDate: '' });
+const mkDebt    = () => ({ name: '', lender: '', capitalRemaining: '', monthlyPayment: '', rate: '', endDate: '' });
 
 export function useData() {
   // ── Raw state ──────────────────────────────────────────────────────────────
@@ -26,6 +28,8 @@ export function useData() {
   const [savings, setSavings] = useState([]);
   const [listings, setListings] = useState([]);
   const [soldHistory, setSoldHistory] = useState([]);
+  const [loans, setLoans] = useState([]);
+  const [debts, setDebts] = useState([]);
   const [projYears, setProjYears] = useState(10);
   const [projRate, setProjRate] = useState(7);
   const [projMonthly, setProjMonthly] = useState(500);
@@ -41,6 +45,8 @@ export function useData() {
   const [goalForm, setGoalForm] = useState(mkGoal);
   const [cashForm, setCashForm] = useState(mkCash);
   const [listingForm, setListingForm] = useState(mkListing);
+  const [loanForm, setLoanForm] = useState(mkLoan);
+  const [debtForm, setDebtForm] = useState(mkDebt);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const [user, setUser] = useState(null);
@@ -63,6 +69,8 @@ export function useData() {
         if (data.savings?.length) setSavings(data.savings);
         if (data.listings?.length) setListings(data.listings);
         if (data.sold_history?.length) setSoldHistory(data.sold_history);
+        if (data.loans?.length) setLoans(data.loans);
+        if (data.debts?.length) setDebts(data.debts);
         if (data.proj_years) setProjYears(data.proj_years);
         if (data.proj_rate) setProjRate(data.proj_rate);
         if (data.proj_monthly !== undefined) setProjMonthly(data.proj_monthly);
@@ -96,11 +104,12 @@ export function useData() {
         user_id: userRef.current.id,
         transactions, investments, health_assets: healthAssets,
         budgets, goals, savings, listings, sold_history: soldHistory,
+        loans, debts,
         proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
         updated_at: new Date().toISOString(),
       });
     }, 1500);
-  }, [transactions, investments, healthAssets, budgets, goals, savings, listings, soldHistory, projYears, projRate, projMonthly]);
+  }, [transactions, investments, healthAssets, budgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly]);
 
   const handleLogout = async () => {
     dataLoaded.current = false;
@@ -109,12 +118,14 @@ export function useData() {
     setTransactions([]); setInvestments([]); setHealthAssets([]);
     setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]);
     setListings([]); setSoldHistory([]);
+    setLoans([]); setDebts([]);
   };
 
   const activateDemo = () => {
     setTransactions(SEED_TX); setInvestments(SEED_INV); setHealthAssets(SEED_HEALTH);
     setBudgets(SEED_BUDGETS); setGoals(SEED_GOALS); setSavings(SEED_CASH);
     setListings(SEED_LISTINGS); setSoldHistory([]);
+    setLoans([]); setDebts([]);
     setDemoMode(true);
   };
 
@@ -176,6 +187,13 @@ export function useData() {
   const patrimoine = invTotal + cashTotal + healthTotal;
   const pnlTotal = (invTotal - invInvested) + (healthTotal - healthCost);
 
+  // ── Dettes ────────────────────────────────────────────────────────────────
+  const totalLoanDebt = loans.reduce((s, l) => s + (parseFloat(l.capitalRemaining) || 0), 0);
+  const totalConsumerDebt = debts.reduce((s, d) => s + (parseFloat(d.capitalRemaining) || 0), 0);
+  const totalDebt = totalLoanDebt + totalConsumerDebt;
+  const monthlyLoanPayments = loans.reduce((s, l) => s + (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0), 0);
+  const monthlyDebtPayments = monthlyLoanPayments + debts.reduce((s, d) => s + (parseFloat(d.monthlyPayment) || 0), 0);
+
   const now = new Date();
   const cm = now.getMonth(), cy = now.getFullYear();
   const monthTx = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === cm && d.getFullYear() === cy; });
@@ -183,6 +201,7 @@ export function useData() {
   const expense = Math.abs(monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
   const balance = income - expense;
   const savingsRate = income > 0 ? (balance / income) * 100 : 0;
+  const endettementRate = income > 0 ? (monthlyDebtPayments / income) * 100 : 0;
 
   const budgetProgress = {};
   Object.keys(budgets).forEach(cat => {
@@ -210,12 +229,24 @@ export function useData() {
   });
 
   const diversif = [...new Set(investments.map(i => i.category))].length;
-  const score = calcScore(savingsRate, diversif, 0);
+  const emergencyMonths = expense > 0 ? cashTotal / expense : 0;
+  const debtRatio = patrimoine > 0 ? totalDebt / patrimoine : 0;
+
+  let consecutiveSavingsMonths = 0;
+  for (let i = monthlyData.length - 1; i >= 0; i--) {
+    if (monthlyData[i].Épargne > 0) consecutiveSavingsMonths++;
+    else break;
+  }
+
+  const score = calcScore({ savingsRate, diversif, emergencyMonths, debtRatio, consecutiveSavingsMonths });
 
   const alerts = [];
   Object.entries(budgetProgress).forEach(([cat, { pct, spent, limit }]) => {
     if (pct >= 90) alerts.push({ msg: `Budget ${cat} : ${Math.round(pct)}% utilisé (${fEur(spent)} / ${fEur(limit)})` });
   });
+  if (income > 0 && endettementRate > 33) {
+    alerts.push({ msg: `Taux d'endettement : ${endettementRate.toFixed(0)}% de vos revenus — limite légale 33%` });
+  }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const saveTx = () => {
@@ -293,6 +324,37 @@ export function useData() {
   };
   const delGoal = id => setGoals(p => p.filter(g => g.id !== id));
 
+  const saveLoan = () => {
+    if (!loanForm.name || !loanForm.capitalRemaining) return;
+    const item = {
+      ...loanForm, id: editItem?.id || uid(),
+      capitalBorrowed: parseFloat(loanForm.capitalBorrowed) || 0,
+      capitalRemaining: parseFloat(loanForm.capitalRemaining) || 0,
+      monthlyPayment: parseFloat(loanForm.monthlyPayment) || 0,
+      rate: parseFloat(loanForm.rate) || 0,
+      insuranceAmount: parseFloat(loanForm.insuranceAmount) || 0,
+      insuranceRate: parseFloat(loanForm.insuranceRate) || 0,
+    };
+    setLoans(p => editItem ? p.map(l => l.id === editItem.id ? item : l) : [...p, item]);
+    setLoanForm(mkLoan()); setEditItem(null); setModal(null);
+  };
+  const delLoan = id => setLoans(p => p.filter(l => l.id !== id));
+  const openEditLoan = l => { setEditItem(l); setLoanForm(l); setModal('loan'); };
+
+  const saveDebt = () => {
+    if (!debtForm.name || !debtForm.capitalRemaining) return;
+    const item = {
+      ...debtForm, id: editItem?.id || uid(),
+      capitalRemaining: parseFloat(debtForm.capitalRemaining) || 0,
+      monthlyPayment: parseFloat(debtForm.monthlyPayment) || 0,
+      rate: parseFloat(debtForm.rate) || 0,
+    };
+    setDebts(p => editItem ? p.map(d => d.id === editItem.id ? item : d) : [...p, item]);
+    setDebtForm(mkDebt()); setEditItem(null); setModal(null);
+  };
+  const delDebt = id => setDebts(p => p.filter(d => d.id !== id));
+  const openEditDebt = d => { setEditItem(d); setDebtForm(d); setModal('debt'); };
+
   const exportCSV = () => {
     const rows = [['Date', 'Libellé', 'Catégorie', 'Type', 'Montant'], ...transactions.map(t => [t.date, t.label, t.category, t.type, t.amount])];
     const csv = rows.map(r => r.join(';')).join('\n');
@@ -306,17 +368,19 @@ export function useData() {
     user, authLoading, demoMode, handleLogout, activateDemo,
     transactions, investments, healthAssets, budgets, setBudgets,
     goals, savings, listings, soldHistory, setSoldHistory,
+    loans, debts,
     projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly,
     prices, priceStatus, lastUpdated, fetchPrices, fetchingPrice, fetchTickerPrice,
     modal, setModal, editItem, setEditItem, drillInv, setDrillInv,
     txForm, setTxForm, invForm, setInvForm, healthForm, setHealthForm,
     posForm, setPosForm, goalForm, setGoalForm, cashForm, setCashForm,
-    listingForm, setListingForm,
-    mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing,
+    listingForm, setListingForm, loanForm, setLoanForm, debtForm, setDebtForm,
+    mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt,
     patrimoine, invTotal, invInvested, cashTotal, healthTotal, healthCost,
     annualInterests, avgRate,
     listingsBuyTotal, listingsSellTotal, listingsExpectedProfit, soldProfit,
     income, expense, balance, savingsRate, pnlTotal,
+    totalLoanDebt, totalConsumerDebt, totalDebt, monthlyDebtPayments, endettementRate,
     score, alerts, budgetProgress, monthlyData, catData, projData,
     invLiveValue, setInvestments, exportCSV,
     saveTx, delTx, openEditTx,
@@ -326,5 +390,7 @@ export function useData() {
     saveListing, delListing, openEditListing, markSold,
     saveCash, delCash, openEditCash,
     saveGoal, delGoal,
+    saveLoan, delLoan, openEditLoan,
+    saveDebt, delDebt, openEditDebt,
   };
 }

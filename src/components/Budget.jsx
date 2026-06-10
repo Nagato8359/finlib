@@ -1,8 +1,21 @@
 import { makeS, fEur, fDate, CAT_COLORS } from '../utils/constants';
 
+const mLeft = endDate => {
+  if (!endDate) return 0;
+  const end = new Date(endDate);
+  const now = new Date();
+  const months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
+  return Math.max(0, months);
+};
+
 export default function Budget({ T, data }) {
   const S = makeS(T);
-  const { budgets, setBudgets, budgetProgress, goals, patrimoine, setModal, setEditItem, setGoalForm, delGoal, mkGoal } = data;
+  const {
+    budgets, setBudgets, budgetProgress, goals, patrimoine,
+    setModal, setEditItem, setGoalForm, delGoal, mkGoal,
+    debts, totalConsumerDebt, endettementRate, monthlyDebtPayments, income,
+    openEditDebt, delDebt,
+  } = data;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -15,6 +28,28 @@ export default function Budget({ T, data }) {
           + Objectif
         </button>
       </div>
+
+      {/* Taux d'endettement */}
+      {monthlyDebtPayments > 0 && (
+        <div style={{ background: endettementRate > 33 ? 'rgba(248,113,113,.08)' : 'rgba(16,185,129,.06)', border: `1px solid ${endettementRate > 33 ? 'rgba(248,113,113,.3)' : 'rgba(16,185,129,.2)'}`, borderRadius: 14, padding: '16px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Taux d'endettement</div>
+              <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{fEur(monthlyDebtPayments)}/mois de mensualités · revenus {fEur(income)}/mois</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: endettementRate > 33 ? '#f87171' : '#4ade80' }}>{endettementRate.toFixed(0)}%</div>
+              {endettementRate > 33 && <div style={{ fontSize: 10, color: '#f87171', fontWeight: 600 }}>⚠ LIMITE 33% DÉPASSÉE</div>}
+            </div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,.1)', borderRadius: 6, height: 8, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.min(100, endettementRate)}%`, height: '100%', background: endettementRate > 33 ? '#f87171' : '#10b981', borderRadius: 6, transition: 'width .4s' }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+            <span style={{ fontSize: 10, color: endettementRate > 33 ? '#f87171' : T.textMuted }}>Limite légale : 33%</span>
+          </div>
+        </div>
+      )}
 
       <div className="g2">
         {/* Budget mensuels */}
@@ -92,6 +127,61 @@ export default function Budget({ T, data }) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Crédits consommation */}
+      <div style={{ ...S.card }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <div>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Crédits consommation</h3>
+            {debts.length > 0 && (
+              <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+                Capital restant : <span style={{ color: '#f87171', fontWeight: 600 }}>{fEur(totalConsumerDebt, true)}</span>
+              </div>
+            )}
+          </div>
+          <button onClick={() => { setEditItem(null); data.setDebtForm && data.setDebtForm(data.mkDebt()); setModal('debt'); }} style={{ ...S.btnS, fontSize: 12, padding: '6px 14px' }}>
+            + Crédit conso
+          </button>
+        </div>
+        {debts.length === 0 ? (
+          <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '28px 0' }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>💳</div>
+            <div>Aucun crédit conso — crédit auto, travaux…</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {debts.map(d => {
+              const months = mLeft(d.endDate);
+              return (
+                <div key={d.id} style={{ padding: '14px 16px', background: T.bg2, borderRadius: 12, borderLeft: '3px solid #fb923c' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{d.name}</span>
+                        {d.lender && <span style={{ fontSize: 10, background: 'rgba(251,146,60,.15)', color: '#fb923c', padding: '2px 7px', borderRadius: 20 }}>{d.lender}</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.textFaint }}>
+                        {d.rate > 0 ? `${parseFloat(d.rate).toFixed(2)}% · ` : ''}
+                        {months > 0 ? `${months} mois restants` : d.endDate ? 'Terminé' : '—'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#f87171' }}>{fEur(parseFloat(d.capitalRemaining) || 0)}</div>
+                        <div style={{ fontSize: 11, color: T.textMuted }}>{fEur(parseFloat(d.monthlyPayment) || 0)}/mois</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <button onClick={() => openEditDebt(d)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 11 }}>✎</button>
+                        <button onClick={() => delDebt(d.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 11 }}>✕</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3,15 +3,23 @@ import { ModalShell, Label, makeS, fEur, CAT_COLORS, INV_CATS, HEALTH_CATS, CASH
 const FRow = ({ cols = 2, children }) => <div className={`frow frow-${cols}`}>{children}</div>;
 const FField = ({ label, children }) => <div><Label>{label}</Label>{children}</div>;
 
+const mLeft = endDate => {
+  if (!endDate) return 0;
+  const end = new Date(endDate);
+  const now = new Date();
+  const months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
+  return Math.max(0, months);
+};
+
 export default function Modals({ T, data }) {
   const S = makeS(T);
   const {
     modal, setModal, editItem, setEditItem, drillInv,
     txForm, setTxForm, invForm, setInvForm, healthForm, setHealthForm,
     posForm, setPosForm, goalForm, setGoalForm, cashForm, setCashForm,
-    listingForm, setListingForm,
-    mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing,
-    saveTx, saveInv, saveHealth, savePosition, saveListing, saveCash, saveGoal,
+    listingForm, setListingForm, loanForm, setLoanForm, debtForm, setDebtForm,
+    mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt,
+    saveTx, saveInv, saveHealth, savePosition, saveListing, saveCash, saveGoal, saveLoan, saveDebt,
     investments, prices, fetchTickerPrice, fetchingPrice, invLiveValue, setInvestments,
   } = data;
 
@@ -256,6 +264,87 @@ export default function Modals({ T, data }) {
             <button onClick={savePosition} style={S.btnG}>{editItem?.posId ? 'Modifier' : 'Ajouter la position'}</button>
             {editItem?.posId && <button onClick={() => { setEditItem(null); setPosForm(mkPos()); }} style={S.btnS}>Annuler</button>}
           </div>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  // ── Crédit immobilier ─────────────────────────────────────────────────────
+  if (modal === 'loan') {
+    const totalMonthly = (parseFloat(loanForm.monthlyPayment) || 0) + (parseFloat(loanForm.insuranceAmount) || 0);
+    const months = mLeft(loanForm.endDate);
+    const costRemaining = Math.max(0, months * totalMonthly - (parseFloat(loanForm.capitalRemaining) || 0));
+    return (
+      <ModalShell T={T} title={editItem ? 'Modifier le crédit immobilier' : 'Nouveau crédit immobilier'} onClose={() => close(() => setLoanForm(mkLoan()))}>
+        <FRow cols={2}>
+          <FField label="Bien financé"><input type="text" placeholder="Ex : Appartement Paris" style={S.inp} value={loanForm.name} onChange={e => setLoanForm(p => ({ ...p, name: e.target.value }))} /></FField>
+          <FField label="Organisme prêteur"><input type="text" placeholder="Ex : Crédit Agricole" style={S.inp} value={loanForm.lender} onChange={e => setLoanForm(p => ({ ...p, lender: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="Capital emprunté (€)"><input type="number" placeholder="0" style={S.inp} value={loanForm.capitalBorrowed} onChange={e => setLoanForm(p => ({ ...p, capitalBorrowed: e.target.value }))} /></FField>
+          <FField label="Capital restant dû (€)"><input type="number" placeholder="0" style={S.inp} value={loanForm.capitalRemaining} onChange={e => setLoanForm(p => ({ ...p, capitalRemaining: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="Mensualité hors assurance (€)"><input type="number" placeholder="0" style={S.inp} value={loanForm.monthlyPayment} onChange={e => setLoanForm(p => ({ ...p, monthlyPayment: e.target.value }))} /></FField>
+          <FField label="Taux d'intérêt (%)"><input type="number" placeholder="0" step="0.01" style={S.inp} value={loanForm.rate} onChange={e => setLoanForm(p => ({ ...p, rate: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={3}>
+          <FField label="Assurance (€/mois)"><input type="number" placeholder="0" style={S.inp} value={loanForm.insuranceAmount} onChange={e => setLoanForm(p => ({ ...p, insuranceAmount: e.target.value }))} /></FField>
+          <FField label="Organisme assurance"><input type="text" placeholder="Ex : CNP, Crédit Mutuel" style={S.inp} value={loanForm.insuranceOrganisme} onChange={e => setLoanForm(p => ({ ...p, insuranceOrganisme: e.target.value }))} /></FField>
+          <FField label="Taux assurance (%)"><input type="number" placeholder="0" step="0.001" style={S.inp} value={loanForm.insuranceRate} onChange={e => setLoanForm(p => ({ ...p, insuranceRate: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="Date de début"><input type="date" style={S.inp} value={loanForm.startDate} onChange={e => setLoanForm(p => ({ ...p, startDate: e.target.value }))} /></FField>
+          <FField label="Date de fin"><input type="date" style={S.inp} value={loanForm.endDate} onChange={e => setLoanForm(p => ({ ...p, endDate: e.target.value }))} /></FField>
+        </FRow>
+        {(totalMonthly > 0 || months > 0) && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { label: 'Mensualité totale', val: fEur(totalMonthly) + '/mois', color: '#60a5fa' },
+              { label: 'Durée restante', val: `${months} mois`, color: '#a78bfa' },
+              { label: 'Coût restant', val: fEur(costRemaining), color: '#f87171' },
+            ].map(({ label, val, color }) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color }}>{val}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={saveLoan} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
+          <button onClick={() => close(() => setLoanForm(mkLoan()))} style={S.btnS}>Annuler</button>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  // ── Crédit consommation ───────────────────────────────────────────────────
+  if (modal === 'debt') {
+    const months = mLeft(debtForm.endDate);
+    return (
+      <ModalShell T={T} title={editItem ? 'Modifier le crédit conso' : 'Nouveau crédit consommation'} onClose={() => close(() => setDebtForm(mkDebt()))}>
+        <FRow cols={2}>
+          <FField label="Nom"><input type="text" placeholder="Ex : Crédit auto, Crédit travaux" style={S.inp} value={debtForm.name} onChange={e => setDebtForm(p => ({ ...p, name: e.target.value }))} /></FField>
+          <FField label="Organisme prêteur"><input type="text" placeholder="Ex : Cetelem, Sofinco" style={S.inp} value={debtForm.lender} onChange={e => setDebtForm(p => ({ ...p, lender: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={3}>
+          <FField label="Capital restant dû (€)"><input type="number" placeholder="0" style={S.inp} value={debtForm.capitalRemaining} onChange={e => setDebtForm(p => ({ ...p, capitalRemaining: e.target.value }))} /></FField>
+          <FField label="Mensualité (€)"><input type="number" placeholder="0" style={S.inp} value={debtForm.monthlyPayment} onChange={e => setDebtForm(p => ({ ...p, monthlyPayment: e.target.value }))} /></FField>
+          <FField label="Taux d'intérêt (%)"><input type="number" placeholder="0" step="0.01" style={S.inp} value={debtForm.rate} onChange={e => setDebtForm(p => ({ ...p, rate: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={1}>
+          <FField label="Date de fin"><input type="date" style={S.inp} value={debtForm.endDate} onChange={e => setDebtForm(p => ({ ...p, endDate: e.target.value }))} /></FField>
+        </FRow>
+        {months > 0 && (
+          <div style={{ background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: T.textMuted }}>Durée restante</span>
+            <span style={{ fontWeight: 700, color: '#f87171' }}>{months} mois</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={saveDebt} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
+          <button onClick={() => close(() => setDebtForm(mkDebt()))} style={S.btnS}>Annuler</button>
         </div>
       </ModalShell>
     );

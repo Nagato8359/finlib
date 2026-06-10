@@ -6,8 +6,17 @@ const SECTIONS = [
   { id: 'invest', label: '◈ Investissements' },
   { id: 'cash', label: '🏦 Épargne & Cash' },
   { id: 'materiel', label: '📦 Matériel' },
+  { id: 'loans', label: '🏠 Crédits immo' },
   { id: 'projection', label: '📊 Projection' },
 ];
+
+const mLeft = endDate => {
+  if (!endDate) return 0;
+  const end = new Date(endDate);
+  const now = new Date();
+  const months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
+  return Math.max(0, months);
+};
 
 export default function Patrimoine({ T, data }) {
   const S = makeS(T);
@@ -18,10 +27,12 @@ export default function Patrimoine({ T, data }) {
     savings, cashTotal, annualInterests, avgRate,
     healthAssets, healthTotal, healthCost,
     listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit,
+    loans, totalLoanDebt, monthlyDebtPayments,
     patrimoine, projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly, projData,
     setModal, setEditItem, setDrillInv,
     openEditInv, delInv, openEditCash, delCash, openEditHealth, delHealth,
     openEditListing, delListing, markSold,
+    openEditLoan, delLoan,
   } = data;
 
   const SubNav = () => (
@@ -337,6 +348,85 @@ export default function Patrimoine({ T, data }) {
     );
   };
 
+  // ── Crédits immobiliers ────────────────────────────────────────────────────
+  const renderLoans = () => {
+    const monthlyLoanTotal = loans.reduce((s, l) => s + (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0), 0);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, flex: 1 }}>
+            <KPI T={T} label="Capital restant dû" value={fEur(totalLoanDebt, true)} accent="#f87171" icon="🏠" />
+            <KPI T={T} label="Mensualités totales" value={fEur(monthlyLoanTotal) + '/mois'} accent="#fb923c" icon="📅" />
+            <KPI T={T} label="Nb de crédits" value={loans.length} icon="📋" />
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={() => { setEditItem(null); data.setLoanForm && data.setLoanForm(data.mkLoan()); setModal('loan'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Crédit immo</button>
+        </div>
+        {loans.length === 0 ? (
+          <div style={{ ...S.card, textAlign: 'center', padding: 50, color: T.textFaint }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>🏠</div>
+            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Aucun crédit immobilier</div>
+            <div style={{ fontSize: 13 }}>Ajoutez votre prêt immobilier pour suivre le capital restant et les mensualités</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {loans.map(l => {
+              const monthly = (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0);
+              const months = mLeft(l.endDate);
+              const costRemaining = Math.max(0, months * monthly - (parseFloat(l.capitalRemaining) || 0));
+              const repaidPct = l.capitalBorrowed > 0 ? Math.min(100, ((l.capitalBorrowed - parseFloat(l.capitalRemaining)) / l.capitalBorrowed) * 100) : 0;
+              return (
+                <div key={l.id} style={{ ...S.card, borderLeft: '4px solid #f87171' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{l.name}</div>
+                      <div style={{ fontSize: 12, color: T.textFaint, marginTop: 2 }}>{l.lender}{l.rate ? ` · ${parseFloat(l.rate).toFixed(2)}%` : ''}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => openEditLoan(l)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 11 }}>✎</button>
+                      <button onClick={() => delLoan(l.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 11 }}>✕</button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 14 }}>
+                    {[
+                      { label: 'Capital restant dû', val: fEur(parseFloat(l.capitalRemaining) || 0), color: '#f87171' },
+                      { label: 'Mensualité totale', val: fEur(monthly) + '/mois', color: '#fb923c' },
+                      { label: 'Durée restante', val: months > 0 ? `${months} mois` : '—', color: T.textMuted },
+                      { label: 'Coût restant du crédit', val: fEur(costRemaining), color: '#f87171' },
+                    ].map(({ label, val, color }) => (
+                      <div key={label} style={{ background: T.bg2, borderRadius: 10, padding: '10px 14px' }}>
+                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color }}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {l.insuranceAmount > 0 && (
+                    <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 10 }}>
+                      Assurance {l.insuranceOrganisme ? `(${l.insuranceOrganisme})` : ''} : {fEur(parseFloat(l.insuranceAmount))}/mois
+                      {l.insuranceRate ? ` · ${parseFloat(l.insuranceRate).toFixed(3)}%` : ''}
+                    </div>
+                  )}
+                  {l.capitalBorrowed > 0 && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T.textMuted, marginBottom: 4 }}>
+                        <span>Remboursé</span>
+                        <span style={{ fontWeight: 600, color: '#4ade80' }}>{repaidPct.toFixed(0)}%</span>
+                      </div>
+                      <div style={{ background: T.cardBorder, borderRadius: 4, height: 5 }}>
+                        <div style={{ width: `${repaidPct}%`, height: '100%', background: '#4ade80', borderRadius: 4, transition: 'width .4s' }} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ── Projection ─────────────────────────────────────────────────────────────
   const renderProjection = () => {
     const fin = projData[projData.length - 1] || { Projection: patrimoine, Base: patrimoine };
@@ -424,6 +514,7 @@ export default function Patrimoine({ T, data }) {
       {section === 'invest' && renderInvest()}
       {section === 'cash' && renderCash()}
       {section === 'materiel' && renderMateriel()}
+      {section === 'loans' && renderLoans()}
       {section === 'projection' && renderProjection()}
     </div>
   );

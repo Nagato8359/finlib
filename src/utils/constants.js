@@ -115,11 +115,35 @@ export const SEED_LISTINGS = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-export const calcScore = (savingsRate, diversification, debtRatio) => {
-  const s = Math.min(100, Math.max(0, savingsRate * 2));
-  const d = Math.min(100, diversification * 20);
-  const dr = Math.max(0, 100 - debtRatio * 2);
-  return Math.round(s * 0.4 + d * 0.35 + dr * 0.25);
+export const calcScore = ({ savingsRate, diversif, emergencyMonths, debtRatio, consecutiveSavingsMonths }) => {
+  // 1. Taux d'épargne (25 pts)
+  let s = 0;
+  if (savingsRate >= 20) s = 25;
+  else if (savingsRate >= 10) s = 12 + ((savingsRate - 10) / 10) * 13;
+  else if (savingsRate > 0) s = (savingsRate / 10) * 12;
+
+  // 2. Diversification (20 pts)
+  let d = 0;
+  if (diversif >= 5) d = 20;
+  else if (diversif >= 3) d = 12 + ((diversif - 3) / 2) * 8;
+  else if (diversif === 2) d = 8;
+  else if (diversif === 1) d = 4;
+
+  // 3. Épargne de précaution (20 pts)
+  let e = 0;
+  if (emergencyMonths >= 6) e = 20;
+  else if (emergencyMonths >= 3) e = 15 + ((emergencyMonths - 3) / 3) * 5;
+  else if (emergencyMonths >= 1) e = 7 + ((emergencyMonths - 1) / 2) * 8;
+  else if (emergencyMonths > 0) e = emergencyMonths * 7;
+
+  // 4. Ratio dettes/patrimoine (20 pts)
+  const dPct = debtRatio * 100;
+  const dr = dPct === 0 ? 20 : dPct < 30 ? 15 : dPct < 60 ? 8 : 0;
+
+  // 5. Régularité épargne (15 pts)
+  const r = consecutiveSavingsMonths >= 3 ? 15 : consecutiveSavingsMonths === 2 ? 10 : consecutiveSavingsMonths === 1 ? 5 : 0;
+
+  return Math.min(100, Math.round(s + d + e + dr + r));
 };
 
 // ── Shared UI atoms ──────────────────────────────────────────────────────────
