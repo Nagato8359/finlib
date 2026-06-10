@@ -153,7 +153,7 @@ export const KPI = ({ label, value, sub, accent, icon, T }) => (
 );
 
 export const ModalShell = ({ title, onClose, children, T }) => (
-  <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', justifyContent: 'center' }}>
+  <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: 'env(safe-area-inset-top)' }}>
     <div className="modal-box" style={{ background: T.bg3, border: `1px solid ${T.cardBorder}`, overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{title}</h3>
