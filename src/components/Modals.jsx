@@ -1,4 +1,4 @@
-import { ModalShell, Label, makeS, fEur, fDate, today, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, LISTING_CATS, LISTING_PLATFORMS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
+import { ModalShell, Label, makeS, fEur, fDate, today, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
 
 const FRow = ({ cols = 2, children }) => <div className={`frow frow-${cols}`}>{children}</div>;
 const FField = ({ label, children }) => <div><Label>{label}</Label>{children}</div>;
@@ -24,6 +24,7 @@ export default function Modals({ T, data }) {
     portfolioForm, setPortfolioForm,
     investments, prices, fetchTickerPrice, fetchingPrice,
     allAccounts, computedLoans,
+    listings, soldHistory,
     divForm, setDivForm, divInvId, addDividend,
   } = data;
 
@@ -247,30 +248,40 @@ export default function Modals({ T, data }) {
   }
 
   // ── Actif physique ───────────────────────────────────────────────────────────
-  if (modal === 'health') return (
-    <ModalShell T={T} title={editItem ? "Modifier l'actif" : 'Nouvel actif matériel'} onClose={() => close(() => setHealthForm(mkHealth()))}>
-      <FRow cols={2}>
-        <FField label="Nom"><input type="text" placeholder="Ex : Renault Clio, Collection…" style={S.inp} value={healthForm.name} onChange={e => setHealthForm(p => ({ ...p, name: e.target.value }))} /></FField>
-        <FField label="Catégorie">
-          <select style={S.inp} value={healthForm.category} onChange={e => setHealthForm(p => ({ ...p, category: e.target.value }))}>
-            {HEALTH_CATS.map(c => <option key={c}>{c}</option>)}
-          </select>
-        </FField>
-      </FRow>
-      <FRow cols={2}>
-        <FField label="Prix d'achat (€)"><input type="number" placeholder="0" style={S.inp} value={healthForm.buyPrice} onChange={e => setHealthForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>
-        <FField label="Valeur actuelle (€)"><input type="number" placeholder="0" style={S.inp} value={healthForm.currentValue} onChange={e => setHealthForm(p => ({ ...p, currentValue: e.target.value }))} /></FField>
-      </FRow>
-      <FRow cols={2}>
-        <FField label="Date d'acquisition"><input type="date" style={S.inp} value={healthForm.date} onChange={e => setHealthForm(p => ({ ...p, date: e.target.value }))} /></FField>
-        <FField label="Notes"><input type="text" placeholder="Remarques…" style={S.inp} value={healthForm.notes} onChange={e => setHealthForm(p => ({ ...p, notes: e.target.value }))} /></FField>
-      </FRow>
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-        <button onClick={saveHealth} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
-        <button onClick={() => close(() => setHealthForm(mkHealth()))} style={S.btnS}>Annuler</button>
-      </div>
-    </ModalShell>
-  );
+  if (modal === 'health') {
+    const usedHealthCats = [...new Set([...HEALTH_CATS, ...(listings.map(l => l.category)), ...(soldHistory.map(l => l.category))].filter(Boolean))];
+    return (
+      <ModalShell T={T} title={editItem ? "Modifier l'actif" : 'Nouvel actif matériel'} onClose={() => close(() => setHealthForm(mkHealth()))}>
+        <FRow cols={2}>
+          <FField label="Nom"><input type="text" placeholder="Ex : Renault Clio, Collection…" style={S.inp} value={healthForm.name} onChange={e => setHealthForm(p => ({ ...p, name: e.target.value }))} /></FField>
+          <FField label="Catégorie">
+            <input type="text" list="health-cats-list" placeholder="Ex : Voiture, Collection…" style={S.inp} value={healthForm.category} onChange={e => setHealthForm(p => ({ ...p, category: e.target.value }))} />
+            <datalist id="health-cats-list">{usedHealthCats.map(c => <option key={c} value={c} />)}</datalist>
+          </FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="Prix d'achat (€)"><input type="number" placeholder="0" style={S.inp} value={healthForm.buyPrice} onChange={e => setHealthForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>
+          <FField label="Valeur actuelle (€)"><input type="number" placeholder="0" style={S.inp} value={healthForm.currentValue} onChange={e => setHealthForm(p => ({ ...p, currentValue: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="État de l'objet">
+            <select style={S.inp} value={healthForm.condition || 'Bon état'} onChange={e => setHealthForm(p => ({ ...p, condition: e.target.value }))}>
+              {ITEM_CONDITIONS.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </FField>
+          <FField label="Lieu de stockage"><input type="text" placeholder="Ex : Garage, Cave, Chambre…" style={S.inp} value={healthForm.storageLocation || ''} onChange={e => setHealthForm(p => ({ ...p, storageLocation: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="Date d'acquisition"><input type="date" style={S.inp} value={healthForm.date} onChange={e => setHealthForm(p => ({ ...p, date: e.target.value }))} /></FField>
+          <FField label="Notes"><input type="text" placeholder="Remarques…" style={S.inp} value={healthForm.notes} onChange={e => setHealthForm(p => ({ ...p, notes: e.target.value }))} /></FField>
+        </FRow>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={saveHealth} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
+          <button onClick={() => close(() => setHealthForm(mkHealth()))} style={S.btnS}>Annuler</button>
+        </div>
+      </ModalShell>
+    );
+  }
 
   // ── Objectif ─────────────────────────────────────────────────────────────────
   if (modal === 'goal') return (
@@ -342,46 +353,56 @@ export default function Modals({ T, data }) {
   );
 
   // ── Article en vente ──────────────────────────────────────────────────────────
-  if (modal === 'listing') return (
-    <ModalShell T={T} title={editItem ? "Modifier l'article" : 'Nouvel article en vente'} onClose={() => close(() => setListingForm(mkListing()))}>
-      <FRow cols={2}>
-        <FField label="Nom"><input type="text" placeholder="Ex : iPhone 13 Pro" style={S.inp} value={listingForm.name} onChange={e => setListingForm(p => ({ ...p, name: e.target.value }))} /></FField>
-        <FField label="Catégorie">
-          <select style={S.inp} value={listingForm.category} onChange={e => setListingForm(p => ({ ...p, category: e.target.value }))}>
-            {LISTING_CATS.map(c => <option key={c}>{c}</option>)}
-          </select>
-        </FField>
-      </FRow>
-      <FRow cols={2}>
-        <FField label="Plateforme">
-          <select style={S.inp} value={listingForm.platform} onChange={e => setListingForm(p => ({ ...p, platform: e.target.value }))}>
-            {LISTING_PLATFORMS.map(pl => <option key={pl}>{pl}</option>)}
-          </select>
-        </FField>
-        <FField label="Date de mise en vente"><input type="date" style={S.inp} value={listingForm.listedDate} onChange={e => setListingForm(p => ({ ...p, listedDate: e.target.value }))} /></FField>
-      </FRow>
-      <FRow cols={3}>
-        <FField label="Prix achat (€)"><input type="number" placeholder="0" style={S.inp} value={listingForm.buyPrice} onChange={e => setListingForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>
-        <FField label="Prix vente (€)"><input type="number" placeholder="0" style={S.inp} value={listingForm.sellPrice} onChange={e => setListingForm(p => ({ ...p, sellPrice: e.target.value }))} /></FField>
-        <FField label="Frais (€)"><input type="number" placeholder="0" style={S.inp} value={listingForm.fees} onChange={e => setListingForm(p => ({ ...p, fees: e.target.value }))} /></FField>
-      </FRow>
-      {listingForm.buyPrice !== '' && listingForm.sellPrice !== '' && (() => {
-        const profit = parseFloat(listingForm.sellPrice || 0) - parseFloat(listingForm.buyPrice || 0) - parseFloat(listingForm.fees || 0);
-        return (
-          <div style={{ background: profit >= 0 ? 'rgba(16,185,129,.08)' : 'rgba(248,113,113,.08)', border: `1px solid ${profit >= 0 ? 'rgba(16,185,129,.2)' : 'rgba(248,113,113,.2)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: profit >= 0 ? '#4ade80' : '#f87171' }}>
-            {profit >= 0 ? '💰' : '⚠️'} Bénéfice espéré : <strong>{profit >= 0 ? '+' : ''}{fEur(profit)}</strong>
-          </div>
-        );
-      })()}
-      <FRow cols={1}>
-        <FField label="Notes"><input type="text" placeholder="État, description…" style={S.inp} value={listingForm.notes} onChange={e => setListingForm(p => ({ ...p, notes: e.target.value }))} /></FField>
-      </FRow>
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-        <button onClick={saveListing} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
-        <button onClick={() => close(() => setListingForm(mkListing()))} style={S.btnS}>Annuler</button>
-      </div>
-    </ModalShell>
-  );
+  if (modal === 'listing') {
+    const usedCats = [...new Set([...listings.map(l => l.category), ...soldHistory.map(l => l.category)].filter(Boolean))];
+    const usedPlatforms = [...new Set([...listings.map(l => l.platform), ...soldHistory.map(l => l.platform)].filter(Boolean))];
+    return (
+      <ModalShell T={T} title={editItem ? "Modifier l'article" : 'Nouvel article en vente'} onClose={() => close(() => setListingForm(mkListing()))}>
+        <FRow cols={2}>
+          <FField label="Nom"><input type="text" placeholder="Ex : iPhone 13 Pro" style={S.inp} value={listingForm.name} onChange={e => setListingForm(p => ({ ...p, name: e.target.value }))} /></FField>
+          <FField label="Catégorie">
+            <input type="text" list="listing-cats-list" placeholder="Ex : Électronique, Vêtements…" style={S.inp} value={listingForm.category} onChange={e => setListingForm(p => ({ ...p, category: e.target.value }))} />
+            <datalist id="listing-cats-list">{usedCats.map(c => <option key={c} value={c} />)}</datalist>
+          </FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="Plateforme de vente">
+            <input type="text" list="listing-platforms-list" placeholder="Ex : eBay, Vinted, LeBonCoin…" style={S.inp} value={listingForm.platform} onChange={e => setListingForm(p => ({ ...p, platform: e.target.value }))} />
+            <datalist id="listing-platforms-list">{usedPlatforms.map(pl => <option key={pl} value={pl} />)}</datalist>
+          </FField>
+          <FField label="Date de mise en vente"><input type="date" style={S.inp} value={listingForm.listedDate} onChange={e => setListingForm(p => ({ ...p, listedDate: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="État de l'objet">
+            <select style={S.inp} value={listingForm.condition || 'Bon état'} onChange={e => setListingForm(p => ({ ...p, condition: e.target.value }))}>
+              {ITEM_CONDITIONS.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </FField>
+          <FField label="Lieu de stockage"><input type="text" placeholder="Ex : Cave, Garage, Chambre…" style={S.inp} value={listingForm.storageLocation || ''} onChange={e => setListingForm(p => ({ ...p, storageLocation: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={3}>
+          <FField label="Prix achat (€)"><input type="number" placeholder="0" style={S.inp} value={listingForm.buyPrice} onChange={e => setListingForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>
+          <FField label="Prix vente (€)"><input type="number" placeholder="0" style={S.inp} value={listingForm.sellPrice} onChange={e => setListingForm(p => ({ ...p, sellPrice: e.target.value }))} /></FField>
+          <FField label="Frais (€)"><input type="number" placeholder="0" style={S.inp} value={listingForm.fees} onChange={e => setListingForm(p => ({ ...p, fees: e.target.value }))} /></FField>
+        </FRow>
+        {listingForm.buyPrice !== '' && listingForm.sellPrice !== '' && (() => {
+          const profit = parseFloat(listingForm.sellPrice || 0) - parseFloat(listingForm.buyPrice || 0) - parseFloat(listingForm.fees || 0);
+          return (
+            <div style={{ background: profit >= 0 ? 'rgba(16,185,129,.08)' : 'rgba(248,113,113,.08)', border: `1px solid ${profit >= 0 ? 'rgba(16,185,129,.2)' : 'rgba(248,113,113,.2)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 12, color: profit >= 0 ? '#4ade80' : '#f87171' }}>
+              {profit >= 0 ? '💰' : '⚠️'} Bénéfice espéré : <strong>{profit >= 0 ? '+' : ''}{fEur(profit)}</strong>
+            </div>
+          );
+        })()}
+        <FRow cols={1}>
+          <FField label="Notes"><input type="text" placeholder="Détails supplémentaires…" style={S.inp} value={listingForm.notes} onChange={e => setListingForm(p => ({ ...p, notes: e.target.value }))} /></FField>
+        </FRow>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={saveListing} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
+          <button onClick={() => close(() => setListingForm(mkListing()))} style={S.btnS}>Annuler</button>
+        </div>
+      </ModalShell>
+    );
+  }
 
   // ── Dividende ─────────────────────────────────────────────────────────────────
   if (modal === 'div') {

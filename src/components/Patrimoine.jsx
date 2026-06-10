@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, LISTING_PLATFORM_ICONS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR } from '../utils/constants';
+import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR } from '../utils/constants';
 
 const SECTIONS = [
   { id: 'invest', label: '◈ Investissements' },
@@ -49,7 +49,7 @@ export default function Patrimoine({ T, data }) {
     investments, invTotal, invInvested, invLiveValue, invLiveInvested, priceStatus, lastUpdated, fetchPrices,
     computedSavings, cashTotal, annualInterests, avgRate,
     healthAssets, healthTotal, healthCost,
-    listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit,
+    listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit, soldProfitThisYear,
     computedLoans, totalLoanDebt,
     patrimoine, projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly, projData,
     setModal, setEditItem, setDrillInv, drillInv, setDivInvId,
@@ -481,18 +481,35 @@ export default function Patrimoine({ T, data }) {
   const renderMateriel = () => {
     const catTotals = {};
     healthAssets.forEach(h => { catTotals[h.category] = (catTotals[h.category] || 0) + h.currentValue; });
-    const pieData = Object.entries(catTotals).map(([name, value], i) => ({ name, value, color: INV_COLORS[i % INV_COLORS.length] }));
+    listings.forEach(l => { catTotals[l.category] = (catTotals[l.category] || 0) + (parseFloat(l.sellPrice) || parseFloat(l.buyPrice) || 0); });
+    const pieData = Object.entries(catTotals).map(([name, value], i) => ({ name, value, color: LISTING_CAT_COLORS[name] || INV_COLORS[i % INV_COLORS.length] }));
     const daysOn = d => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+    const totalItems = healthAssets.length + listings.length;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <div className="g4" style={{ flex: 1 }}>
-            <KPI T={T} label="Valeur actuelle" value={fEur(healthTotal, true)} accent="#60a5fa" icon="🏠" />
-            <KPI T={T} label="Coût d'acquisition" value={fEur(healthCost, true)} icon="💳" />
-            <KPI T={T} label="Plus/Moins-value" value={fEur(healthTotal - healthCost, true)} accent={(healthTotal - healthCost) >= 0 ? '#4ade80' : '#f87171'} icon="📊" />
-            <KPI T={T} label="Nb d'actifs" value={healthAssets.length} icon="📦" />
+
+        {/* Bénéfices réalisés — bandeau permanent */}
+        {(soldProfit !== 0 || soldHistory.length > 0) && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.2)', borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ fontSize: 10, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Bénéfices réalisés — {new Date().getFullYear()}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: soldProfitThisYear >= 0 ? '#4ade80' : '#f87171' }}>{soldProfitThisYear >= 0 ? '+' : ''}{fEur(soldProfitThisYear)}</div>
+              <div style={{ fontSize: 11, color: '#4ade8099', marginTop: 2 }}>{soldHistory.filter(x => x.soldDate?.startsWith(String(new Date().getFullYear()))).length} vente{soldHistory.filter(x => x.soldDate?.startsWith(String(new Date().getFullYear()))).length !== 1 ? 's' : ''} cette année</div>
+            </div>
+            <div style={{ background: 'rgba(16,185,129,.06)', border: '1px solid rgba(16,185,129,.15)', borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ fontSize: 10, color: '#10b981', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Bénéfices réalisés — Total</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: soldProfit >= 0 ? '#10b981' : '#f87171' }}>{soldProfit >= 0 ? '+' : ''}{fEur(soldProfit)}</div>
+              <div style={{ fontSize: 11, color: '#10b98199', marginTop: 2 }}>{soldHistory.length} objet{soldHistory.length !== 1 ? 's' : ''} vendu{soldHistory.length !== 1 ? 's' : ''} au total</div>
+            </div>
           </div>
+        )}
+
+        <div className="g4">
+          <KPI T={T} label="Valeur totale" value={fEur(healthTotal, true)} accent="#60a5fa" icon="🏠" />
+          <KPI T={T} label="Coût d'acquisition" value={fEur(healthCost, true)} icon="💳" />
+          <KPI T={T} label="Plus/Moins-value" value={fEur(healthTotal - healthCost, true)} accent={(healthTotal - healthCost) >= 0 ? '#4ade80' : '#f87171'} icon="📊" />
+          <KPI T={T} label="Nb d'actifs" value={`${totalItems} (${listings.length} en vente)`} icon="📦" />
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -500,7 +517,7 @@ export default function Patrimoine({ T, data }) {
           <button onClick={() => { setEditItem(null); data.setListingForm && data.setListingForm(data.mkListing()); setModal('listing'); }} style={{ ...S.btnS, fontSize: 12, padding: '7px 16px' }}>+ Article en vente</button>
         </div>
 
-        {healthAssets.length > 0 && (
+        {(healthAssets.length > 0 || listings.length > 0) && pieData.length > 0 && (
           <div className="g12">
             <div style={{ ...S.card }}>
               <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Répartition</h3>
@@ -517,51 +534,56 @@ export default function Patrimoine({ T, data }) {
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <div style={{ width: 7, height: 7, borderRadius: 2, background: c.color }} />
-                      <span style={{ color: T.textMuted }}>{c.name}</span>
+                      <span style={{ color: T.textMuted }}>{c.name || '—'}</span>
                     </div>
                     <span style={{ color: T.text }}>{fEur(c.value, true)}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div style={{ ...S.card }}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Actifs matériels</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {healthAssets.map(h => {
-                  const pnl = h.currentValue - h.buyPrice;
-                  const pct = h.buyPrice > 0 ? (pnl / h.buyPrice) * 100 : 0;
-                  return (
-                    <div key={h.id} style={{ padding: '12px 14px', background: T.bg2, borderRadius: 12 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{h.name}</div>
-                          <div style={{ fontSize: 11, color: T.textFaint }}>{h.category}{h.notes ? ` · ${h.notes}` : ''}</div>
+            {healthAssets.length > 0 && (
+              <div style={{ ...S.card }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Actifs matériels</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {healthAssets.map(h => {
+                    const pnl = h.currentValue - h.buyPrice;
+                    const pct = h.buyPrice > 0 ? (pnl / h.buyPrice) * 100 : 0;
+                    return (
+                      <div key={h.id} style={{ padding: '12px 14px', background: T.bg2, borderRadius: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{h.name}</div>
+                            <div style={{ fontSize: 11, color: T.textFaint, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                              {h.category && <span>{h.category}</span>}
+                              {h.condition && <span style={{ background: 'rgba(96,165,250,.1)', color: '#60a5fa', padding: '1px 6px', borderRadius: 4 }}>{h.condition}</span>}
+                              {h.storageLocation && <span>📍 {h.storageLocation}</span>}
+                              {h.notes && <span>{h.notes}</span>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{fEur(h.currentValue)}</div>
+                            <div style={{ fontSize: 11, color: pnl >= 0 ? '#4ade80' : '#f87171' }}>{pnl >= 0 ? '+' : ''}{fEur(pnl)} ({fPct(pct)})</div>
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{fEur(h.currentValue)}</div>
-                          <div style={{ fontSize: 11, color: pnl >= 0 ? '#4ade80' : '#f87171' }}>{pnl >= 0 ? '+' : ''}{fEur(pnl)} ({fPct(pct)})</div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => openEditHealth(h)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 10 }}>✎</button>
+                          <button onClick={() => delHealth(h.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 10 }}>✕</button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => openEditHealth(h)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 10 }}>✎</button>
-                        <button onClick={() => delHealth(h.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 10 }}>✕</button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {/* Listings */}
-        {(listings.length > 0 || soldHistory.length > 0) && (
+        {/* Articles en vente */}
+        {listings.length > 0 && (
           <div style={{ ...S.card }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Ventes en cours ({listings.length})</h3>
-              <div style={{ display: 'flex', gap: 10, fontSize: 12, color: T.textMuted }}>
-                <span>Bénéfice espéré : <span style={{ color: listingsExpectedProfit >= 0 ? '#4ade80' : '#f87171', fontWeight: 600 }}>{fEur(listingsExpectedProfit, true)}</span></span>
-              </div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Articles en vente ({listings.length})</h3>
+              <span style={{ fontSize: 12, color: T.textMuted }}>Bénéfice espéré : <span style={{ color: listingsExpectedProfit >= 0 ? '#4ade80' : '#f87171', fontWeight: 600 }}>{fEur(listingsExpectedProfit, true)}</span></span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {listings.map(l => {
@@ -574,20 +596,25 @@ export default function Patrimoine({ T, data }) {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 4 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{l.name}</span>
-                          <span style={{ fontSize: 10, background: catColor + '22', color: catColor, padding: '2px 7px', borderRadius: 20 }}>{l.category}</span>
-                          <span style={{ fontSize: 11, color: T.textMuted }}>{LISTING_PLATFORM_ICONS[l.platform]} {l.platform}</span>
+                          {l.category && <span style={{ fontSize: 10, background: catColor + '22', color: catColor, padding: '2px 7px', borderRadius: 20 }}>{l.category}</span>}
+                          {l.condition && <span style={{ fontSize: 10, background: 'rgba(96,165,250,.1)', color: '#60a5fa', padding: '2px 7px', borderRadius: 20 }}>{l.condition}</span>}
+                          {l.platform && <span style={{ fontSize: 11, color: T.textMuted }}>🏷️ {l.platform}</span>}
                           <span style={{ fontSize: 10, color: days > 30 ? '#f87171' : T.textMuted }}>{days === 0 ? "Aujourd'hui" : `${days}j`}</span>
                         </div>
-                        <div style={{ fontSize: 12, color: T.textFaint }}>Achat {fEur(l.buyPrice)} · Vente {fEur(l.sellPrice)}{l.fees > 0 ? ` · Frais ${fEur(l.fees)}` : ''}</div>
+                        <div style={{ fontSize: 11, color: T.textFaint, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <span>Achat {fEur(l.buyPrice)} · Vente {fEur(l.sellPrice)}{l.fees > 0 ? ` · Frais ${fEur(l.fees)}` : ''}</span>
+                          {l.storageLocation && <span>📍 {l.storageLocation}</span>}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: profit >= 0 ? '#4ade80' : '#f87171' }}>{profit >= 0 ? '+' : ''}{fEur(profit)}</div>
+                          <div style={{ fontSize: 10, color: T.textFaint }}>bénéfice espéré</div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                           <button onClick={() => openEditListing(l)} style={{ ...S.btnS, padding: '2px 7px', fontSize: 10 }}>✎</button>
                           <button onClick={() => delListing(l.id)} style={{ ...S.btnD, padding: '2px 7px', fontSize: 10 }}>✕</button>
-                          <button onClick={() => markSold(l)} style={{ ...S.btnG, padding: '2px 7px', fontSize: 10 }}>✓</button>
+                          <button onClick={() => markSold(l)} style={{ ...S.btnG, padding: '2px 7px', fontSize: 10 }}>✓ Vendu</button>
                         </div>
                       </div>
                     </div>
@@ -595,22 +622,47 @@ export default function Patrimoine({ T, data }) {
                 );
               })}
             </div>
-            {soldHistory.length > 0 && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.cardBorder}` }}>
-                <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
-                  Historique ({soldHistory.length}) · Profit réalisé : <span style={{ color: soldProfit >= 0 ? '#4ade80' : '#f87171', fontWeight: 600 }}>{fEur(soldProfit, true)}</span>
-                </div>
-                {soldHistory.slice(0, 5).map(x => (
-                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
-                    <span style={{ color: T.textMuted }}>{x.name} · {fDate(x.soldDate)}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 600, color: x.profit >= 0 ? '#4ade80' : '#f87171' }}>{x.profit >= 0 ? '+' : ''}{fEur(x.profit)}</span>
-                      <button onClick={() => setSoldHistory(p => p.filter(s => s.id !== x.id))} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
+          </div>
+        )}
+
+        {/* Historique des ventes */}
+        {soldHistory.length > 0 && (
+          <div style={{ ...S.card }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Objets vendus ({soldHistory.length})</h3>
+              <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600 }}>+{fEur(soldProfit, true)} réalisé</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {soldHistory.map(x => {
+                const catColor = LISTING_CAT_COLORS[x.category] || '#94a3b8';
+                return (
+                  <div key={x.id} style={{ padding: '10px 12px', background: T.bg2, borderRadius: 10, borderLeft: `3px solid ${x.profit >= 0 ? '#4ade80' : '#f87171'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{x.name}</span>
+                          {x.category && <span style={{ fontSize: 9, background: catColor + '22', color: catColor, padding: '1px 6px', borderRadius: 10 }}>{x.category}</span>}
+                          {x.condition && <span style={{ fontSize: 9, background: 'rgba(96,165,250,.1)', color: '#60a5fa', padding: '1px 6px', borderRadius: 10 }}>{x.condition}</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textFaint, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          <span>Acheté {fEur(x.buyPrice)}</span>
+                          <span>Vendu {fEur(x.sellPrice)}</span>
+                          {x.fees > 0 && <span>Frais {fEur(x.fees)}</span>}
+                          {x.platform && <span>via {x.platform}</span>}
+                          <span style={{ color: T.textMuted }}>{fDate(x.soldDate)}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: x.profit >= 0 ? '#4ade80' : '#f87171' }}>{x.profit >= 0 ? '+' : ''}{fEur(x.profit)}</div>
+                        </div>
+                        <button onClick={() => setSoldHistory(p => p.filter(s => s.id !== x.id))} style={{ ...S.btnD, padding: '2px 6px', fontSize: 10 }}>✕</button>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -73,10 +73,8 @@ export const CASH_TYPE_INFO = {
   'PEA':            { cap: 150000, rate: 0 },
   'Autre':          { cap: null,   rate: 0 },
 };
-export const LISTING_CATS = ['Objet physique', 'Crypto', 'Action', 'ETF'];
-export const LISTING_PLATFORMS = ['Vinted', 'eBay', 'LeBonCoin', 'Binance', 'Bourse Direct', 'Autre'];
-export const LISTING_CAT_COLORS = { 'Objet physique': '#fb923c', Crypto: '#f59e0b', Action: '#10b981', ETF: '#60a5fa' };
-export const LISTING_PLATFORM_ICONS = { Vinted: '👗', eBay: '🛍️', LeBonCoin: '📦', Binance: '🪙', 'Bourse Direct': '📈', Autre: '🏷️' };
+export const LISTING_CAT_COLORS = { 'Objet physique': '#fb923c', Crypto: '#f59e0b', Action: '#10b981', ETF: '#60a5fa', Électronique: '#60a5fa', Vêtements: '#f472b6', Mobilier: '#a78bfa', Livre: '#34d399' };
+export const ITEM_CONDITIONS = ['Neuf', 'Très bon état', 'Bon état', 'État correct', 'Mauvais état'];
 
 // ── CSV auto-categorisation keywords ─────────────────────────────────────────
 export const CAT_KEYWORDS = {
@@ -171,9 +169,9 @@ export const SEED_INV = [
   },
 ];
 export const SEED_HEALTH = [
-  { id: uid(), name: 'Renault Clio', category: 'Voiture', buyPrice: 8000, currentValue: 5500, date: '2022-03-01', notes: '' },
-  { id: uid(), name: 'Collection Pop Figures', category: 'Collection', buyPrice: 1200, currentValue: 1800, date: '2020-01-01', notes: '~60 figurines' },
-  { id: uid(), name: 'Collection Yugioh', category: 'Collection', buyPrice: 800, currentValue: 1200, date: '2019-06-01', notes: 'Cartes rares' },
+  { id: uid(), name: 'Renault Clio', category: 'Voiture', buyPrice: 8000, currentValue: 5500, date: '2022-03-01', notes: '', condition: 'Bon état', storageLocation: 'Garage' },
+  { id: uid(), name: 'Collection Pop Figures', category: 'Collection', buyPrice: 1200, currentValue: 1800, date: '2020-01-01', notes: '~60 figurines', condition: 'Très bon état', storageLocation: 'Chambre' },
+  { id: uid(), name: 'Collection Yugioh', category: 'Collection', buyPrice: 800, currentValue: 1200, date: '2019-06-01', notes: 'Cartes rares', condition: 'Très bon état', storageLocation: 'Chambre' },
 ];
 export const SEED_BUDGETS = { Logement: 1000, Alimentation: 400, Transport: 150, Loisirs: 200, Abonnements: 80, Factures: 150, Santé: 100, Autres: 200 };
 export const SEED_GOALS = [
@@ -186,7 +184,7 @@ export const SEED_CASH = [
   { id: uid(), name: 'LDD Société Générale', type: 'LDD', balance: 4000, rate: 2.4 },
 ];
 export const SEED_LISTINGS = [
-  { id: uid(), name: 'iPhone 13 Pro 256 Go', category: 'Objet physique', platform: 'eBay', buyPrice: 650, sellPrice: 520, fees: 30, listedDate: '2026-05-15', notes: 'Bon état, avec boîte' },
+  { id: uid(), name: 'iPhone 13 Pro 256 Go', category: 'Électronique', platform: 'eBay', buyPrice: 650, sellPrice: 520, fees: 30, listedDate: '2026-05-15', notes: 'Avec boîte', condition: 'Bon état', storageLocation: 'Chambre' },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

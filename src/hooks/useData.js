@@ -18,11 +18,11 @@ const mkPortfolio = () => ({
   employeur: '', peType: 'PEE', disponibiliteDate: '',
   value: '', invested: '', notes: '',
 });
-const mkHealth  = () => ({ name: '', category: 'Voiture', buyPrice: '', currentValue: '', date: today(), notes: '' });
+const mkHealth  = () => ({ name: '', category: '', buyPrice: '', currentValue: '', date: today(), notes: '', condition: 'Bon état', storageLocation: '' });
 const mkPos     = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '', divYield: '' });
 const mkGoal    = () => ({ name: '', target: '', deadline: '', color: '#10b981' });
 const mkCash    = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
-const mkListing = () => ({ name: '', category: 'Objet physique', platform: 'eBay', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '' });
+const mkListing = () => ({ name: '', category: '', platform: '', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '', condition: 'Bon état', storageLocation: '' });
 const mkLoan    = () => ({ name: '', lender: '', capitalBorrowed: '', capitalRemaining: '', monthlyPayment: '', rate: '', insuranceAmount: '', insuranceOrganisme: '', insuranceRate: '', startDate: today(), endDate: '' });
 const mkDebt    = () => ({ name: '', lender: '', capitalRemaining: '', monthlyPayment: '', rate: '', endDate: '' });
 
@@ -329,13 +329,14 @@ export function useData() {
 
   const invTotal    = investments.reduce((s, inv) => s + invLiveValue(inv), 0);
   const invInvested = investments.reduce((s, i) => s + invLiveInvested(i), 0);
-  const healthTotal = healthAssets.reduce((s, h) => s + h.currentValue, 0);
-  const healthCost  = healthAssets.reduce((s, h) => s + h.buyPrice, 0);
+  const healthTotal = healthAssets.reduce((s, h) => s + h.currentValue, 0) + listings.reduce((s, l) => s + (parseFloat(l.sellPrice) || parseFloat(l.buyPrice) || 0), 0);
+  const healthCost  = healthAssets.reduce((s, h) => s + h.buyPrice, 0) + listings.reduce((s, l) => s + (parseFloat(l.buyPrice) || 0), 0);
   const cashTotal   = computedSavings.reduce((s, c) => s + c.computedBalance, 0);
   const annualInterests = computedSavings.reduce((s, c) => s + c.computedBalance * (c.rate / 100), 0);
   const avgRate    = cashTotal > 0 ? (annualInterests / cashTotal) * 100 : 0;
   const listingsExpectedProfit = listings.reduce((s, l) => s + (l.sellPrice - l.buyPrice - (l.fees || 0)), 0);
   const soldProfit = soldHistory.reduce((s, x) => s + x.profit, 0);
+  const soldProfitThisYear = soldHistory.filter(x => x.soldDate?.startsWith(String(cy))).reduce((s, x) => s + x.profit, 0);
   const patrimoine = invTotal + cashTotal + healthTotal;
   const pnlTotal   = (invTotal - invInvested) + (healthTotal - healthCost);
 
@@ -669,7 +670,7 @@ export function useData() {
     annualInterests, avgRate,
     listingsBuyTotal: listings.reduce((s, l) => s + l.buyPrice, 0),
     listingsSellTotal: listings.reduce((s, l) => s + l.sellPrice, 0),
-    listingsExpectedProfit, soldProfit,
+    listingsExpectedProfit, soldProfit, soldProfitThisYear,
     income, expense, balance, savingsRate, pnlTotal,
     totalLoanDebt, totalConsumerDebt, totalDebt, monthlyDebtPayments, endettementRate,
     score, alerts, budgetProgress, monthlyData, catData, projData,
