@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import {
-  uid, today, MONTHS, INV_COLORS, CAT_COLORS,
+  uid, today, MONTHS, INV_COLORS, CAT_COLORS, CAT_KEYWORDS,
   SEED_TX, SEED_INV, SEED_HEALTH, SEED_BUDGETS, SEED_GOALS, SEED_CASH, SEED_LISTINGS,
   calcScore, fEur,
 } from '../utils/constants';
+import { notify } from '../utils/notifications';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -17,6 +18,98 @@ const mkCash    = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
 const mkListing = () => ({ name: '', category: 'Objet physique', platform: 'eBay', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '' });
 const mkLoan    = () => ({ name: '', lender: '', capitalBorrowed: '', capitalRemaining: '', monthlyPayment: '', rate: '', insuranceAmount: '', insuranceOrganisme: '', insuranceRate: '', startDate: today(), endDate: '' });
 const mkDebt    = () => ({ name: '', lender: '', capitalRemaining: '', monthlyPayment: '', rate: '', endDate: '' });
+
+// ── Recurring tx generator (pure) ────────────────────────────────────────────
+const applyRecurrences = (txs) => {
+  const originals = txs.filter(t => t.recurrent && !t.recurrentSourceId);
+  const generatedKeys = new Set(
+    txs.filter(t => t.recurrentSourceId)
+      .map(t => `${t.recurrentSourceId}:${t.date.slice(0, 7)}`)
+  );
+  const toAdd = [];
+  const now = new Date();
+
+  originals.forEach(orig => {
+    const origDay = parseInt(orig.date.slice(8, 10), 10);
+    const origDate = new Date(orig.date);
+    let cur = new Date(origDate.getFullYear(), origDate.getMonth() + 1, 1);
+    while (cur <= now) {
+      const mm = String(cur.getMonth() + 1).padStart(2, '0');
+      const yyyy = cur.getFullYear();
+      const key = `${orig.id}:${yyyy}-${mm}`;
+      if (!generatedKeys.has(key)) {
+        const daysInMonth = new Date(yyyy, cur.getMonth() + 1, 0).getDate();
+        const actualDay = Math.min(origDay, daysInMonth);
+        toAdd.push({
+          ...orig,
+          id: uid(),
+          date: `${yyyy}-${mm}-${String(actualDay).padStart(2, '0')}`,
+          recurrentSourceId: orig.id,
+        });
+        generatedKeys.add(key);
+      }
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+  });
+
+  return toAdd;
+};
+
+// ── CSV auto-categorisation ───────────────────────────────────────────────────
+const detectCategory = (label) => {
+  const lower = label.toLowerCase();
+  for (const [cat, keywords] of Object.entries(CAT_KEYWORDS)) {
+    if (keywords.some(kw => lower.includes(kw))) return cat;
+  }
+  return 'Autres';
+};
+
+export const parseCSV = (text) => {
+  const raw = text.replace(/\r/g, '');
+  const lines = raw.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+
+  const sep = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(sep).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+
+  const idx = (candidates) => candidates.reduce((found, c) => found >= 0 ? found : headers.findIndex(h => h.includes(c)), -1);
+  const dateIdx   = idx(['date']);
+  const labelIdx  = idx(['libellé', 'label', 'opération', 'description', 'libelle']);
+  const amountIdx = idx(['montant', 'amount', 'valeur']);
+  const debitIdx  = headers.findIndex(h => h === 'débit' || h === 'debit');
+  const creditIdx = headers.findIndex(h => h === 'crédit' || h === 'credit');
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(sep).map(c => c.replace(/^"|"$/g, '').trim());
+    if (cells.length < 2) continue;
+
+    const rawDate = dateIdx >= 0 ? cells[dateIdx] : cells[0];
+    const label   = labelIdx >= 0 ? cells[labelIdx] : cells[1] || '';
+
+    let amount = 0;
+    if (amountIdx >= 0) {
+      amount = parseFloat(cells[amountIdx].replace(/\s/g, '').replace(',', '.')) || 0;
+    } else if (debitIdx >= 0 || creditIdx >= 0) {
+      const deb = debitIdx  >= 0 ? parseFloat((cells[debitIdx]  || '0').replace(/\s/g, '').replace(',', '.')) || 0 : 0;
+      const cred = creditIdx >= 0 ? parseFloat((cells[creditIdx] || '0').replace(/\s/g, '').replace(',', '.')) || 0 : 0;
+      amount = cred - deb;
+    }
+
+    // Parse DD/MM/YYYY or YYYY-MM-DD
+    let date = '';
+    if (/\d{2}\/\d{2}\/\d{4}/.test(rawDate)) {
+      const [d, m, y] = rawDate.split('/');
+      date = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    } else if (/\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+      date = rawDate.slice(0, 10);
+    }
+
+    if (!date || !label.trim() || amount === 0) continue;
+    rows.push({ date, label: label.trim(), amount, category: detectCategory(label) });
+  }
+  return rows;
+};
 
 export function useData() {
   // ── Raw state ──────────────────────────────────────────────────────────────
@@ -61,7 +154,20 @@ export function useData() {
     try {
       const { data } = await supabase.from('user_data').select('*').eq('user_id', userId).single();
       if (data) {
-        if (data.transactions?.length) setTransactions(data.transactions);
+        let txs = data.transactions?.length ? data.transactions : [];
+
+        // Auto-generate missing recurring transactions
+        const newRecurring = applyRecurrences(txs);
+        if (newRecurring.length > 0) {
+          txs = [...txs, ...newRecurring];
+          newRecurring.slice(0, 3).forEach(t =>
+            notify('Transaction récurrente ajoutée', `${t.label} — ${t.amount > 0 ? '+' : ''}${fEur(t.amount)}`)
+          );
+          if (newRecurring.length > 3)
+            notify('Transactions récurrentes', `${newRecurring.length} transactions ajoutées automatiquement`);
+        }
+
+        setTransactions(txs);
         if (data.investments?.length) setInvestments(data.investments);
         if (data.health_assets?.length) setHealthAssets(data.health_assets);
         if (data.budgets && Object.keys(data.budgets).length) setBudgets(data.budgets);
@@ -173,13 +279,11 @@ export function useData() {
     return v > 0 ? Math.round(v) : inv.value;
   };
 
-  // Unified account list for dropdowns (savings + investments)
   const allAccounts = [
     ...savings.map(a => ({ id: a.id, name: a.name, accountType: 'savings' })),
     ...investments.map(a => ({ id: a.id, name: a.name, accountType: 'investment' })),
   ];
 
-  // Dynamic balance delta per account from linked transactions
   const txAccountDelta = (accountId) =>
     transactions
       .filter(t => t.accountId === accountId || t.destAccountId === accountId)
@@ -193,13 +297,11 @@ export function useData() {
         return sum;
       }, 0);
 
-  // Savings with live computed balance (storedBalance + transaction deltas)
   const computedSavings = savings.map(a => ({
     ...a,
     computedBalance: a.balance + txAccountDelta(a.id),
   }));
 
-  // Loans with live computed capital remaining (stored - repayments)
   const computedLoans = loans.map(l => ({
     ...l,
     computedRemaining: Math.max(0,
@@ -210,36 +312,31 @@ export function useData() {
     ),
   }));
 
-  const invTotal = investments.reduce((s, inv) => s + invLiveValue(inv), 0);
+  const invTotal    = investments.reduce((s, inv) => s + invLiveValue(inv), 0);
   const invInvested = investments.reduce((s, i) => s + i.invested, 0);
   const healthTotal = healthAssets.reduce((s, h) => s + h.currentValue, 0);
-  const healthCost = healthAssets.reduce((s, h) => s + h.buyPrice, 0);
-  // cashTotal uses computed balances so patrimoine auto-updates with transactions
-  const cashTotal = computedSavings.reduce((s, c) => s + c.computedBalance, 0);
+  const healthCost  = healthAssets.reduce((s, h) => s + h.buyPrice, 0);
+  const cashTotal   = computedSavings.reduce((s, c) => s + c.computedBalance, 0);
   const annualInterests = computedSavings.reduce((s, c) => s + c.computedBalance * (c.rate / 100), 0);
-  const avgRate = cashTotal > 0 ? (annualInterests / cashTotal) * 100 : 0;
-  const listingsBuyTotal = listings.reduce((s, l) => s + l.buyPrice, 0);
-  const listingsSellTotal = listings.reduce((s, l) => s + l.sellPrice, 0);
+  const avgRate    = cashTotal > 0 ? (annualInterests / cashTotal) * 100 : 0;
   const listingsExpectedProfit = listings.reduce((s, l) => s + (l.sellPrice - l.buyPrice - (l.fees || 0)), 0);
   const soldProfit = soldHistory.reduce((s, x) => s + x.profit, 0);
   const patrimoine = invTotal + cashTotal + healthTotal;
-  const pnlTotal = (invTotal - invInvested) + (healthTotal - healthCost);
+  const pnlTotal   = (invTotal - invInvested) + (healthTotal - healthCost);
 
-  // Debts
-  const totalLoanDebt = computedLoans.reduce((s, l) => s + l.computedRemaining, 0);
+  const totalLoanDebt     = computedLoans.reduce((s, l) => s + l.computedRemaining, 0);
   const totalConsumerDebt = debts.reduce((s, d) => s + (parseFloat(d.capitalRemaining) || 0), 0);
-  const totalDebt = totalLoanDebt + totalConsumerDebt;
+  const totalDebt         = totalLoanDebt + totalConsumerDebt;
   const monthlyLoanPayments = loans.reduce((s, l) => s + (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0), 0);
   const monthlyDebtPayments = monthlyLoanPayments + debts.reduce((s, d) => s + (parseFloat(d.monthlyPayment) || 0), 0);
 
   const now = new Date();
   const cm = now.getMonth(), cy = now.getFullYear();
   const monthTx = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === cm && d.getFullYear() === cy; });
-  // income/expense only count their own types (transfers are internal movements)
-  const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const income  = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expense = Math.abs(monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
   const balance = income - expense;
-  const savingsRate = income > 0 ? (balance / income) * 100 : 0;
+  const savingsRate   = income > 0 ? (balance / income) * 100 : 0;
   const endettementRate = income > 0 ? (monthlyDebtPayments / income) * 100 : 0;
 
   const budgetProgress = {};
@@ -287,17 +384,94 @@ export function useData() {
     alerts.push({ msg: `Taux d'endettement : ${endettementRate.toFixed(0)}% de vos revenus — limite légale 33%` });
   }
 
+  // ── Budget & goal notifications ───────────────────────────────────────────
+  const prevBudgetPct = useRef({});
+  useEffect(() => {
+    if (!dataLoaded.current) return;
+    Object.entries(budgetProgress).forEach(([cat, { pct }]) => {
+      const prev = prevBudgetPct.current[cat] ?? 0;
+      if (pct >= 100 && prev < 100) notify('Budget dépassé !', `Budget ${cat} à ${Math.round(pct)}% — limite atteinte`);
+      else if (pct >= 80 && prev < 80) notify('Budget à 80%', `Budget ${cat} à ${Math.round(pct)}% de la limite`);
+      prevBudgetPct.current[cat] = pct;
+    });
+  });
+
+  const prevGoalIds = useRef(new Set());
+  useEffect(() => {
+    if (!dataLoaded.current) return;
+    goals.forEach(g => {
+      if (patrimoine >= g.target && !prevGoalIds.current.has(g.id)) {
+        prevGoalIds.current.add(g.id);
+        notify('Objectif atteint !', `Félicitations ! "${g.name}" (${fEur(g.target)}) est atteint.`);
+      }
+    });
+  }, [goals, patrimoine]);
+
+  // ── Cash-flow forecast ────────────────────────────────────────────────────
+  const computeForecast = useCallback((days) => {
+    const originals = transactions.filter(t => t.recurrent && !t.recurrentSourceId);
+    let bal = cashTotal;
+    const points = [{ label: "Auj.", balance: Math.round(bal), neg: bal < 0 }];
+
+    const checkpoints = new Set([1, 7, 14, 21, 30, 45, 60, 75, 90, days]);
+    for (let d = 1; d <= days; d++) {
+      const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
+      const yyyy = dt.getFullYear();
+      const mm   = String(dt.getMonth() + 1).padStart(2, '0');
+      const dayNum = dt.getDate();
+      const monthStr = `${yyyy}-${mm}`;
+
+      let dayDelta = 0;
+      originals.forEach(orig => {
+        const origDay = parseInt(orig.date.slice(8, 10), 10);
+        if (dayNum === origDay) {
+          const exists = transactions.some(t =>
+            (t.id === orig.id || t.recurrentSourceId === orig.id) && t.date.startsWith(monthStr)
+          );
+          if (!exists) dayDelta += orig.amount;
+        }
+      });
+      bal += dayDelta;
+
+      if (checkpoints.has(d)) {
+        points.push({ label: `J+${d}`, balance: Math.round(bal), neg: bal < 0 });
+      }
+    }
+    return points;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions, cashTotal]);
+
+  // ── CSV import ────────────────────────────────────────────────────────────
+  const importTransactions = useCallback((rows) => {
+    const newTxs = rows
+      .filter(r => !transactions.some(
+        t => t.date === r.date && Math.abs(t.amount) === Math.abs(r.amount) && t.label === r.label
+      ))
+      .map(r => ({
+        id: uid(),
+        date: r.date,
+        label: r.label,
+        category: r.category,
+        amount: r.amount,
+        type: r.amount > 0 ? 'income' : 'expense',
+        recurrent: false,
+        accountId: '',
+        destAccountId: '',
+        loanId: '',
+      }));
+    setTransactions(p => [...newTxs, ...p]);
+    return newTxs.length;
+  }, [transactions]);
+
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const saveTx = () => {
     if (!txForm.date || !txForm.label || !txForm.amount) return;
     const amt = parseFloat(txForm.amount);
     let amount, category;
     if (txForm.type === 'transfer') {
-      amount = Math.abs(amt);
-      category = 'Virement';
+      amount = Math.abs(amt); category = 'Virement';
     } else if (txForm.type === 'loan_repayment') {
-      amount = Math.abs(amt);
-      category = 'Remboursement';
+      amount = Math.abs(amt); category = 'Remboursement';
     } else {
       amount = txForm.type === 'expense' ? -Math.abs(amt) : Math.abs(amt);
       category = txForm.category;
@@ -429,11 +603,14 @@ export function useData() {
     mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt,
     patrimoine, invTotal, invInvested, cashTotal, healthTotal, healthCost,
     annualInterests, avgRate,
-    listingsBuyTotal, listingsSellTotal, listingsExpectedProfit, soldProfit,
+    listingsBuyTotal: listings.reduce((s, l) => s + l.buyPrice, 0),
+    listingsSellTotal: listings.reduce((s, l) => s + l.sellPrice, 0),
+    listingsExpectedProfit, soldProfit,
     income, expense, balance, savingsRate, pnlTotal,
     totalLoanDebt, totalConsumerDebt, totalDebt, monthlyDebtPayments, endettementRate,
     score, alerts, budgetProgress, monthlyData, catData, projData,
     invLiveValue, setInvestments, exportCSV,
+    computeForecast, importTransactions,
     saveTx, delTx, openEditTx,
     saveInv, delInv, openEditInv,
     saveHealth, delHealth, openEditHealth,

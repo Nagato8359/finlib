@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { requestNotifPermission } from './utils/notifications';
 import { useTheme } from './hooks/useTheme';
 import { useData } from './hooks/useData';
 import AuthScreen from './components/AuthScreen';
@@ -74,6 +75,10 @@ export default function App() {
   const { darkMode, setDarkMode, T } = useTheme();
   const data = useData();
   const [tab, setTab] = useState('accueil');
+
+  useEffect(() => {
+    if (data.user || data.demoMode) requestNotifPermission();
+  }, [data.user, data.demoMode]);
 
   if (data.authLoading) {
     return (

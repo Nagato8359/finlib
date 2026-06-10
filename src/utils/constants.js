@@ -65,6 +65,19 @@ export const LISTING_PLATFORMS = ['Vinted', 'eBay', 'LeBonCoin', 'Binance', 'Bou
 export const LISTING_CAT_COLORS = { 'Objet physique': '#fb923c', Crypto: '#f59e0b', Action: '#10b981', ETF: '#60a5fa' };
 export const LISTING_PLATFORM_ICONS = { Vinted: '👗', eBay: '🛍️', LeBonCoin: '📦', Binance: '🪙', 'Bourse Direct': '📈', Autre: '🏷️' };
 
+// ── CSV auto-categorisation keywords ─────────────────────────────────────────
+export const CAT_KEYWORDS = {
+  Revenus:      ['salaire', 'freelance', 'virement reçu', 'allocation', 'prime', 'indemnité', 'dividende'],
+  Logement:     ['loyer', 'charges', 'copropriété', 'assurance habitation', 'taxe foncière', 'syndic'],
+  Alimentation: ['carrefour', 'leclerc', 'monoprix', 'lidl', 'aldi', 'intermarché', 'casino', 'franprix', 'picard', 'mcdo', 'mcdonald', 'burger', 'kfc', 'pizza', 'boulangerie', 'supermarché', 'superette', 'drive'],
+  Factures:     ['edf', 'engie', 'eau ', 'sfr', 'orange', 'bouygues', 'free mobile', 'electricite', 'électricité', 'gaz', 'internet', 'téléphone'],
+  Abonnements:  ['netflix', 'spotify', 'amazon prime', 'disney', 'apple.com', 'deezer', 'youtube premium', 'adobe', 'microsoft 365', 'abonnement'],
+  Transport:    ['sncf', 'ratp', 'navigo', 'uber', 'taxi', 'total', 'bp station', 'shell', 'péage', 'autoroute', 'vélib'],
+  Santé:        ['pharmacie', 'médecin', 'docteur', 'clinique', 'dentiste', 'kiné', 'mutuelle', 'cpam'],
+  Loisirs:      ['cinéma', 'cinema', 'fnac', 'amazon.fr', 'sport', 'fitness', 'jeux', 'livre', 'théâtre', 'concert', 'hôtel', 'airbnb', 'booking', 'voyage'],
+  Épargne:      ['livret a', 'ldd', 'assurance vie', 'épargne', 'pel '],
+};
+
 // ── Platforms (Investir tab) ──────────────────────────────────────────────────
 export const PLATFORMS = [
   { name: 'Binance', desc: 'Plus grande plateforme crypto mondiale. Accès à 350+ cryptos, staking et DeFi.', url: 'https://www.binance.com', color: '#f0b90b', emoji: '₿', tags: ['Crypto', 'DeFi', 'Staking'] },
