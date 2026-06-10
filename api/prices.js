@@ -18,7 +18,10 @@ module.exports = async function handler(req, res) {
       try {
         const data = await resolvePriceByKey(key);
         if (data.price != null) out[key] = data.price;
-      } catch {}
+        else console.warn(`[prices] null price for ${key}`);
+      } catch (err) {
+        console.error(`[prices] error for ${key}:`, err.message);
+      }
     })
   );
 

@@ -565,8 +565,8 @@ export function useData() {
   const openEditHealth = h => { setEditItem(h); setHealthForm(h); setModal('health'); };
 
   const savePosition = () => {
-    if (!posForm.ticker || !posForm.shares || !posForm.buyPrice) return;
-    const livePrc = prices[posForm.ticker];
+    if (!(posForm.isin || posForm.ticker) || !posForm.shares || !posForm.buyPrice) return;
+    const livePrc = prices[posForm.isin || posForm.ticker];
     const currentPrice = parseFloat(posForm.currentPrice) || livePrc || 0;
     const pos = { ...posForm, id: editItem?.posId || uid(), shares: parseFloat(posForm.shares), buyPrice: parseFloat(posForm.buyPrice), currentPrice, divYield: parseFloat(posForm.divYield) || 0 };
     setInvestments(p => p.map(inv => {
