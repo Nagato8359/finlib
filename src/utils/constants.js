@@ -45,6 +45,19 @@ export const CAT_COLORS = {
 };
 export const INV_CATS = ['Actions', 'Crypto', 'Obligataire', 'Immobilier', 'Épargne liquide', 'Autres'];
 export const INV_COLORS = ['#10b981', '#f59e0b', '#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fb923c', '#facc15'];
+
+// ── Portfolio (enveloppes) ────────────────────────────────────────────────────
+export const PORTFOLIO_TYPES = ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Immobilier', 'Épargne salariale', 'Autre'];
+export const PORTFOLIO_TYPE_ICON = { PEA: '🏛️', CTO: '📈', 'Assurance-vie': '🛡️', Crypto: '🪙', Immobilier: '🏠', 'Épargne salariale': '💼', Autre: '📦' };
+export const PORTFOLIO_TYPE_COLOR = { PEA: '#10b981', CTO: '#60a5fa', 'Assurance-vie': '#a78bfa', Crypto: '#f59e0b', Immobilier: '#fb923c', 'Épargne salariale': '#34d399', Autre: '#94a3b8' };
+export const PORTFOLIO_BROKERS_PEA = ['Boursobank', 'Bourse Direct', 'Fortuneo', 'Saxo', 'BNP Paribas', 'Société Générale', 'Crédit Agricole', 'Autre'];
+export const PORTFOLIO_BROKERS_CTO = ['Boursobank', 'Bourse Direct', 'DEGIRO', 'Trade Republic', 'Interactive Brokers', 'Saxo', 'eToro', 'Autre'];
+export const PORTFOLIO_AV_TYPES = ['Fonds euros', 'Unités de compte', 'Mixte'];
+export const PORTFOLIO_AV_INSURERS = ['AXA', 'Generali', 'Spirica', 'Apicil', 'Suravenir', 'Predica (CA)', 'Autre'];
+export const PORTFOLIO_CRYPTO_PLATFORMS = ['Binance', 'Coinbase', 'Kraken', 'Bybit', 'Ledger (HW)', 'Trezor (HW)', 'MetaMask', 'Autre'];
+export const PORTFOLIO_CRYPTO_TYPES = ['CEX', 'DEX', 'Cold wallet', 'Hot wallet'];
+export const PORTFOLIO_IMMO_TYPES = ['Résidence principale', 'Locatif', 'SCPI', 'SCI', 'LMNP', 'Autre'];
+export const PORTFOLIO_PE_TYPES = ['PEE', 'PERCO', 'PER Collectif', 'PER Individuel'];
 export const HEALTH_CATS = ['Voiture', 'Immobilier physique', 'Collection', 'Électronique', 'Mobilier', 'Bijoux', 'Autres'];
 export const CASH_TYPES = ['Compte courant', 'Livret A', 'LDD', 'LEP', 'Livret Jeune', 'PEL', 'CEL', 'Fonds euros AV', 'PEA', 'Autre'];
 export const CASH_TYPE_COLORS = { 'Compte courant': '#60a5fa', 'Livret A': '#34d399', 'LDD': '#4ade80', 'LEP': '#f59e0b', 'Livret Jeune': '#fb923c', 'PEL': '#a78bfa', 'CEL': '#f472b6', 'Fonds euros AV': '#38bdf8', 'PEA': '#818cf8', 'Autre': '#94a3b8' };
@@ -110,15 +123,52 @@ export const SEED_TX = [
   { id: uid(), date: '2026-01-02', label: 'Loyer', category: 'Logement', amount: -950, type: 'expense', recurrent: true },
 ];
 export const SEED_INV = [
-  { id: uid(), name: 'PEA — ETF World', category: 'Actions', value: 12400, invested: 10000, color: '#10b981', positions: [
-    { id: uid(), ticker: 'CW8', name: 'Amundi MSCI World', shares: 40, buyPrice: 280, currentPrice: 310 },
-    { id: uid(), ticker: 'WPEA', name: 'iShares Core MSCI World', shares: 20, buyPrice: 68, currentPrice: 74 },
-  ] },
-  { id: uid(), name: 'Bitcoin (BTC)', category: 'Crypto', value: 8200, invested: 5000, color: '#f59e0b', positions: [
-    { id: uid(), ticker: 'BTC', name: 'Bitcoin', shares: 0.12, buyPrice: 41667, currentPrice: 68333 },
-  ] },
-  { id: uid(), name: 'Assurance-vie fonds €', category: 'Obligataire', value: 5500, invested: 5200, color: '#60a5fa', positions: [] },
-  { id: uid(), name: 'RealT (immobilier)', category: 'Immobilier', value: 1800, invested: 2000, color: '#a78bfa', positions: [] },
+  {
+    id: uid(), name: 'PEA — ETF World', type: 'PEA', color: '#10b981',
+    courtier: 'Boursobank', openDate: '2020-01-15', devise: 'EUR',
+    assureur: '', avType: '', platform: '', walletType: '',
+    immoBien: '', adresse: '', acquisitionDate: '', loanId: '', loyerMensuel: 0, chargesMensuelles: 0,
+    employeur: '', peType: '', disponibiliteDate: '',
+    value: 0, invested: 0, notes: '',
+    positions: [
+      { id: uid(), ticker: 'CW8', name: 'Amundi MSCI World', shares: 40, buyPrice: 280, currentPrice: 310, divYield: 0 },
+      { id: uid(), ticker: 'WPEA', name: 'iShares Core MSCI World', shares: 20, buyPrice: 68, currentPrice: 74, divYield: 0 },
+    ],
+    dividends: [],
+  },
+  {
+    id: uid(), name: 'Crypto Binance', type: 'Crypto', color: '#f59e0b',
+    courtier: '', openDate: '', devise: 'USD',
+    assureur: '', avType: '', platform: 'Binance', walletType: 'CEX',
+    immoBien: '', adresse: '', acquisitionDate: '', loanId: '', loyerMensuel: 0, chargesMensuelles: 0,
+    employeur: '', peType: '', disponibiliteDate: '',
+    value: 0, invested: 0, notes: '',
+    positions: [
+      { id: uid(), ticker: 'BTC', name: 'Bitcoin', shares: 0.12, buyPrice: 41667, currentPrice: 68333, divYield: 0 },
+    ],
+    dividends: [],
+  },
+  {
+    id: uid(), name: 'AV Fonds euros Generali', type: 'Assurance-vie', color: '#60a5fa',
+    courtier: '', openDate: '2019-06-01', devise: 'EUR',
+    assureur: 'Generali', avType: 'Fonds euros',
+    platform: '', walletType: '',
+    immoBien: '', adresse: '', acquisitionDate: '', loanId: '', loyerMensuel: 0, chargesMensuelles: 0,
+    employeur: '', peType: '', disponibiliteDate: '',
+    value: 5500, invested: 5200, notes: '',
+    positions: [],
+    dividends: [],
+  },
+  {
+    id: uid(), name: 'Appartement locatif', type: 'Immobilier', color: '#a78bfa',
+    courtier: '', openDate: '', devise: 'EUR',
+    assureur: '', avType: '', platform: '', walletType: '',
+    immoBien: 'Locatif', adresse: '12 rue des Lilas, Paris 75011', acquisitionDate: '2021-03-15', loanId: '', loyerMensuel: 950, chargesMensuelles: 300,
+    employeur: '', peType: '', disponibiliteDate: '',
+    value: 220000, invested: 200000, notes: '',
+    positions: [],
+    dividends: [],
+  },
 ];
 export const SEED_HEALTH = [
   { id: uid(), name: 'Renault Clio', category: 'Voiture', buyPrice: 8000, currentValue: 5500, date: '2022-03-01', notes: '' },

@@ -1,4 +1,4 @@
-import { ModalShell, Label, makeS, fEur, fDate, today, CAT_COLORS, INV_CATS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, LISTING_CATS, LISTING_PLATFORMS, fPrice } from '../utils/constants';
+import { ModalShell, Label, makeS, fEur, fDate, today, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, LISTING_CATS, LISTING_PLATFORMS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
 
 const FRow = ({ cols = 2, children }) => <div className={`frow frow-${cols}`}>{children}</div>;
 const FField = ({ label, children }) => <div><Label>{label}</Label>{children}</div>;
@@ -15,12 +15,14 @@ export default function Modals({ T, data }) {
   const S = makeS(T);
   const {
     modal, setModal, editItem, setEditItem, drillInv,
-    txForm, setTxForm, invForm, setInvForm, healthForm, setHealthForm,
+    txForm, setTxForm, healthForm, setHealthForm,
     posForm, setPosForm, goalForm, setGoalForm, cashForm, setCashForm,
     listingForm, setListingForm, loanForm, setLoanForm, debtForm, setDebtForm,
-    mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt,
-    saveTx, saveInv, saveHealth, savePosition, saveListing, saveCash, saveGoal, saveLoan, saveDebt,
-    investments, prices, fetchTickerPrice, fetchingPrice, invLiveValue, setInvestments,
+    mkTx, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt, mkPortfolio,
+    saveTx, saveHealth, savePosition, saveListing, saveCash, saveGoal, saveLoan, saveDebt,
+    savePortfolio,
+    portfolioForm, setPortfolioForm,
+    investments, prices, fetchTickerPrice, fetchingPrice,
     allAccounts, computedLoans,
     divForm, setDivForm, divInvId, addDividend,
   } = data;
@@ -100,30 +102,149 @@ export default function Modals({ T, data }) {
     );
   }
 
-  // ── Investissement ───────────────────────────────────────────────────────────
-  if (modal === 'inv') return (
-    <ModalShell T={T} title={editItem ? "Modifier l'actif" : 'Nouvel actif financier'} onClose={() => close(() => setInvForm(mkInv()))}>
-      <FRow cols={2}>
-        <FField label="Nom"><input type="text" placeholder="Ex : PEA — ETF World" style={S.inp} value={invForm.name} onChange={e => setInvForm(p => ({ ...p, name: e.target.value }))} /></FField>
-        <FField label="Catégorie">
-          <select style={S.inp} value={invForm.category} onChange={e => setInvForm(p => ({ ...p, category: e.target.value }))}>
-            {INV_CATS.map(c => <option key={c}>{c}</option>)}
-          </select>
-        </FField>
-      </FRow>
-      <FRow cols={2}>
-        <FField label="Valeur actuelle (€)"><input type="number" placeholder="0" style={S.inp} value={invForm.value} onChange={e => setInvForm(p => ({ ...p, value: e.target.value }))} /></FField>
-        <FField label="Montant investi (€)"><input type="number" placeholder="0" style={S.inp} value={invForm.invested} onChange={e => setInvForm(p => ({ ...p, invested: e.target.value }))} /></FField>
-      </FRow>
-      <FRow cols={1}>
-        <FField label="Notes"><input type="text" placeholder="Remarques…" style={S.inp} value={invForm.notes} onChange={e => setInvForm(p => ({ ...p, notes: e.target.value }))} /></FField>
-      </FRow>
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-        <button onClick={saveInv} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
-        <button onClick={() => close(() => setInvForm(mkInv()))} style={S.btnS}>Annuler</button>
-      </div>
-    </ModalShell>
-  );
+  // ── Enveloppe / Compte (nouveau formulaire portfolio) ────────────────────────
+  if (modal === 'portfolio') {
+    const pt = portfolioForm.type;
+    const isAV = pt === 'Assurance-vie';
+    const isCrypto = pt === 'Crypto';
+    const isImmo = pt === 'Immobilier';
+    const isPE = pt === 'Épargne salariale';
+    const isPEA = pt === 'PEA';
+    const isCTO = pt === 'CTO';
+    const needsValue = isAV || isImmo || isPE || pt === 'Autre';
+    const needsPositions = !isImmo;
+    return (
+      <ModalShell T={T} title={editItem ? "Modifier l'enveloppe" : 'Nouvelle enveloppe'} onClose={() => close(() => setPortfolioForm(mkPortfolio()))}>
+        <FRow cols={2}>
+          <FField label="Nom de l'enveloppe"><input type="text" placeholder="Ex : PEA Boursobank, Crypto Binance…" style={S.inp} value={portfolioForm.name} onChange={e => setPortfolioForm(p => ({ ...p, name: e.target.value }))} /></FField>
+          <FField label="Type">
+            <select style={S.inp} value={portfolioForm.type} onChange={e => setPortfolioForm(p => ({ ...p, type: e.target.value }))}>
+              {PORTFOLIO_TYPES.map(t => <option key={t}>{PORTFOLIO_TYPE_ICON[t]} {t}</option>)}
+            </select>
+          </FField>
+        </FRow>
+
+        {(isPEA || isCTO) && (
+          <FRow cols={2}>
+            <FField label="Courtier">
+              <select style={S.inp} value={portfolioForm.courtier} onChange={e => setPortfolioForm(p => ({ ...p, courtier: e.target.value }))}>
+                <option value="">— Sélectionner —</option>
+                {(isPEA ? PORTFOLIO_BROKERS_PEA : PORTFOLIO_BROKERS_CTO).map(b => <option key={b}>{b}</option>)}
+              </select>
+            </FField>
+            <FField label="Date d'ouverture"><input type="date" style={S.inp} value={portfolioForm.openDate} onChange={e => setPortfolioForm(p => ({ ...p, openDate: e.target.value }))} /></FField>
+          </FRow>
+        )}
+
+        {isPEA && portfolioForm.openDate && (() => {
+          const open = new Date(portfolioForm.openDate);
+          const fiveYears = new Date(open.getFullYear() + 5, open.getMonth(), open.getDate());
+          const now = new Date();
+          const passed = now >= fiveYears;
+          return (
+            <div style={{ background: passed ? 'rgba(16,185,129,.08)' : 'rgba(96,165,250,.08)', border: `1px solid ${passed ? 'rgba(16,185,129,.2)' : 'rgba(96,165,250,.2)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 12, color: passed ? '#4ade80' : '#60a5fa' }}>
+              {passed ? '✅ Avantage fiscal PEA actif (5 ans dépassés)' : `⏳ Avantage fiscal le ${fiveYears.toLocaleDateString('fr-FR')} — plafond 150 000 €`}
+            </div>
+          );
+        })()}
+
+        {isAV && (
+          <FRow cols={2}>
+            <FField label="Assureur">
+              <select style={S.inp} value={portfolioForm.assureur} onChange={e => setPortfolioForm(p => ({ ...p, assureur: e.target.value }))}>
+                <option value="">— Sélectionner —</option>
+                {PORTFOLIO_AV_INSURERS.map(b => <option key={b}>{b}</option>)}
+              </select>
+            </FField>
+            <FField label="Type de contrat">
+              <select style={S.inp} value={portfolioForm.avType} onChange={e => setPortfolioForm(p => ({ ...p, avType: e.target.value }))}>
+                {PORTFOLIO_AV_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </FField>
+          </FRow>
+        )}
+
+        {isAV && portfolioForm.openDate && (() => {
+          const open = new Date(portfolioForm.openDate);
+          const eightYears = new Date(open.getFullYear() + 8, open.getMonth(), open.getDate());
+          const now = new Date();
+          const passed = now >= eightYears;
+          return (
+            <div style={{ background: passed ? 'rgba(16,185,129,.08)' : 'rgba(96,165,250,.08)', border: `1px solid ${passed ? 'rgba(16,185,129,.2)' : 'rgba(96,165,250,.2)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 12, color: passed ? '#4ade80' : '#60a5fa' }}>
+              {passed ? '✅ Fiscalité AV avantageuse (8 ans dépassés)' : `⏳ Avantage fiscal le ${eightYears.toLocaleDateString('fr-FR')}`}
+            </div>
+          );
+        })()}
+
+        {isCrypto && (
+          <FRow cols={2}>
+            <FField label="Plateforme">
+              <select style={S.inp} value={portfolioForm.platform} onChange={e => setPortfolioForm(p => ({ ...p, platform: e.target.value }))}>
+                <option value="">— Sélectionner —</option>
+                {PORTFOLIO_CRYPTO_PLATFORMS.map(b => <option key={b}>{b}</option>)}
+              </select>
+            </FField>
+            <FField label="Type de wallet">
+              <select style={S.inp} value={portfolioForm.walletType} onChange={e => setPortfolioForm(p => ({ ...p, walletType: e.target.value }))}>
+                {PORTFOLIO_CRYPTO_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </FField>
+          </FRow>
+        )}
+
+        {isImmo && (
+          <>
+            <FRow cols={2}>
+              <FField label="Type de bien">
+                <select style={S.inp} value={portfolioForm.immoBien} onChange={e => setPortfolioForm(p => ({ ...p, immoBien: e.target.value }))}>
+                  {PORTFOLIO_IMMO_TYPES.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </FField>
+              <FField label="Date d'acquisition"><input type="date" style={S.inp} value={portfolioForm.acquisitionDate} onChange={e => setPortfolioForm(p => ({ ...p, acquisitionDate: e.target.value }))} /></FField>
+            </FRow>
+            <FRow cols={1}>
+              <FField label="Adresse"><input type="text" placeholder="12 rue des Lilas, 75011 Paris" style={S.inp} value={portfolioForm.adresse} onChange={e => setPortfolioForm(p => ({ ...p, adresse: e.target.value }))} /></FField>
+            </FRow>
+            <FRow cols={2}>
+              <FField label="Loyer mensuel (€)"><input type="number" placeholder="0" style={S.inp} value={portfolioForm.loyerMensuel} onChange={e => setPortfolioForm(p => ({ ...p, loyerMensuel: e.target.value }))} /></FField>
+              <FField label="Charges mensuelles (€)"><input type="number" placeholder="0" style={S.inp} value={portfolioForm.chargesMensuelles} onChange={e => setPortfolioForm(p => ({ ...p, chargesMensuelles: e.target.value }))} /></FField>
+            </FRow>
+          </>
+        )}
+
+        {isPE && (
+          <FRow cols={2}>
+            <FField label="Employeur"><input type="text" placeholder="Nom de l'entreprise" style={S.inp} value={portfolioForm.employeur} onChange={e => setPortfolioForm(p => ({ ...p, employeur: e.target.value }))} /></FField>
+            <FField label="Type de plan">
+              <select style={S.inp} value={portfolioForm.peType} onChange={e => setPortfolioForm(p => ({ ...p, peType: e.target.value }))}>
+                {PORTFOLIO_PE_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </FField>
+          </FRow>
+        )}
+        {isPE && (
+          <FRow cols={1}>
+            <FField label="Date de disponibilité"><input type="date" style={S.inp} value={portfolioForm.disponibiliteDate} onChange={e => setPortfolioForm(p => ({ ...p, disponibiliteDate: e.target.value }))} /></FField>
+          </FRow>
+        )}
+
+        {(needsValue || !needsPositions) && (
+          <FRow cols={2}>
+            <FField label="Valeur actuelle (€)"><input type="number" placeholder="0" style={S.inp} value={portfolioForm.value} onChange={e => setPortfolioForm(p => ({ ...p, value: e.target.value }))} /></FField>
+            <FField label="Montant investi (€)"><input type="number" placeholder="0" style={S.inp} value={portfolioForm.invested} onChange={e => setPortfolioForm(p => ({ ...p, invested: e.target.value }))} /></FField>
+          </FRow>
+        )}
+
+        <FRow cols={1}>
+          <FField label="Notes"><input type="text" placeholder="Remarques…" style={S.inp} value={portfolioForm.notes} onChange={e => setPortfolioForm(p => ({ ...p, notes: e.target.value }))} /></FField>
+        </FRow>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={savePortfolio} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
+          <button onClick={() => close(() => setPortfolioForm(mkPortfolio()))} style={S.btnS}>Annuler</button>
+        </div>
+      </ModalShell>
+    );
+  }
 
   // ── Actif physique ───────────────────────────────────────────────────────────
   if (modal === 'health') return (
@@ -310,75 +431,55 @@ export default function Modals({ T, data }) {
     );
   }
 
-  // ── Drill-down positions ──────────────────────────────────────────────────────
+  // ── Formulaire position (drill-down) ─────────────────────────────────────────
   if (modal === 'drill' && drillInv) {
-    const cur = investments.find(i => i.id === drillInv.id) || { value: 0, invested: 0, positions: [] };
-    const lv = invLiveValue(cur);
+    const invType = drillInv.type || 'Autre';
+    const isCrypto = invType === 'Crypto';
+    const isAV = invType === 'Assurance-vie';
+    const isPE = invType === 'Épargne salariale';
+    const tickerLabel = isCrypto ? 'Coin (ex: BTC, ETH)' : isAV || isPE ? 'ISIN / Nom du fonds' : 'Ticker (quittez pour fetch)';
+    const tickerPlaceholder = isCrypto ? 'Ex: BTC, ETH, SOL' : isAV ? 'Ex: FR0010149799' : 'Ex: CW8, AAPL';
+    const sharesLabel = isCrypto ? 'Quantité' : 'Nb de parts';
+    const buyPriceLabel = isCrypto ? 'DCA / Prix moyen (€)' : isAV || isPE ? 'VL souscription (€)' : 'PRU (€)';
+    const currentPriceLabel = isAV || isPE ? 'VL actuelle (€)' : fetchingPrice ? 'Récupération…' : prices[posForm.ticker] != null ? 'Prix actuel ● LIVE' : 'Prix actuel (€)';
     return (
-      <ModalShell T={T} title={`${drillInv.name} — Positions`} onClose={() => { setModal(null); setPosForm(mkPos()); setEditItem(null); }}>
-        <div className="g3" style={{ marginBottom: 16 }}>
-          {[{ l: 'Valeur', v: fEur(lv) }, { l: 'Investi', v: fEur(cur.invested) }, { l: 'P&L', v: fEur(lv - cur.invested) }].map(x => (
-            <div key={x.l} style={{ background: T.bg2, borderRadius: 10, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>{x.l}</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{x.v}</div>
-            </div>
-          ))}
-        </div>
-
-        {(cur.positions || []).map(pos => {
-          const pnl = (pos.currentPrice - pos.buyPrice) * pos.shares;
-          const pct = pos.buyPrice > 0 ? ((pos.currentPrice - pos.buyPrice) / pos.buyPrice) * 100 : 0;
-          return (
-            <div key={pos.id} style={{ background: T.bg2, borderRadius: 10, padding: '12px 14px', marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{pos.ticker}</span>
-                  <span style={{ color: T.textMuted, fontSize: 12, marginLeft: 8 }}>{pos.name}</span>
-                  <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
-                    {pos.shares} · PA {fPrice(pos.buyPrice)} · Actuel {fPrice(prices[pos.ticker] ?? pos.currentPrice)}
-                    {prices[pos.ticker] !== undefined && <span style={{ marginLeft: 5, fontSize: 9, background: 'rgba(16,185,129,.2)', color: '#10b981', padding: '1px 5px', borderRadius: 3 }}>LIVE</span>}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{fEur(pos.shares * (prices[pos.ticker] ?? pos.currentPrice))}</div>
-                  <div style={{ fontSize: 11, color: pnl >= 0 ? '#4ade80' : '#f87171' }}>{pnl >= 0 ? '+' : ''}{fEur(pnl)} ({pct >= 0 ? '+' : ''}{pct.toFixed(1)}%)</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button onClick={() => { setEditItem({ posId: pos.id }); setPosForm({ ticker: pos.ticker, name: pos.name, shares: pos.shares, buyPrice: pos.buyPrice, currentPrice: pos.currentPrice }); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
-                <button onClick={() => setInvestments(p => p.map(inv => inv.id !== drillInv.id ? inv : { ...inv, positions: inv.positions.filter(x => x.id !== pos.id) }))} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
-              </div>
-            </div>
-          );
-        })}
-
-        <div style={{ borderTop: `1px solid ${T.cardBorder}`, paddingTop: 16, marginTop: 8 }}>
-          <h4 style={{ fontSize: 12, color: T.textMuted, marginBottom: 12 }}>{editItem?.posId ? 'Modifier la position' : 'Ajouter une position'}</h4>
-          <FRow cols={2}>
-            <FField label="Ticker (quittez pour fetch)">
-              <input type="text" placeholder="Ex: CW8, BTC, AAPL" style={S.inp} value={posForm.ticker}
-                onChange={e => setPosForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))}
-                onBlur={e => fetchTickerPrice(e.target.value.toUpperCase())} />
-            </FField>
-            <FField label="Nom"><input type="text" placeholder="Nom complet" style={S.inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} /></FField>
-          </FRow>
-          <FRow cols={3}>
-            <FField label="Quantité"><input type="number" placeholder="0" style={S.inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} /></FField>
-            <FField label="Prix achat (€)"><input type="number" placeholder="0" style={S.inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>
-            <FField label={fetchingPrice ? 'Récupération…' : prices[posForm.ticker] != null ? 'Prix actuel ● LIVE' : 'Prix actuel (€)'}>
-              <input type="number" placeholder={fetchingPrice ? '…' : 'Auto si ticker reconnu'} style={{ ...S.inp, opacity: fetchingPrice ? 0.6 : 1 }}
-                value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
-            </FField>
-          </FRow>
+      <ModalShell T={T} title={editItem?.posId ? `Modifier la position — ${drillInv.name}` : `Nouvelle position — ${drillInv.name}`} onClose={() => { setModal(null); setPosForm(mkPos()); setEditItem(null); }}>
+        <FRow cols={2}>
+          <FField label={tickerLabel}>
+            <input type="text" placeholder={tickerPlaceholder} style={S.inp} value={posForm.ticker}
+              onChange={e => setPosForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))}
+              onBlur={e => !isCrypto && fetchTickerPrice(e.target.value.toUpperCase())} />
+          </FField>
+          <FField label="Nom complet"><input type="text" placeholder="Nom ou description" style={S.inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={3}>
+          <FField label={sharesLabel}><input type="number" placeholder="0" style={S.inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} /></FField>
+          <FField label={buyPriceLabel}><input type="number" placeholder="0" style={S.inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>
+          <FField label={currentPriceLabel}>
+            <input type="number" placeholder={fetchingPrice ? '…' : 'Auto si ticker reconnu'} style={{ ...S.inp, opacity: fetchingPrice ? 0.6 : 1 }}
+              value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
+          </FField>
+        </FRow>
+        {!isCrypto && (
           <FRow cols={1}>
             <FField label="Rendement dividende annuel (% — optionnel)">
               <input type="number" placeholder="0.00 — laisser vide si non applicable" step="0.01" style={S.inp} value={posForm.divYield ?? ''} onChange={e => setPosForm(p => ({ ...p, divYield: e.target.value }))} />
             </FField>
           </FRow>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={savePosition} style={S.btnG}>{editItem?.posId ? 'Modifier' : 'Ajouter la position'}</button>
-            {editItem?.posId && <button onClick={() => { setEditItem(null); setPosForm(mkPos()); }} style={S.btnS}>Annuler</button>}
+        )}
+        {posForm.shares && posForm.buyPrice && (
+          <div style={{ background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.15)', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 12, color: '#60a5fa' }}>
+            Valeur investie : {fEur(parseFloat(posForm.shares) * parseFloat(posForm.buyPrice))}
+            {posForm.currentPrice && parseFloat(posForm.currentPrice) > 0 && (
+              <span style={{ marginLeft: 12, color: parseFloat(posForm.currentPrice) >= parseFloat(posForm.buyPrice) ? '#4ade80' : '#f87171' }}>
+                · Valeur actuelle : {fEur(parseFloat(posForm.shares) * parseFloat(posForm.currentPrice))}
+              </span>
+            )}
           </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={savePosition} style={S.btnG}>{editItem?.posId ? 'Modifier' : 'Ajouter la position'}</button>
+          <button onClick={() => { setModal(null); setPosForm(mkPos()); setEditItem(null); }} style={S.btnS}>Annuler</button>
         </div>
       </ModalShell>
     );

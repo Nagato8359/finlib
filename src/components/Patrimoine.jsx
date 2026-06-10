@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, TT, makeS, fEur, fPct, fDate, MONTHS, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, LISTING_PLATFORM_ICONS } from '../utils/constants';
+import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, LISTING_PLATFORM_ICONS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR } from '../utils/constants';
 
 const SECTIONS = [
   { id: 'invest', label: '◈ Investissements' },
@@ -46,17 +46,18 @@ export default function Patrimoine({ T, data }) {
   const [loanSim, setLoanSim] = useState({});
 
   const {
-    investments, invTotal, invInvested, invLiveValue, priceStatus, lastUpdated, fetchPrices,
+    investments, invTotal, invInvested, invLiveValue, invLiveInvested, priceStatus, lastUpdated, fetchPrices,
     computedSavings, cashTotal, annualInterests, avgRate,
     healthAssets, healthTotal, healthCost,
     listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit,
     computedLoans, totalLoanDebt,
     patrimoine, projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly, projData,
-    setModal, setEditItem, setDrillInv, setDivInvId,
-    openEditInv, delInv, openEditCash, delCash, openEditHealth, delHealth,
+    setModal, setEditItem, setDrillInv, drillInv, setDivInvId,
+    openEditPortfolio, delInv, openEditCash, delCash, openEditHealth, delHealth,
     openEditListing, delListing, markSold,
     openEditLoan, delLoan,
     allDividends, divThisYear, divByMonth, delDividend,
+    setPosForm, mkPos, setInvestments,
   } = data;
 
   const SubNav = () => (
@@ -72,6 +73,186 @@ export default function Patrimoine({ T, data }) {
 
   // ── Investissements ────────────────────────────────────────────────────────
   const renderInvest = () => {
+    // ── Vue détail (drill-down) ───────────────────────────────────────────────
+    if (drillInv) {
+      const cur = investments.find(i => i.id === drillInv.id) || drillInv;
+      const lv = invLiveValue(cur);
+      const li = invLiveInvested(cur);
+      const pnl = lv - li;
+      const pct = li > 0 ? (pnl / li) * 100 : 0;
+      const type = cur.type || 'Autre';
+      const typeIcon = PORTFOLIO_TYPE_ICON[type] || '📦';
+      const typeColor = PORTFOLIO_TYPE_COLOR[type] || '#94a3b8';
+      const showPositions = type !== 'Immobilier';
+      const invDivs = (cur.dividends || []);
+      const invDivTotal = invDivs.reduce((s, d) => s + d.amount, 0);
+      const now = new Date();
+      const cy = now.getFullYear();
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => setDrillInv(null)} style={{ ...S.btnS, fontSize: 12, padding: '5px 12px' }}>← Retour</button>
+            <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{cur.name}</span>
+            <span style={{ fontSize: 11, background: typeColor + '22', color: typeColor, padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>{typeIcon} {type}</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button onClick={() => openEditPortfolio(cur)} style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}>✎ Modifier</button>
+              <button onClick={() => setDrillInv(null) || delInv(cur.id)} style={{ ...S.btnD, fontSize: 11, padding: '4px 10px' }}>✕</button>
+            </div>
+          </div>
+
+          {/* KPIs */}
+          <div className="g4">
+            <KPI T={T} label="Valeur actuelle" value={fEur(lv, true)} accent={typeColor} icon={typeIcon} />
+            <KPI T={T} label="Capital investi" value={fEur(li, true)} icon="💸" />
+            <KPI T={T} label="Plus-value" value={fEur(pnl, true)} accent={pnl >= 0 ? '#4ade80' : '#f87171'} icon="📊" />
+            <KPI T={T} label="Performance" value={fPct(pct)} accent={pnl >= 0 ? '#10b981' : '#f87171'} icon="⚡" />
+          </div>
+
+          {/* Infos type-spécifiques */}
+          <div style={{ ...S.card }}>
+            <h3 style={{ fontSize: 12, color: T.textMuted, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.04em' }}>Détails</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {(type === 'PEA' || type === 'CTO') && cur.courtier && (
+                <span style={{ fontSize: 12, color: T.textMuted }}>Courtier : <strong style={{ color: T.text }}>{cur.courtier}</strong></span>
+              )}
+              {cur.openDate && <span style={{ fontSize: 12, color: T.textMuted }}>Ouverture : <strong style={{ color: T.text }}>{fDate(cur.openDate)}</strong></span>}
+              {type === 'PEA' && cur.openDate && (() => {
+                const fiveYears = new Date(new Date(cur.openDate).getFullYear() + 5, new Date(cur.openDate).getMonth(), new Date(cur.openDate).getDate());
+                const passed = now >= fiveYears;
+                return <span style={{ fontSize: 12, color: passed ? '#4ade80' : '#fb923c' }}>{passed ? '✅ Fiscalité PEA active' : `⏳ Avantage fiscal: ${fiveYears.toLocaleDateString('fr-FR')}`}</span>;
+              })()}
+              {type === 'Assurance-vie' && (
+                <>
+                  {cur.assureur && <span style={{ fontSize: 12, color: T.textMuted }}>Assureur : <strong style={{ color: T.text }}>{cur.assureur}</strong></span>}
+                  {cur.avType && <span style={{ fontSize: 12, color: T.textMuted }}>Type : <strong style={{ color: T.text }}>{cur.avType}</strong></span>}
+                  {cur.openDate && (() => {
+                    const eight = new Date(new Date(cur.openDate).getFullYear() + 8, new Date(cur.openDate).getMonth(), new Date(cur.openDate).getDate());
+                    const passed = now >= eight;
+                    return <span style={{ fontSize: 12, color: passed ? '#4ade80' : '#fb923c' }}>{passed ? '✅ Fiscalité 8 ans active' : `⏳ Fiscalité avantageuse: ${eight.toLocaleDateString('fr-FR')}`}</span>;
+                  })()}
+                </>
+              )}
+              {type === 'Crypto' && (
+                <>
+                  {cur.platform && <span style={{ fontSize: 12, color: T.textMuted }}>Plateforme : <strong style={{ color: T.text }}>{cur.platform}</strong></span>}
+                  {cur.walletType && <span style={{ fontSize: 12, color: T.textMuted }}>Type : <strong style={{ color: T.text }}>{cur.walletType}</strong></span>}
+                </>
+              )}
+              {type === 'Immobilier' && (
+                <>
+                  {cur.immoBien && <span style={{ fontSize: 12, color: T.textMuted }}>Type : <strong style={{ color: T.text }}>{cur.immoBien}</strong></span>}
+                  {cur.adresse && <span style={{ fontSize: 12, color: T.textMuted }}>Adresse : <strong style={{ color: T.text }}>{cur.adresse}</strong></span>}
+                  {cur.loyerMensuel > 0 && <span style={{ fontSize: 12, color: T.textMuted }}>Loyer : <strong style={{ color: '#4ade80' }}>{fEur(cur.loyerMensuel)}/mois</strong></span>}
+                  {cur.chargesMensuelles > 0 && <span style={{ fontSize: 12, color: T.textMuted }}>Charges : <strong style={{ color: '#f87171' }}>{fEur(cur.chargesMensuelles)}/mois</strong></span>}
+                  {cur.loyerMensuel > 0 && lv > 0 && (
+                    <span style={{ fontSize: 12, color: T.textMuted }}>Rendement brut : <strong style={{ color: typeColor }}>{((cur.loyerMensuel * 12 / lv) * 100).toFixed(2)}%</strong></span>
+                  )}
+                  {cur.loyerMensuel > 0 && cur.chargesMensuelles > 0 && (
+                    <span style={{ fontSize: 12, color: T.textMuted }}>Cashflow net : <strong style={{ color: (cur.loyerMensuel - cur.chargesMensuelles) >= 0 ? '#4ade80' : '#f87171' }}>{fEur(cur.loyerMensuel - cur.chargesMensuelles)}/mois</strong></span>
+                  )}
+                </>
+              )}
+              {type === 'Épargne salariale' && (
+                <>
+                  {cur.employeur && <span style={{ fontSize: 12, color: T.textMuted }}>Employeur : <strong style={{ color: T.text }}>{cur.employeur}</strong></span>}
+                  {cur.peType && <span style={{ fontSize: 12, color: T.textMuted }}>Plan : <strong style={{ color: T.text }}>{cur.peType}</strong></span>}
+                  {cur.disponibiliteDate && <span style={{ fontSize: 12, color: T.textMuted }}>Disponibilité : <strong style={{ color: '#fb923c' }}>{fDate(cur.disponibiliteDate)}</strong></span>}
+                </>
+              )}
+              {cur.notes && <span style={{ fontSize: 12, color: T.textMuted, width: '100%' }}>Notes : <em style={{ color: T.text }}>{cur.notes}</em></span>}
+            </div>
+          </div>
+
+          {/* Positions */}
+          {showPositions && (
+            <div style={{ ...S.card }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Positions ({(cur.positions || []).length})</h3>
+                <button onClick={() => { setPosForm(mkPos()); setModal('drill'); }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>+ Position</button>
+              </div>
+              {(cur.positions || []).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: T.textFaint, fontSize: 13 }}>Aucune position — cliquez "+ Position" pour ajouter</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(cur.positions || []).map(pos => {
+                    const livePrice = data.prices[pos.ticker] ?? pos.currentPrice;
+                    const posVal = pos.shares * livePrice;
+                    const posInv = pos.shares * pos.buyPrice;
+                    const posPnl = posVal - posInv;
+                    const posPct = posInv > 0 ? (posPnl / posInv) * 100 : 0;
+                    const isCryptoType = type === 'Crypto';
+                    return (
+                      <div key={pos.id} style={{ padding: '12px 14px', background: T.bg2, borderRadius: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                              <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{pos.ticker}</span>
+                              <span style={{ color: T.textMuted, fontSize: 12 }}>{pos.name}</span>
+                              {data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: 'rgba(16,185,129,.2)', color: '#10b981', padding: '1px 5px', borderRadius: 3 }}>LIVE</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: T.textFaint }}>
+                              {isCryptoType ? `Qté ${pos.shares}` : `${pos.shares} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{fEur(posVal)}</div>
+                            <div style={{ fontSize: 11, color: posPnl >= 0 ? '#4ade80' : '#f87171' }}>{posPnl >= 0 ? '+' : ''}{fEur(posPnl)} ({fPct(posPct)})</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                          <button onClick={() => { setEditItem({ posId: pos.id }); setPosForm({ ticker: pos.ticker, name: pos.name, shares: pos.shares, buyPrice: pos.buyPrice, currentPrice: pos.currentPrice, divYield: pos.divYield ?? '' }); setModal('drill'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
+                          <button onClick={() => setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, positions: inv.positions.filter(x => x.id !== pos.id) }))} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Dividendes — scoped à cette enveloppe */}
+          <div style={{ ...S.card }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Dividendes</h3>
+              <button onClick={() => { setDivInvId(cur.id); setModal('div'); }} style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>+ Dividende</button>
+            </div>
+            {invDivs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px 0', color: T.textFaint, fontSize: 13 }}>Aucun dividende enregistré</div>
+            ) : (
+              <>
+                <div className="g3" style={{ marginBottom: 14 }}>
+                  {[
+                    { label: `Total ${cy}`, value: fEur(invDivs.filter(d => d.date.startsWith(String(cy))).reduce((s,d)=>s+d.amount,0), true), accent: '#4ade80', icon: '💸' },
+                    { label: 'Versements', value: invDivs.length, icon: '📅' },
+                    { label: 'Total reçu', value: fEur(invDivTotal, true), icon: '⌀' },
+                  ].map(kpi => <KPI key={kpi.label} T={T} label={kpi.label} value={kpi.value} accent={kpi.accent} icon={kpi.icon} />)}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+                  {[...invDivs].sort((a,b) => b.date.localeCompare(a.date)).map(d => (
+                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ color: T.textFaint }}>{fDate(d.date)}</span>
+                        {d.note && <span style={{ color: T.textMuted, fontSize: 11 }}>{d.note}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 700, color: '#4ade80' }}>+{fEur(d.amount)}</span>
+                        <span style={{ fontSize: 10, color: d.gross ? '#fb923c' : '#a78bfa', background: d.gross ? 'rgba(251,146,60,.12)' : 'rgba(167,139,250,.12)', padding: '1px 6px', borderRadius: 4 }}>{d.gross ? 'brut' : 'net'}</span>
+                        <button onClick={() => delDividend(cur.id, d.id)} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Vue liste (overview) ──────────────────────────────────────────────────
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -79,14 +260,14 @@ export default function Patrimoine({ T, data }) {
             {priceStatus === 'loading' && <span style={{ fontSize: 11, color: '#60a5fa' }}>⟳ Actualisation…</span>}
             {priceStatus === 'ok' && lastUpdated && (
               <span style={{ fontSize: 11, color: '#4ade80', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', display: 'inline-block', animation: 'pulse 2s infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
                 LIVE · {lastUpdated.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
             {priceStatus === 'error' && <span style={{ fontSize: 11, color: '#f87171' }}>⚠ Serveur prix déconnecté</span>}
             <button onClick={fetchPrices} style={{ ...S.btnS, fontSize: 12, padding: '4px 10px' }}>⟳</button>
           </div>
-          <button onClick={() => { setEditItem(null); data.setInvForm && data.setInvForm(data.mkInv()); setModal('inv'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Actif</button>
+          <button onClick={() => { setEditItem(null); data.setPortfolioForm && data.setPortfolioForm(data.mkPortfolio()); setModal('portfolio'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Enveloppe</button>
         </div>
 
         <div className="g4">
@@ -96,61 +277,69 @@ export default function Patrimoine({ T, data }) {
           <KPI T={T} label="Performance" value={fPct(invInvested > 0 ? ((invTotal - invInvested) / invInvested) * 100 : 0)} accent={invTotal >= invInvested ? '#10b981' : '#f87171'} icon="⚡" />
         </div>
 
-        <div className="g12">
-          {/* Pie */}
-          <div style={{ ...S.card }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Allocation</h3>
-            {investments.length === 0 ? (
-              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Aucun actif</div>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie data={investments.map(inv => ({ ...inv, value: invLiveValue(inv) }))} cx="50%" cy="50%" innerRadius={46} outerRadius={72} paddingAngle={4} dataKey="value">
-                      {investments.map((e, i) => <Cell key={i} fill={e.color} />)}
-                    </Pie>
-                    <Tooltip formatter={v => fEur(v)} contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8 }}>
-                  {investments.map((inv, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+        {investments.length === 0 ? (
+          <div style={{ ...S.card, textAlign: 'center', padding: 50, color: T.textFaint }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🏛️</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, color: T.textMuted }}>Aucune enveloppe</div>
+            <div style={{ fontSize: 13 }}>Ajoutez votre PEA, CTO, assurance-vie, crypto ou bien immobilier</div>
+          </div>
+        ) : (
+          <div className="g12">
+            {/* Allocation pie par type */}
+            <div style={{ ...S.card }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Allocation</h3>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={investments.map(inv => ({ name: inv.name, value: invLiveValue(inv), color: inv.color }))} cx="50%" cy="50%" innerRadius={46} outerRadius={72} paddingAngle={4} dataKey="value">
+                    {investments.map((e, i) => <Cell key={i} fill={e.color} />)}
+                  </Pie>
+                  <Tooltip formatter={v => fEur(v)} contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8 }}>
+                {investments.map((inv, i) => {
+                  const type = inv.type || 'Autre';
+                  const typeColor = PORTFOLIO_TYPE_COLOR[type] || inv.color;
+                  return (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <div style={{ width: 7, height: 7, borderRadius: 2, background: inv.color }} />
-                        <span style={{ color: T.textMuted }}>{inv.category}</span>
+                        <span style={{ color: T.textMuted }}>{inv.name}</span>
+                        <span style={{ fontSize: 9, background: typeColor + '22', color: typeColor, padding: '1px 6px', borderRadius: 10 }}>{PORTFOLIO_TYPE_ICON[type] || '📦'} {type}</span>
                       </div>
-                      <span style={{ color: T.text }}>{invTotal > 0 ? ((invLiveValue(inv) / invTotal) * 100).toFixed(0) : 0}%</span>
+                      <span style={{ color: T.text, fontWeight: 600 }}>{invTotal > 0 ? ((invLiveValue(inv) / invTotal) * 100).toFixed(0) : 0}%</span>
                     </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* List */}
-          <div style={{ ...S.card }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Détail des actifs</h3>
-            {investments.length === 0 ? (
-              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '40px 0' }}>
-                <div style={{ fontSize: 28, marginBottom: 10 }}>📈</div>
-                <div>Ajoutez votre premier actif financier</div>
+                  );
+                })}
               </div>
-            ) : (
+            </div>
+
+            {/* Envelopes list */}
+            <div style={{ ...S.card }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Enveloppes</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {investments.map(inv => {
                   const lv = invLiveValue(inv);
-                  const pnl = lv - inv.invested;
-                  const pct = inv.invested > 0 ? (pnl / inv.invested) * 100 : 0;
+                  const li = invLiveInvested(inv);
+                  const pnl = lv - li;
+                  const pct = li > 0 ? (pnl / li) * 100 : 0;
+                  const type = inv.type || 'Autre';
+                  const typeColor = PORTFOLIO_TYPE_COLOR[type] || inv.color;
+                  const typeIcon = PORTFOLIO_TYPE_ICON[type] || '📦';
                   const invDivTotal = (inv.dividends || []).reduce((s, d) => s + d.amount, 0);
-                  const divYield = inv.invested > 0 ? (invDivTotal / inv.invested) * 100 : 0;
                   return (
                     <div key={inv.id} style={{ padding: '12px 14px', background: T.bg2, borderRadius: 12, borderLeft: `3px solid ${inv.color}`, cursor: 'pointer', transition: 'opacity .15s' }}
-                      onClick={() => { setDrillInv(inv); setModal('drill'); }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      onClick={() => setDrillInv(inv)}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'flex-start' }}>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{inv.name} <span style={{ fontSize: 10, color: T.textMuted }}>↗</span></div>
-                          <div style={{ fontSize: 11, color: T.textFaint }}>{inv.category} · {inv.positions?.length || 0} position{(inv.positions?.length || 0) !== 1 ? 's' : ''}
-                            {invDivTotal > 0 && <span style={{ color: '#4ade80', marginLeft: 6 }}>· div. {fEur(invDivTotal, true)} ({divYield.toFixed(1)}%)</span>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{inv.name}</span>
+                            <span style={{ fontSize: 9, background: typeColor + '22', color: typeColor, padding: '2px 7px', borderRadius: 10, fontWeight: 600 }}>{typeIcon} {type}</span>
+                            <span style={{ fontSize: 10, color: T.textMuted }}>↗</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: T.textFaint }}>
+                            {(inv.positions || []).length} position{(inv.positions || []).length !== 1 ? 's' : ''}
+                            {invDivTotal > 0 && <span style={{ color: '#4ade80', marginLeft: 6 }}>· div. {fEur(invDivTotal, true)}</span>}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
@@ -162,7 +351,7 @@ export default function Patrimoine({ T, data }) {
                         <div style={{ width: `${invTotal > 0 ? (lv / invTotal) * 100 : 0}%`, height: '100%', background: inv.color, borderRadius: 4 }} />
                       </div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                        <button onClick={e => { e.stopPropagation(); openEditInv(inv); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
+                        <button onClick={e => { e.stopPropagation(); openEditPortfolio(inv); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
                         <button onClick={e => { e.stopPropagation(); delInv(inv.id); }} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
                         <button onClick={e => { e.stopPropagation(); setDivInvId(inv.id); setModal('div'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10, color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>+ Dividende</button>
                       </div>
@@ -170,105 +359,37 @@ export default function Patrimoine({ T, data }) {
                   );
                 })}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Dividendes ── */}
-        <div style={{ ...S.card }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-            <div>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Dividendes reçus</h3>
-              <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Suivi des versements par ligne d'investissement</p>
             </div>
           </div>
+        )}
 
-          <div className="g3" style={{ marginBottom: 20 }}>
-            {[
-              { label: `Total ${new Date().getFullYear()}`, value: fEur(divThisYear, true), accent: '#4ade80', icon: '💸' },
-              { label: 'Nb de versements', value: allDividends.length, icon: '📅' },
-              { label: 'Moy. par versement', value: allDividends.length > 0 ? fEur(allDividends.reduce((s,d)=>s+d.amount,0)/allDividends.length) : '—', icon: '⌀' },
-            ].map(kpi => <KPI key={kpi.label} T={T} label={kpi.label} value={kpi.value} accent={kpi.accent} icon={kpi.icon} />)}
-          </div>
-
-          {allDividends.length > 0 ? (
-            <>
-              <div style={{ marginBottom: 20 }}>
-                <h4 style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Par mois — {new Date().getFullYear()}</h4>
-                <ResponsiveContainer width="100%" height={140}>
-                  <BarChart data={divByMonth} barSize={16}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
-                    <XAxis dataKey="month" tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => v > 0 ? fEur(v, true) : ''} width={44} />
-                    <Tooltip formatter={v => [fEur(v), 'Dividendes']} contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }} />
-                    <Bar dataKey="Dividendes" fill="#4ade80" radius={[4,4,0,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
+        {/* Dividendes globaux */}
+        {allDividends.length > 0 && (
+          <div style={{ ...S.card }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
-                <h4 style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>Historique complet</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
-                  {[...allDividends].sort((a,b) => b.date.localeCompare(a.date)).map(d => (
-                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        <span style={{ color: T.textFaint, minWidth: 80 }}>{fDate(d.date)}</span>
-                        <span style={{ color: T.text }}>{d.invName}</span>
-                        {d.note && <span style={{ color: T.textMuted, fontSize: 11 }}>{d.note}</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 700, color: '#4ade80' }}>+{fEur(d.amount)}</span>
-                        <span style={{ fontSize: 10, color: d.gross ? '#fb923c' : '#a78bfa', background: d.gross ? 'rgba(251,146,60,.12)' : 'rgba(167,139,250,.12)', padding: '1px 6px', borderRadius: 4 }}>{d.gross ? 'brut' : 'net'}</span>
-                        <button onClick={() => delDividend(d.invId, d.id)} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Dividendes — vue globale</h3>
+                <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Tous versements, toutes enveloppes</p>
               </div>
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: T.textFaint, fontSize: 13 }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>💸</div>
-              <div>Cliquez sur "+ Dividende" dans un actif pour enregistrer un versement</div>
             </div>
-          )}
-
-          {/* Calendrier estimé */}
-          {(() => {
-            const now = new Date();
-            const upcoming = [];
-            investments.forEach(inv => {
-              (inv.positions || []).forEach(pos => {
-                if (!pos.divYield || pos.divYield <= 0) return;
-                const annualAmt = pos.shares * pos.currentPrice * (pos.divYield / 100);
-                // quarterly: next 4 quarter-starts
-                for (let q = 0; q < 4; q++) {
-                  const dt = new Date(now.getFullYear(), now.getMonth() + q * 3 + 1, 15);
-                  upcoming.push({ dt, label: `${pos.ticker || pos.name}`, amount: annualAmt / 4, inv: inv.name, month: MONTHS[dt.getMonth()] + ' ' + dt.getFullYear() });
-                }
-              });
-            });
-            if (upcoming.length === 0) return null;
-            upcoming.sort((a,b) => a.dt - b.dt);
-            return (
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.cardBorder}` }}>
-                <h4 style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Calendrier estimé (basé sur les rendements saisis)</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {upcoming.slice(0, 8).map((u, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, background: 'rgba(96,165,250,.12)', color: '#60a5fa', padding: '2px 8px', borderRadius: 4, minWidth: 80, textAlign: 'center' }}>{u.month}</span>
-                        <span style={{ color: T.text }}>{u.label}</span>
-                        <span style={{ color: T.textMuted, fontSize: 11 }}>{u.inv}</span>
-                      </div>
-                      <span style={{ color: '#4ade80', fontWeight: 600 }}>~{fEur(u.amount)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-        </div>
+            <div className="g3" style={{ marginBottom: 16 }}>
+              {[
+                { label: `Total ${new Date().getFullYear()}`, value: fEur(divThisYear, true), accent: '#4ade80', icon: '💸' },
+                { label: 'Nb de versements', value: allDividends.length, icon: '📅' },
+                { label: 'Moy. par versement', value: allDividends.length > 0 ? fEur(allDividends.reduce((s,d)=>s+d.amount,0)/allDividends.length) : '—', icon: '⌀' },
+              ].map(kpi => <KPI key={kpi.label} T={T} label={kpi.label} value={kpi.value} accent={kpi.accent} icon={kpi.icon} />)}
+            </div>
+            <ResponsiveContainer width="100%" height={130}>
+              <BarChart data={divByMonth} barSize={14}>
+                <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
+                <XAxis dataKey="month" tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => v > 0 ? fEur(v, true) : ''} width={44} />
+                <Tooltip formatter={v => [fEur(v), 'Dividendes']} contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }} />
+                <Bar dataKey="Dividendes" fill="#4ade80" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     );
   };
