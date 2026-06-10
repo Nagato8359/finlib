@@ -45,6 +45,7 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-5px);opacity:1} }
+    @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
     .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }

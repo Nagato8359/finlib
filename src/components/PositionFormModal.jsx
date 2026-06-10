@@ -8,6 +8,11 @@ const FORM_TYPES = {
   Immobilier: 'realestate',
   'Assurance-vie': 'bond',
   'Épargne salariale': 'bond',
+  // Old category fallbacks (investments without a 'type' field)
+  Actions: 'stock',
+  Obligataire: 'bond',
+  'Épargne liquide': 'bond',
+  Autres: 'commodity',
 };
 const META = {
   stock:      { icon: '📈', label: 'Action / ETF',        color: '#10b981', grad: 'linear-gradient(135deg,#052e16,#065f46)' },
@@ -75,7 +80,7 @@ export default function PositionFormModal({ T, data }) {
 
   if (modal !== 'drill' || !drillInv) return null;
 
-  const formType = FORM_TYPES[drillInv.type] ?? 'commodity';
+  const formType = FORM_TYPES[drillInv.type] ?? FORM_TYPES[drillInv.category] ?? 'stock';
   const meta = META[formType];
   const mark = (...fields) => setAutoFilled(prev => new Set([...prev, ...fields]));
   const isAuto = f => autoFilled.has(f);
