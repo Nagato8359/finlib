@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY non configurée' });
 
-  const models = ['google/gemini-flash-1.5-8b:free', 'meta-llama/llama-3.1-8b-instruct:free'];
+  const models = ['meta-llama/llama-3.1-8b-instruct:free', 'mistralai/mistral-7b-instruct:free'];
   const messages = toMessages(contents);
   const headers = {
     'Content-Type': 'application/json',
