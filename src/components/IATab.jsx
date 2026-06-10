@@ -1,19 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.REACT_APP_GEMINI_API_KEY}`;
+const KEY = process.env.REACT_APP_GEMINI_API_KEY;
+const MODELS = ['gemini-2.0-flash', 'gemini-pro'];
+
+function geminiUrl(model) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${KEY}`;
+}
 
 async function callGemini(contents) {
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } }),
-  });
-  if (!res.ok) {
+  let lastError;
+  for (const model of MODELS) {
+    const res = await fetch(geminiUrl(model), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    }
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Erreur API Gemini (${res.status})`);
+    lastError = new Error(err.error?.message || `Erreur API Gemini (${res.status})`);
   }
-  const json = await res.json();
-  return json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  throw lastError;
 }
 
 function fmtEur(n) {
