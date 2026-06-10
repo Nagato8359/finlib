@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { makeS } from '../utils/constants';
 
 export default function Header({ T, darkMode, setDarkMode, tab, setTab, TABS, data }) {
-  const S = makeS(T);
   const { user, demoMode, handleLogout, alerts } = data;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
