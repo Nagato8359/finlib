@@ -10,7 +10,7 @@ export default function Flux({ T, data }) {
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  const { transactions, income, expense, balance, savingsRate, monthlyData, setModal, setEditItem, setTxForm, delTx, openEditTx, exportCSV, mkTx } = data;
+  const { transactions, income, expense, balance, savingsRate, monthlyData, setModal, setEditItem, setTxForm, delTx, openEditTx, exportCSV, mkTx, allAccounts } = data;
 
   const monthOptions = useMemo(() => {
     const now = new Date();
@@ -92,27 +92,41 @@ export default function Flux({ T, data }) {
           <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Aucune transaction pour ces filtres</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {filtered.map(t => (
+            {filtered.map(t => {
+              const isTransfer = t.type === 'transfer';
+              const isRepayment = t.type === 'loan_repayment';
+              const srcAcct = allAccounts.find(a => a.id === t.accountId);
+              const dstAcct = allAccounts.find(a => a.id === t.destAccountId);
+              const dotColor = isTransfer ? '#60a5fa' : isRepayment ? '#a78bfa' : (CAT_COLORS[t.category] || '#6b7280');
+              const amtColor = isTransfer ? '#60a5fa' : isRepayment ? '#a78bfa' : t.amount > 0 ? '#4ade80' : '#f87171';
+              const amtLabel = isTransfer ? `⇄ ${fEur(t.amount)}` : (t.amount > 0 ? '+' : '') + fEur(t.amount);
+              return (
               <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: T.bg2, borderRadius: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: CAT_COLORS[t.category] || '#6b7280', flexShrink: 0 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: dotColor, flexShrink: 0 }} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: T.text, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
                       {t.recurrent && <span style={{ fontSize: 9, background: 'rgba(96,165,250,.15)', color: '#60a5fa', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>↻</span>}
                     </div>
-                    <div style={{ fontSize: 11, color: T.textFaint }}>{t.category} · {fDate(t.date)}</div>
+                    <div style={{ fontSize: 11, color: T.textFaint }}>
+                      {isTransfer
+                        ? <>{fDate(t.date)} · {srcAcct?.name || '?'} <span style={{ color: '#60a5fa' }}>→</span> {dstAcct?.name || '?'}</>
+                        : <>{t.category} · {fDate(t.date)}{srcAcct ? <> · <span style={{ color: dotColor }}>{srcAcct.name}</span></> : null}</>
+                      }
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13, color: t.amount > 0 ? '#4ade80' : '#f87171', minWidth: 80, textAlign: 'right' }}>
-                    {t.amount > 0 ? '+' : ''}{fEur(t.amount)}
+                  <span style={{ fontWeight: 700, fontSize: 13, color: amtColor, minWidth: 80, textAlign: 'right' }}>
+                    {amtLabel}
                   </span>
                   <button onClick={() => openEditTx(t)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 11 }}>✎</button>
                   <button onClick={() => delTx(t.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 11 }}>✕</button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

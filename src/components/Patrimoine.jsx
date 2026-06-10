@@ -24,10 +24,10 @@ export default function Patrimoine({ T, data }) {
 
   const {
     investments, invTotal, invInvested, invLiveValue, priceStatus, lastUpdated, fetchPrices,
-    savings, cashTotal, annualInterests, avgRate,
+    computedSavings, cashTotal, annualInterests, avgRate,
     healthAssets, healthTotal, healthCost,
     listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit,
-    loans, totalLoanDebt,
+    computedLoans, totalLoanDebt,
     patrimoine, projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly, projData,
     setModal, setEditItem, setDrillInv,
     openEditInv, delInv, openEditCash, delCash, openEditHealth, delHealth,
@@ -158,9 +158,9 @@ export default function Patrimoine({ T, data }) {
         <KPI T={T} label="Total épargne & cash" value={fEur(cashTotal, true)} accent="#34d399" icon="🏦" />
         <KPI T={T} label="Intérêts annuels" value={fEur(annualInterests, true)} accent="#4ade80" icon="💸" />
         <KPI T={T} label="Taux moyen" value={avgRate.toFixed(2) + '%'} accent="#60a5fa" icon="%" />
-        <KPI T={T} label="Nb de comptes" value={savings.length} icon="🗂️" />
+        <KPI T={T} label="Nb de comptes" value={computedSavings.length} icon="🗂️" />
       </div>
-      {savings.length === 0 ? (
+      {computedSavings.length === 0 ? (
         <div style={{ ...S.card, textAlign: 'center', padding: 50, color: T.textFaint }}>
           <div style={{ fontSize: 32, marginBottom: 10 }}>🏦</div>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Aucun compte</div>
@@ -169,9 +169,10 @@ export default function Patrimoine({ T, data }) {
       ) : (
         <div style={{ ...S.card }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {savings.map(c => {
-              const interests = c.balance * (c.rate / 100);
+            {computedSavings.map(c => {
+              const interests = c.computedBalance * (c.rate / 100);
               const color = CASH_TYPE_COLORS[c.type] || '#94a3b8';
+              const hasDelta = c.computedBalance !== c.balance;
               return (
                 <div key={c.id} style={{ padding: '14px 16px', background: T.bg2, borderRadius: 12, borderLeft: `3px solid ${color}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -183,12 +184,13 @@ export default function Patrimoine({ T, data }) {
                       <div style={{ fontSize: 11, color: T.textFaint }}>
                         {c.rate > 0 ? `${c.rate.toFixed(2)}% / an → ` : 'Non rémunéré'}
                         {c.rate > 0 && <span style={{ color: '#4ade80' }}>{fEur(interests)} / an</span>}
+                        {hasDelta && <span style={{ color: T.textMuted, marginLeft: 6 }}>· Solde initial : {fEur(c.balance)}</span>}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{fEur(c.balance)}</div>
-                        <div style={{ fontSize: 11, color: T.textMuted }}>{cashTotal > 0 ? ((c.balance / cashTotal) * 100).toFixed(1) : 0}%</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{fEur(c.computedBalance)}</div>
+                        <div style={{ fontSize: 11, color: T.textMuted }}>{cashTotal > 0 ? ((c.computedBalance / cashTotal) * 100).toFixed(1) : 0}%</div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <button onClick={() => openEditCash(c)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 11 }}>✎</button>
@@ -197,7 +199,7 @@ export default function Patrimoine({ T, data }) {
                     </div>
                   </div>
                   <div style={{ background: T.cardBorder, borderRadius: 4, height: 3, marginTop: 10 }}>
-                    <div style={{ width: `${cashTotal > 0 ? (c.balance / cashTotal) * 100 : 0}%`, height: '100%', background: color, borderRadius: 4 }} />
+                    <div style={{ width: `${cashTotal > 0 ? (c.computedBalance / cashTotal) * 100 : 0}%`, height: '100%', background: color, borderRadius: 4 }} />
                   </div>
                 </div>
               );
@@ -350,20 +352,20 @@ export default function Patrimoine({ T, data }) {
 
   // ── Crédits immobiliers ────────────────────────────────────────────────────
   const renderLoans = () => {
-    const monthlyLoanTotal = loans.reduce((s, l) => s + (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0), 0);
+    const monthlyLoanTotal = computedLoans.reduce((s, l) => s + (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0), 0);
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, flex: 1 }}>
             <KPI T={T} label="Capital restant dû" value={fEur(totalLoanDebt, true)} accent="#f87171" icon="🏠" />
             <KPI T={T} label="Mensualités totales" value={fEur(monthlyLoanTotal) + '/mois'} accent="#fb923c" icon="📅" />
-            <KPI T={T} label="Nb de crédits" value={loans.length} icon="📋" />
+            <KPI T={T} label="Nb de crédits" value={computedLoans.length} icon="📋" />
           </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button onClick={() => { setEditItem(null); data.setLoanForm && data.setLoanForm(data.mkLoan()); setModal('loan'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Crédit immo</button>
         </div>
-        {loans.length === 0 ? (
+        {computedLoans.length === 0 ? (
           <div style={{ ...S.card, textAlign: 'center', padding: 50, color: T.textFaint }}>
             <div style={{ fontSize: 32, marginBottom: 10 }}>🏠</div>
             <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Aucun crédit immobilier</div>
@@ -371,11 +373,11 @@ export default function Patrimoine({ T, data }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {loans.map(l => {
+            {computedLoans.map(l => {
               const monthly = (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0);
               const months = mLeft(l.endDate);
-              const costRemaining = Math.max(0, months * monthly - (parseFloat(l.capitalRemaining) || 0));
-              const repaidPct = l.capitalBorrowed > 0 ? Math.min(100, ((l.capitalBorrowed - parseFloat(l.capitalRemaining)) / l.capitalBorrowed) * 100) : 0;
+              const costRemaining = Math.max(0, months * monthly - l.computedRemaining);
+              const repaidPct = l.capitalBorrowed > 0 ? Math.min(100, ((l.capitalBorrowed - l.computedRemaining) / l.capitalBorrowed) * 100) : 0;
               return (
                 <div key={l.id} style={{ ...S.card, borderLeft: '4px solid #f87171' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
@@ -390,7 +392,7 @@ export default function Patrimoine({ T, data }) {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 14 }}>
                     {[
-                      { label: 'Capital restant dû', val: fEur(parseFloat(l.capitalRemaining) || 0), color: '#f87171' },
+                      { label: 'Capital restant dû', val: fEur(l.computedRemaining), color: '#f87171' },
                       { label: 'Mensualité totale', val: fEur(monthly) + '/mois', color: '#fb923c' },
                       { label: 'Durée restante', val: months > 0 ? `${months} mois` : '—', color: T.textMuted },
                       { label: 'Coût restant du crédit', val: fEur(costRemaining), color: '#f87171' },

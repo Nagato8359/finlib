@@ -8,7 +8,7 @@ import {
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
-const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false });
+const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false, accountId: '', destAccountId: '', loanId: '' });
 const mkInv     = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
 const mkHealth  = () => ({ name: '', category: 'Voiture', buyPrice: '', currentValue: '', date: today(), notes: '' });
 const mkPos     = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '' });
@@ -173,12 +173,50 @@ export function useData() {
     return v > 0 ? Math.round(v) : inv.value;
   };
 
+  // Unified account list for dropdowns (savings + investments)
+  const allAccounts = [
+    ...savings.map(a => ({ id: a.id, name: a.name, accountType: 'savings' })),
+    ...investments.map(a => ({ id: a.id, name: a.name, accountType: 'investment' })),
+  ];
+
+  // Dynamic balance delta per account from linked transactions
+  const txAccountDelta = (accountId) =>
+    transactions
+      .filter(t => t.accountId === accountId || t.destAccountId === accountId)
+      .reduce((sum, t) => {
+        const amt = Math.abs(t.amount);
+        if (t.accountId === accountId) {
+          if (t.type === 'income') return sum + amt;
+          if (t.type === 'expense' || t.type === 'loan_repayment' || t.type === 'transfer') return sum - amt;
+        }
+        if (t.destAccountId === accountId && t.type === 'transfer') return sum + amt;
+        return sum;
+      }, 0);
+
+  // Savings with live computed balance (storedBalance + transaction deltas)
+  const computedSavings = savings.map(a => ({
+    ...a,
+    computedBalance: a.balance + txAccountDelta(a.id),
+  }));
+
+  // Loans with live computed capital remaining (stored - repayments)
+  const computedLoans = loans.map(l => ({
+    ...l,
+    computedRemaining: Math.max(0,
+      (parseFloat(l.capitalRemaining) || 0) -
+      transactions
+        .filter(t => t.type === 'loan_repayment' && t.loanId === l.id)
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+    ),
+  }));
+
   const invTotal = investments.reduce((s, inv) => s + invLiveValue(inv), 0);
   const invInvested = investments.reduce((s, i) => s + i.invested, 0);
   const healthTotal = healthAssets.reduce((s, h) => s + h.currentValue, 0);
   const healthCost = healthAssets.reduce((s, h) => s + h.buyPrice, 0);
-  const cashTotal = savings.reduce((s, c) => s + c.balance, 0);
-  const annualInterests = savings.reduce((s, c) => s + c.balance * (c.rate / 100), 0);
+  // cashTotal uses computed balances so patrimoine auto-updates with transactions
+  const cashTotal = computedSavings.reduce((s, c) => s + c.computedBalance, 0);
+  const annualInterests = computedSavings.reduce((s, c) => s + c.computedBalance * (c.rate / 100), 0);
   const avgRate = cashTotal > 0 ? (annualInterests / cashTotal) * 100 : 0;
   const listingsBuyTotal = listings.reduce((s, l) => s + l.buyPrice, 0);
   const listingsSellTotal = listings.reduce((s, l) => s + l.sellPrice, 0);
@@ -187,8 +225,8 @@ export function useData() {
   const patrimoine = invTotal + cashTotal + healthTotal;
   const pnlTotal = (invTotal - invInvested) + (healthTotal - healthCost);
 
-  // ── Dettes ────────────────────────────────────────────────────────────────
-  const totalLoanDebt = loans.reduce((s, l) => s + (parseFloat(l.capitalRemaining) || 0), 0);
+  // Debts
+  const totalLoanDebt = computedLoans.reduce((s, l) => s + l.computedRemaining, 0);
   const totalConsumerDebt = debts.reduce((s, d) => s + (parseFloat(d.capitalRemaining) || 0), 0);
   const totalDebt = totalLoanDebt + totalConsumerDebt;
   const monthlyLoanPayments = loans.reduce((s, l) => s + (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0), 0);
@@ -197,6 +235,7 @@ export function useData() {
   const now = new Date();
   const cm = now.getMonth(), cy = now.getFullYear();
   const monthTx = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === cm && d.getFullYear() === cy; });
+  // income/expense only count their own types (transfers are internal movements)
   const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expense = Math.abs(monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
   const balance = income - expense;
@@ -252,7 +291,18 @@ export function useData() {
   const saveTx = () => {
     if (!txForm.date || !txForm.label || !txForm.amount) return;
     const amt = parseFloat(txForm.amount);
-    const item = { ...txForm, id: editItem?.id || uid(), amount: txForm.type === 'expense' ? -Math.abs(amt) : Math.abs(amt) };
+    let amount, category;
+    if (txForm.type === 'transfer') {
+      amount = Math.abs(amt);
+      category = 'Virement';
+    } else if (txForm.type === 'loan_repayment') {
+      amount = Math.abs(amt);
+      category = 'Remboursement';
+    } else {
+      amount = txForm.type === 'expense' ? -Math.abs(amt) : Math.abs(amt);
+      category = txForm.category;
+    }
+    const item = { ...txForm, id: editItem?.id || uid(), amount, category };
     setTransactions(p => editItem ? p.map(t => t.id === editItem.id ? item : t) : [item, ...p]);
     setTxForm(mkTx()); setEditItem(null); setModal(null);
   };
@@ -367,8 +417,9 @@ export function useData() {
   return {
     user, authLoading, demoMode, handleLogout, activateDemo,
     transactions, investments, healthAssets, budgets, setBudgets,
-    goals, savings, listings, soldHistory, setSoldHistory,
-    loans, debts,
+    goals, savings, computedSavings, listings, soldHistory, setSoldHistory,
+    loans, computedLoans, debts,
+    allAccounts,
     projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly,
     prices, priceStatus, lastUpdated, fetchPrices, fetchingPrice, fetchTickerPrice,
     modal, setModal, editItem, setEditItem, drillInv, setDrillInv,

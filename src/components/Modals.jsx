@@ -21,6 +21,7 @@ export default function Modals({ T, data }) {
     mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt,
     saveTx, saveInv, saveHealth, savePosition, saveListing, saveCash, saveGoal, saveLoan, saveDebt,
     investments, prices, fetchTickerPrice, fetchingPrice, invLiveValue, setInvestments,
+    allAccounts, computedLoans,
   } = data;
 
   if (!modal) return null;
@@ -28,40 +29,75 @@ export default function Modals({ T, data }) {
   const close = (reset) => { setModal(null); setEditItem(null); reset && reset(); };
 
   // ── Transaction ─────────────────────────────────────────────────────────────
-  if (modal === 'tx') return (
+  if (modal === 'tx') {
+    const isTransfer = txForm.type === 'transfer';
+    const isRepayment = txForm.type === 'loan_repayment';
+    const acctLabel = txForm.type === 'income' ? 'Compte crédité' : isTransfer ? 'Compte source' : 'Compte débité';
+    return (
     <ModalShell T={T} title={editItem ? 'Modifier la transaction' : 'Nouvelle transaction'} onClose={() => close(() => setTxForm(mkTx()))}>
       <FRow cols={2}>
         <FField label="Date"><input type="date" style={S.inp} value={txForm.date} onChange={e => setTxForm(p => ({ ...p, date: e.target.value }))} /></FField>
         <FField label="Type">
           <select style={S.inp} value={txForm.type} onChange={e => setTxForm(p => ({ ...p, type: e.target.value }))}>
-            <option value="income">Entrée (revenu)</option>
-            <option value="expense">Sortie (dépense)</option>
+            <option value="income">Revenu (entrée)</option>
+            <option value="expense">Dépense (sortie)</option>
+            <option value="transfer">Virement entre comptes</option>
+            <option value="loan_repayment">Remboursement crédit</option>
           </select>
         </FField>
       </FRow>
       <FRow cols={2}>
-        <FField label="Libellé"><input type="text" placeholder="Ex : Salaire, Loyer…" style={S.inp} value={txForm.label} onChange={e => setTxForm(p => ({ ...p, label: e.target.value }))} /></FField>
+        <FField label="Libellé"><input type="text" placeholder={isTransfer ? 'Ex : Virement PEA' : isRepayment ? 'Ex : Remb. crédit immo' : 'Ex : Salaire, Loyer…'} style={S.inp} value={txForm.label} onChange={e => setTxForm(p => ({ ...p, label: e.target.value }))} /></FField>
         <FField label="Montant (€)"><input type="number" placeholder="0" style={S.inp} value={txForm.amount} onChange={e => setTxForm(p => ({ ...p, amount: e.target.value }))} /></FField>
       </FRow>
-      <FRow cols={2}>
-        <FField label="Catégorie">
-          <select style={S.inp} value={txForm.category} onChange={e => setTxForm(p => ({ ...p, category: e.target.value }))}>
-            {Object.keys(CAT_COLORS).map(c => <option key={c}>{c}</option>)}
+      {!isTransfer && !isRepayment && (
+        <FRow cols={2}>
+          <FField label="Catégorie">
+            <select style={S.inp} value={txForm.category} onChange={e => setTxForm(p => ({ ...p, category: e.target.value }))}>
+              {Object.keys(CAT_COLORS).map(c => <option key={c}>{c}</option>)}
+            </select>
+          </FField>
+          <FField label="Récurrente">
+            <select style={S.inp} value={txForm.recurrent ? 'oui' : 'non'} onChange={e => setTxForm(p => ({ ...p, recurrent: e.target.value === 'oui' }))}>
+              <option value="non">Non (ponctuelle)</option>
+              <option value="oui">Oui (mensuelle)</option>
+            </select>
+          </FField>
+        </FRow>
+      )}
+      <FRow cols={isTransfer ? 2 : 1}>
+        <FField label={acctLabel}>
+          <select style={S.inp} value={txForm.accountId} onChange={e => setTxForm(p => ({ ...p, accountId: e.target.value }))}>
+            <option value="">— Aucun compte lié —</option>
+            {allAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </FField>
-        <FField label="Récurrente">
-          <select style={S.inp} value={txForm.recurrent ? 'oui' : 'non'} onChange={e => setTxForm(p => ({ ...p, recurrent: e.target.value === 'oui' }))}>
-            <option value="non">Non (ponctuelle)</option>
-            <option value="oui">Oui (mensuelle)</option>
-          </select>
-        </FField>
+        {isTransfer && (
+          <FField label="Compte destination">
+            <select style={S.inp} value={txForm.destAccountId} onChange={e => setTxForm(p => ({ ...p, destAccountId: e.target.value }))}>
+              <option value="">— Sélectionner —</option>
+              {allAccounts.filter(a => a.id !== txForm.accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </FField>
+        )}
       </FRow>
+      {isRepayment && computedLoans.length > 0 && (
+        <FRow cols={1}>
+          <FField label="Crédit remboursé (optionnel)">
+            <select style={S.inp} value={txForm.loanId} onChange={e => setTxForm(p => ({ ...p, loanId: e.target.value }))}>
+              <option value="">— Aucun crédit lié —</option>
+              {computedLoans.map(l => <option key={l.id} value={l.id}>{l.name} — {new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(l.computedRemaining)} restants</option>)}
+            </select>
+          </FField>
+        </FRow>
+      )}
       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
         <button onClick={saveTx} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
         <button onClick={() => close(() => setTxForm(mkTx()))} style={S.btnS}>Annuler</button>
       </div>
     </ModalShell>
-  );
+    );
+  }
 
   // ── Investissement ───────────────────────────────────────────────────────────
   if (modal === 'inv') return (
