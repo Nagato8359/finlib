@@ -9,7 +9,7 @@ async function getAccessToken() {
       private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
       project_id: process.env.GOOGLE_PROJECT_ID,
     },
-    scopes: ['https://www.googleapis.com/auth/generativelanguage'],
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
   });
   const client = await auth.getClient();
   const { token } = await client.getAccessToken();
