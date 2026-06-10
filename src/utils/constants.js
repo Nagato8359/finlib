@@ -46,8 +46,20 @@ export const CAT_COLORS = {
 export const INV_CATS = ['Actions', 'Crypto', 'Obligataire', 'Immobilier', 'Épargne liquide', 'Autres'];
 export const INV_COLORS = ['#10b981', '#f59e0b', '#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fb923c', '#facc15'];
 export const HEALTH_CATS = ['Voiture', 'Immobilier physique', 'Collection', 'Électronique', 'Mobilier', 'Bijoux', 'Autres'];
-export const CASH_TYPES = ['Compte courant', 'Livret A', 'LDD', 'PEL', 'CEL', 'Autre'];
-export const CASH_TYPE_COLORS = { 'Compte courant': '#60a5fa', 'Livret A': '#34d399', 'LDD': '#4ade80', 'PEL': '#a78bfa', 'CEL': '#f472b6', 'Autre': '#94a3b8' };
+export const CASH_TYPES = ['Compte courant', 'Livret A', 'LDD', 'LEP', 'Livret Jeune', 'PEL', 'CEL', 'Fonds euros AV', 'PEA', 'Autre'];
+export const CASH_TYPE_COLORS = { 'Compte courant': '#60a5fa', 'Livret A': '#34d399', 'LDD': '#4ade80', 'LEP': '#f59e0b', 'Livret Jeune': '#fb923c', 'PEL': '#a78bfa', 'CEL': '#f472b6', 'Fonds euros AV': '#38bdf8', 'PEA': '#818cf8', 'Autre': '#94a3b8' };
+export const CASH_TYPE_INFO = {
+  'Compte courant': { cap: null, rate: 0 },
+  'Livret A':       { cap: 22950,  rate: 2.4 },
+  'LDD':            { cap: 12000,  rate: 2.4 },
+  'LEP':            { cap: 10000,  rate: 3.5 },
+  'Livret Jeune':   { cap: 1600,   rate: 3.0 },
+  'PEL':            { cap: 61200,  rate: 1.75 },
+  'CEL':            { cap: 15300,  rate: 1.5 },
+  'Fonds euros AV': { cap: null,   rate: 2.5 },
+  'PEA':            { cap: 150000, rate: 0 },
+  'Autre':          { cap: null,   rate: 0 },
+};
 export const LISTING_CATS = ['Objet physique', 'Crypto', 'Action', 'ETF'];
 export const LISTING_PLATFORMS = ['Vinted', 'eBay', 'LeBonCoin', 'Binance', 'Bourse Direct', 'Autre'];
 export const LISTING_CAT_COLORS = { 'Objet physique': '#fb923c', Crypto: '#f59e0b', Action: '#10b981', ETF: '#60a5fa' };

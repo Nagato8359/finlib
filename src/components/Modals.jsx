@@ -1,4 +1,4 @@
-import { ModalShell, Label, makeS, fEur, CAT_COLORS, INV_CATS, HEALTH_CATS, CASH_TYPES, LISTING_CATS, LISTING_PLATFORMS, fPrice } from '../utils/constants';
+import { ModalShell, Label, makeS, fEur, CAT_COLORS, INV_CATS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, LISTING_CATS, LISTING_PLATFORMS, fPrice } from '../utils/constants';
 
 const FRow = ({ cols = 2, children }) => <div className={`frow frow-${cols}`}>{children}</div>;
 const FField = ({ label, children }) => <div><Label>{label}</Label>{children}</div>;
@@ -173,7 +173,10 @@ export default function Modals({ T, data }) {
       <FRow cols={2}>
         <FField label="Nom du compte"><input type="text" placeholder="Ex : Livret A CA" style={S.inp} value={cashForm.name} onChange={e => setCashForm(p => ({ ...p, name: e.target.value }))} /></FField>
         <FField label="Type">
-          <select style={S.inp} value={cashForm.type} onChange={e => setCashForm(p => ({ ...p, type: e.target.value }))}>
+          <select style={S.inp} value={cashForm.type} onChange={e => {
+            const info = CASH_TYPE_INFO[e.target.value] || {};
+            setCashForm(p => ({ ...p, type: e.target.value, rate: info.rate != null ? info.rate : p.rate }));
+          }}>
             {CASH_TYPES.map(t => <option key={t}>{t}</option>)}
           </select>
         </FField>
@@ -182,11 +185,33 @@ export default function Modals({ T, data }) {
         <FField label="Solde (€)"><input type="number" placeholder="0" style={S.inp} value={cashForm.balance} onChange={e => setCashForm(p => ({ ...p, balance: e.target.value }))} /></FField>
         <FField label="Taux annuel (%)"><input type="number" placeholder="0" step="0.01" style={S.inp} value={cashForm.rate} onChange={e => setCashForm(p => ({ ...p, rate: e.target.value }))} /></FField>
       </FRow>
-      {cashForm.balance && cashForm.rate > 0 && (
-        <div style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.15)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#4ade80' }}>
-          💰 Intérêts annuels estimés : {fEur(parseFloat(cashForm.balance) * parseFloat(cashForm.rate) / 100)}
-        </div>
-      )}
+      {(() => {
+        const info = CASH_TYPE_INFO[cashForm.type] || {};
+        const bal = parseFloat(cashForm.balance) || 0;
+        const cap = info.cap;
+        const overCap = cap != null && bal > cap;
+        const remaining = cap != null ? cap - bal : null;
+        return (
+          <>
+            {bal > 0 && cashForm.rate > 0 && (
+              <div style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.15)', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 12, color: '#4ade80' }}>
+                💰 Intérêts annuels estimés : {fEur(bal * parseFloat(cashForm.rate) / 100)}
+              </div>
+            )}
+            {cap != null && (
+              <div style={{ background: overCap ? 'rgba(248,113,113,.08)' : 'rgba(96,165,250,.08)', border: `1px solid ${overCap ? 'rgba(248,113,113,.3)' : 'rgba(96,165,250,.2)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: overCap ? '#f87171' : '#60a5fa' }}>Plafond réglementaire : {fEur(cap)}</span>
+                  {overCap && <span style={{ color: '#f87171', fontWeight: 700 }}>⚠ DÉPASSÉ</span>}
+                </div>
+                {!overCap && remaining != null && (
+                  <span style={{ color: '#94a3b8' }}>Capacité restante : {fEur(remaining)}</span>
+                )}
+              </div>
+            )}
+          </>
+        );
+      })()}
       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
         <button onClick={saveCash} style={S.btnG}>{editItem ? 'Enregistrer' : 'Ajouter'}</button>
         <button onClick={() => close(() => setCashForm(mkCash()))} style={S.btnS}>Annuler</button>

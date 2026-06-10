@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, LISTING_CAT_COLORS, LISTING_PLATFORM_ICONS } from '../utils/constants';
+import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, LISTING_PLATFORM_ICONS } from '../utils/constants';
 
 const SECTIONS = [
   { id: 'invest', label: '◈ Investissements' },
@@ -173,13 +173,19 @@ export default function Patrimoine({ T, data }) {
               const interests = c.computedBalance * (c.rate / 100);
               const color = CASH_TYPE_COLORS[c.type] || '#94a3b8';
               const hasDelta = c.computedBalance !== c.balance;
+              const info = CASH_TYPE_INFO[c.type] || {};
+              const cap = info.cap;
+              const overCap = cap != null && c.computedBalance > cap;
+              const remaining = cap != null ? cap - c.computedBalance : null;
+              const capPct = cap != null && cap > 0 ? Math.min(100, (c.computedBalance / cap) * 100) : 0;
               return (
-                <div key={c.id} style={{ padding: '14px 16px', background: T.bg2, borderRadius: 12, borderLeft: `3px solid ${color}` }}>
+                <div key={c.id} style={{ padding: '14px 16px', background: T.bg2, borderRadius: 12, borderLeft: `3px solid ${overCap ? '#f87171' : color}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{c.name}</span>
                         <span style={{ fontSize: 10, background: color + '22', color, padding: '2px 7px', borderRadius: 20 }}>{c.type}</span>
+                        {overCap && <span style={{ fontSize: 10, background: 'rgba(248,113,113,.15)', color: '#f87171', padding: '2px 7px', borderRadius: 20, fontWeight: 700 }}>⚠ Plafond dépassé</span>}
                       </div>
                       <div style={{ fontSize: 11, color: T.textFaint }}>
                         {c.rate > 0 ? `${c.rate.toFixed(2)}% / an → ` : 'Non rémunéré'}
@@ -189,7 +195,7 @@ export default function Patrimoine({ T, data }) {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{fEur(c.computedBalance)}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: overCap ? '#f87171' : T.text }}>{fEur(c.computedBalance)}</div>
                         <div style={{ fontSize: 11, color: T.textMuted }}>{cashTotal > 0 ? ((c.computedBalance / cashTotal) * 100).toFixed(1) : 0}%</div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -198,9 +204,24 @@ export default function Patrimoine({ T, data }) {
                       </div>
                     </div>
                   </div>
-                  <div style={{ background: T.cardBorder, borderRadius: 4, height: 3, marginTop: 10 }}>
-                    <div style={{ width: `${cashTotal > 0 ? (c.computedBalance / cashTotal) * 100 : 0}%`, height: '100%', background: color, borderRadius: 4 }} />
-                  </div>
+                  {cap != null && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
+                        <span>Plafond : {fEur(cap)}</span>
+                        <span style={{ color: overCap ? '#f87171' : remaining != null && remaining < cap * 0.1 ? '#fb923c' : '#4ade80' }}>
+                          {overCap ? `Dépassé de ${fEur(c.computedBalance - cap)}` : `Reste : ${fEur(remaining)}`}
+                        </span>
+                      </div>
+                      <div style={{ background: T.cardBorder, borderRadius: 4, height: 5, overflow: 'hidden' }}>
+                        <div style={{ width: `${capPct}%`, height: '100%', background: overCap ? '#f87171' : capPct > 90 ? '#fb923c' : color, borderRadius: 4, transition: 'width .4s' }} />
+                      </div>
+                    </div>
+                  )}
+                  {cap == null && (
+                    <div style={{ background: T.cardBorder, borderRadius: 4, height: 3, marginTop: 10 }}>
+                      <div style={{ width: `${cashTotal > 0 ? (c.computedBalance / cashTotal) * 100 : 0}%`, height: '100%', background: color, borderRadius: 4 }} />
+                    </div>
+                  )}
                 </div>
               );
             })}
