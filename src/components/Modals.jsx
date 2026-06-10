@@ -1,4 +1,4 @@
-import { ModalShell, Label, makeS, fEur, CAT_COLORS, INV_CATS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, LISTING_CATS, LISTING_PLATFORMS, fPrice } from '../utils/constants';
+import { ModalShell, Label, makeS, fEur, fDate, today, CAT_COLORS, INV_CATS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, LISTING_CATS, LISTING_PLATFORMS, fPrice } from '../utils/constants';
 
 const FRow = ({ cols = 2, children }) => <div className={`frow frow-${cols}`}>{children}</div>;
 const FField = ({ label, children }) => <div><Label>{label}</Label>{children}</div>;
@@ -22,6 +22,7 @@ export default function Modals({ T, data }) {
     saveTx, saveInv, saveHealth, savePosition, saveListing, saveCash, saveGoal, saveLoan, saveDebt,
     investments, prices, fetchTickerPrice, fetchingPrice, invLiveValue, setInvestments,
     allAccounts, computedLoans,
+    divForm, setDivForm, divInvId, addDividend,
   } = data;
 
   if (!modal) return null;
@@ -261,6 +262,54 @@ export default function Modals({ T, data }) {
     </ModalShell>
   );
 
+  // ── Dividende ─────────────────────────────────────────────────────────────────
+  if (modal === 'div') {
+    const inv = investments.find(i => i.id === divInvId);
+    return (
+      <ModalShell T={T} title={`Dividende — ${inv?.name || ''}`} onClose={() => { setModal(null); setDivForm({ date: today(), amount: '', gross: true, note: '' }); }}>
+        <FRow cols={2}>
+          <FField label="Date de réception"><input type="date" style={S.inp} value={divForm.date} onChange={e => setDivForm(p => ({ ...p, date: e.target.value }))} /></FField>
+          <FField label="Montant reçu (€)"><input type="number" placeholder="0.00" step="0.01" style={S.inp} value={divForm.amount} onChange={e => setDivForm(p => ({ ...p, amount: e.target.value }))} /></FField>
+        </FRow>
+        <FRow cols={2}>
+          <FField label="Type">
+            <select style={S.inp} value={divForm.gross ? 'brut' : 'net'} onChange={e => setDivForm(p => ({ ...p, gross: e.target.value === 'brut' }))}>
+              <option value="brut">Brut (avant PFU)</option>
+              <option value="net">Net (après PFU 30%)</option>
+            </select>
+          </FField>
+          <FField label="Note"><input type="text" placeholder="Ex : Dividende trimestriel" style={S.inp} value={divForm.note} onChange={e => setDivForm(p => ({ ...p, note: e.target.value }))} /></FField>
+        </FRow>
+        {divForm.amount && parseFloat(divForm.amount) > 0 && (
+          <div style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.15)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#4ade80' }}>
+            {divForm.gross ? `Net estimé (après PFU 30%) : ${fEur(parseFloat(divForm.amount) * 0.7)}` : `Brut estimé : ${fEur(parseFloat(divForm.amount) / 0.7)}`}
+          </div>
+        )}
+        {inv?.dividends?.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>Historique ({inv.dividends.length})</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto' }}>
+              {[...inv.dividends].sort((a, b) => b.date.localeCompare(a.date)).map(d => (
+                <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
+                  <span style={{ color: T.textMuted }}>{fDate(d.date)}{d.note ? ` · ${d.note}` : ''}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: '#4ade80', fontWeight: 600 }}>+{fEur(d.amount)}</span>
+                    <span style={{ fontSize: 10, color: d.gross ? '#fb923c' : '#a78bfa', background: d.gross ? 'rgba(251,146,60,.12)' : 'rgba(167,139,250,.12)', padding: '1px 6px', borderRadius: 4 }}>{d.gross ? 'brut' : 'net'}</span>
+                    <button onClick={() => data.delDividend(divInvId, d.id)} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={() => { addDividend(divInvId, divForm); setDivForm(p => ({ ...p, amount: '', note: '' })); }} disabled={!divForm.amount} style={{ ...S.btnG, opacity: !divForm.amount ? 0.5 : 1 }}>Ajouter</button>
+          <button onClick={() => { setModal(null); setDivForm({ date: today(), amount: '', gross: true, note: '' }); }} style={S.btnS}>Fermer</button>
+        </div>
+      </ModalShell>
+    );
+  }
+
   // ── Drill-down positions ──────────────────────────────────────────────────────
   if (modal === 'drill' && drillInv) {
     const cur = investments.find(i => i.id === drillInv.id) || { value: 0, invested: 0, positions: [] };
@@ -319,6 +368,11 @@ export default function Modals({ T, data }) {
             <FField label={fetchingPrice ? 'Récupération…' : prices[posForm.ticker] != null ? 'Prix actuel ● LIVE' : 'Prix actuel (€)'}>
               <input type="number" placeholder={fetchingPrice ? '…' : 'Auto si ticker reconnu'} style={{ ...S.inp, opacity: fetchingPrice ? 0.6 : 1 }}
                 value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
+            </FField>
+          </FRow>
+          <FRow cols={1}>
+            <FField label="Rendement dividende annuel (% — optionnel)">
+              <input type="number" placeholder="0.00 — laisser vide si non applicable" step="0.01" style={S.inp} value={posForm.divYield ?? ''} onChange={e => setPosForm(p => ({ ...p, divYield: e.target.value }))} />
             </FField>
           </FRow>
           <div style={{ display: 'flex', gap: 8 }}>

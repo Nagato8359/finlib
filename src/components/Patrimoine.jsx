@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, LISTING_PLATFORM_ICONS } from '../utils/constants';
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { KPI, TT, makeS, fEur, fPct, fDate, MONTHS, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, LISTING_PLATFORM_ICONS } from '../utils/constants';
 
 const SECTIONS = [
   { id: 'invest', label: '◈ Investissements' },
@@ -18,9 +18,32 @@ const mLeft = endDate => {
   return Math.max(0, months);
 };
 
+// ── Loan simulator helpers ────────────────────────────────────────────────────
+const calcMonthsToPayoff = (capital, annualRate, monthlyPayment) => {
+  if (monthlyPayment <= 0 || capital <= 0) return Infinity;
+  const r = annualRate / 100 / 12;
+  if (r <= 0) return Math.ceil(capital / monthlyPayment);
+  const denom = monthlyPayment - capital * r;
+  if (denom <= 0) return Infinity;
+  return Math.ceil(-Math.log(denom / monthlyPayment) / Math.log(1 + r));
+};
+
+const balAtMonth = (capital, annualRate, monthlyPayment, m) => {
+  const r = annualRate / 100 / 12;
+  if (r <= 0) return Math.max(0, capital - monthlyPayment * m);
+  return Math.max(0, capital * Math.pow(1 + r, m) - monthlyPayment * ((Math.pow(1 + r, m) - 1) / r));
+};
+
+const addMonths = (date, m) => {
+  const d = new Date(date || Date.now());
+  d.setMonth(d.getMonth() + m);
+  return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+};
+
 export default function Patrimoine({ T, data }) {
   const S = makeS(T);
   const [section, setSection] = useState('invest');
+  const [loanSim, setLoanSim] = useState({});
 
   const {
     investments, invTotal, invInvested, invLiveValue, priceStatus, lastUpdated, fetchPrices,
@@ -29,10 +52,11 @@ export default function Patrimoine({ T, data }) {
     listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit,
     computedLoans, totalLoanDebt,
     patrimoine, projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly, projData,
-    setModal, setEditItem, setDrillInv,
+    setModal, setEditItem, setDrillInv, setDivInvId,
     openEditInv, delInv, openEditCash, delCash, openEditHealth, delHealth,
     openEditListing, delListing, markSold,
     openEditLoan, delLoan,
+    allDividends, divThisYear, divByMonth, delDividend,
   } = data;
 
   const SubNav = () => (
@@ -117,13 +141,17 @@ export default function Patrimoine({ T, data }) {
                   const lv = invLiveValue(inv);
                   const pnl = lv - inv.invested;
                   const pct = inv.invested > 0 ? (pnl / inv.invested) * 100 : 0;
+                  const invDivTotal = (inv.dividends || []).reduce((s, d) => s + d.amount, 0);
+                  const divYield = inv.invested > 0 ? (invDivTotal / inv.invested) * 100 : 0;
                   return (
                     <div key={inv.id} style={{ padding: '12px 14px', background: T.bg2, borderRadius: 12, borderLeft: `3px solid ${inv.color}`, cursor: 'pointer', transition: 'opacity .15s' }}
                       onClick={() => { setDrillInv(inv); setModal('drill'); }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{inv.name} <span style={{ fontSize: 10, color: T.textMuted }}>↗</span></div>
-                          <div style={{ fontSize: 11, color: T.textFaint }}>{inv.category} · {inv.positions?.length || 0} position{(inv.positions?.length || 0) !== 1 ? 's' : ''}</div>
+                          <div style={{ fontSize: 11, color: T.textFaint }}>{inv.category} · {inv.positions?.length || 0} position{(inv.positions?.length || 0) !== 1 ? 's' : ''}
+                            {invDivTotal > 0 && <span style={{ color: '#4ade80', marginLeft: 6 }}>· div. {fEur(invDivTotal, true)} ({divYield.toFixed(1)}%)</span>}
+                          </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{fEur(lv)}</div>
@@ -136,6 +164,7 @@ export default function Patrimoine({ T, data }) {
                       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                         <button onClick={e => { e.stopPropagation(); openEditInv(inv); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
                         <button onClick={e => { e.stopPropagation(); delInv(inv.id); }} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
+                        <button onClick={e => { e.stopPropagation(); setDivInvId(inv.id); setModal('div'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10, color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>+ Dividende</button>
                       </div>
                     </div>
                   );
@@ -143,6 +172,102 @@ export default function Patrimoine({ T, data }) {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── Dividendes ── */}
+        <div style={{ ...S.card }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Dividendes reçus</h3>
+              <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Suivi des versements par ligne d'investissement</p>
+            </div>
+          </div>
+
+          <div className="g3" style={{ marginBottom: 20 }}>
+            {[
+              { label: `Total ${new Date().getFullYear()}`, value: fEur(divThisYear, true), accent: '#4ade80', icon: '💸' },
+              { label: 'Nb de versements', value: allDividends.length, icon: '📅' },
+              { label: 'Moy. par versement', value: allDividends.length > 0 ? fEur(allDividends.reduce((s,d)=>s+d.amount,0)/allDividends.length) : '—', icon: '⌀' },
+            ].map(kpi => <KPI key={kpi.label} T={T} label={kpi.label} value={kpi.value} accent={kpi.accent} icon={kpi.icon} />)}
+          </div>
+
+          {allDividends.length > 0 ? (
+            <>
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Par mois — {new Date().getFullYear()}</h4>
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={divByMonth} barSize={16}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
+                    <XAxis dataKey="month" tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => v > 0 ? fEur(v, true) : ''} width={44} />
+                    <Tooltip formatter={v => [fEur(v), 'Dividendes']} contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }} />
+                    <Bar dataKey="Dividendes" fill="#4ade80" radius={[4,4,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>Historique complet</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                  {[...allDividends].sort((a,b) => b.date.localeCompare(a.date)).map(d => (
+                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ color: T.textFaint, minWidth: 80 }}>{fDate(d.date)}</span>
+                        <span style={{ color: T.text }}>{d.invName}</span>
+                        {d.note && <span style={{ color: T.textMuted, fontSize: 11 }}>{d.note}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 700, color: '#4ade80' }}>+{fEur(d.amount)}</span>
+                        <span style={{ fontSize: 10, color: d.gross ? '#fb923c' : '#a78bfa', background: d.gross ? 'rgba(251,146,60,.12)' : 'rgba(167,139,250,.12)', padding: '1px 6px', borderRadius: 4 }}>{d.gross ? 'brut' : 'net'}</span>
+                        <button onClick={() => delDividend(d.invId, d.id)} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px 0', color: T.textFaint, fontSize: 13 }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>💸</div>
+              <div>Cliquez sur "+ Dividende" dans un actif pour enregistrer un versement</div>
+            </div>
+          )}
+
+          {/* Calendrier estimé */}
+          {(() => {
+            const now = new Date();
+            const upcoming = [];
+            investments.forEach(inv => {
+              (inv.positions || []).forEach(pos => {
+                if (!pos.divYield || pos.divYield <= 0) return;
+                const annualAmt = pos.shares * pos.currentPrice * (pos.divYield / 100);
+                // quarterly: next 4 quarter-starts
+                for (let q = 0; q < 4; q++) {
+                  const dt = new Date(now.getFullYear(), now.getMonth() + q * 3 + 1, 15);
+                  upcoming.push({ dt, label: `${pos.ticker || pos.name}`, amount: annualAmt / 4, inv: inv.name, month: MONTHS[dt.getMonth()] + ' ' + dt.getFullYear() });
+                }
+              });
+            });
+            if (upcoming.length === 0) return null;
+            upcoming.sort((a,b) => a.dt - b.dt);
+            return (
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.cardBorder}` }}>
+                <h4 style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Calendrier estimé (basé sur les rendements saisis)</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {upcoming.slice(0, 8).map((u, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, background: 'rgba(96,165,250,.12)', color: '#60a5fa', padding: '2px 8px', borderRadius: 4, minWidth: 80, textAlign: 'center' }}>{u.month}</span>
+                        <span style={{ color: T.text }}>{u.label}</span>
+                        <span style={{ color: T.textMuted, fontSize: 11 }}>{u.inv}</span>
+                      </div>
+                      <span style={{ color: '#4ade80', fontWeight: 600 }}>~{fEur(u.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     );
@@ -441,6 +566,74 @@ export default function Patrimoine({ T, data }) {
                       </div>
                     </>
                   )}
+
+                  {/* ── Simulateur remboursement anticipé ── */}
+                  {(() => {
+                    const extra = loanSim[l.id] ?? 0;
+                    const capital = l.computedRemaining;
+                    const rate = parseFloat(l.rate) || 0;
+                    const basePayment = monthly;
+                    const newPayment = basePayment + extra;
+                    const baseMonths = isFinite(months) && months > 0 ? months : calcMonthsToPayoff(capital, rate, basePayment);
+                    const newMonths = extra > 0 ? calcMonthsToPayoff(capital, rate, newPayment) : baseMonths;
+                    const monthsSaved = isFinite(baseMonths) && isFinite(newMonths) ? Math.max(0, baseMonths - newMonths) : 0;
+                    const interestSaved = isFinite(baseMonths) && isFinite(newMonths)
+                      ? Math.max(0, baseMonths * basePayment - newMonths * newPayment)
+                      : 0;
+
+                    const maxPts = Math.min(isFinite(baseMonths) ? baseMonths : 360, 360);
+                    const step = Math.max(1, Math.ceil(maxPts / 10));
+                    const chartData = [];
+                    for (let m = 0; m <= maxPts; m += step) {
+                      chartData.push({
+                        label: m === 0 ? 'Auj.' : `M${m}`,
+                        Base: Math.round(balAtMonth(capital, rate, basePayment, m)),
+                        Anticipé: extra > 0 ? Math.round(balAtMonth(capital, rate, newPayment, m)) : undefined,
+                      });
+                    }
+
+                    return (
+                      <div style={{ marginTop: 16, borderTop: `1px solid ${T.cardBorder}`, paddingTop: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                          <h4 style={{ fontSize: 12, color: T.textMuted }}>Simulateur remboursement anticipé</h4>
+                          <span style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600 }}>+{extra} €/mois</span>
+                        </div>
+                        <div style={{ marginBottom: 12 }}>
+                          <input type="range" min={0} max={1000} step={25} value={extra}
+                            onChange={e => setLoanSim(p => ({ ...p, [l.id]: +e.target.value }))} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textFaint, marginTop: 2 }}>
+                            <span>0 €</span><span>+1 000 €/mois</span>
+                          </div>
+                        </div>
+                        {extra > 0 && isFinite(newMonths) && (
+                          <>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+                              {[
+                                { label: 'Mois gagnés', val: `−${monthsSaved} mois`, color: '#4ade80' },
+                                { label: 'Intérêts économisés', val: fEur(interestSaved, true), color: '#4ade80' },
+                                { label: 'Nouvelle fin', val: addMonths(new Date(), newMonths), color: '#60a5fa' },
+                              ].map(({ label, val, color }) => (
+                                <div key={label} style={{ background: T.bg2, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                                  <div style={{ fontSize: 9, color: T.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color }}>{val}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <ResponsiveContainer width="100%" height={120}>
+                              <LineChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
+                                <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 8 }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fill: T.textMuted, fontSize: 8 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={46} />
+                                <Tooltip formatter={(v,n) => [fEur(v), n]} contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 10 }} />
+                                <Line type="monotone" dataKey="Base" stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 3" dot={false} name="Base" />
+                                <Line type="monotone" dataKey="Anticipé" stroke="#4ade80" strokeWidth={2} dot={false} name="Anticipé" />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

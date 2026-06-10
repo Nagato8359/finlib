@@ -12,7 +12,7 @@ const API_BASE = process.env.REACT_APP_API_URL || '';
 const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false, accountId: '', destAccountId: '', loanId: '' });
 const mkInv     = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
 const mkHealth  = () => ({ name: '', category: 'Voiture', buyPrice: '', currentValue: '', date: today(), notes: '' });
-const mkPos     = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '' });
+const mkPos     = () => ({ ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '', divYield: '' });
 const mkGoal    = () => ({ name: '', target: '', deadline: '', color: '#10b981' });
 const mkCash    = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
 const mkListing = () => ({ name: '', category: 'Objet physique', platform: 'eBay', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '' });
@@ -140,6 +140,8 @@ export function useData() {
   const [listingForm, setListingForm] = useState(mkListing);
   const [loanForm, setLoanForm] = useState(mkLoan);
   const [debtForm, setDebtForm] = useState(mkDebt);
+  const [divForm, setDivForm] = useState({ date: today(), amount: '', gross: true, note: '' });
+  const [divInvId, setDivInvId] = useState(null);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const [user, setUser] = useState(null);
@@ -384,6 +386,14 @@ export function useData() {
     alerts.push({ msg: `Taux d'endettement : ${endettementRate.toFixed(0)}% de vos revenus — limite légale 33%` });
   }
 
+  // ── Dividend computed ─────────────────────────────────────────────────────
+  const allDividends = investments.flatMap(inv => (inv.dividends || []).map(d => ({ ...d, invName: inv.name, invId: inv.id })));
+  const divThisYear = allDividends.filter(d => d.date.startsWith(String(cy))).reduce((s, d) => s + d.amount, 0);
+  const divByMonth = Array.from({ length: 12 }, (_, m) => ({
+    month: MONTHS[m],
+    Dividendes: allDividends.filter(d => d.date.startsWith(`${cy}-${String(m + 1).padStart(2, '0')}`)).reduce((s, d) => s + d.amount, 0),
+  }));
+
   // ── Budget & goal notifications ───────────────────────────────────────────
   const prevBudgetPct = useRef({});
   useEffect(() => {
@@ -486,7 +496,7 @@ export function useData() {
   const saveInv = () => {
     if (!invForm.name || !invForm.value || !invForm.invested) return;
     const idx = investments.findIndex(i => i.id === editItem?.id);
-    const item = { ...invForm, id: editItem?.id || uid(), value: parseFloat(invForm.value), invested: parseFloat(invForm.invested), color: editItem?.color || INV_COLORS[investments.length % INV_COLORS.length], positions: editItem?.positions || [] };
+    const item = { ...invForm, id: editItem?.id || uid(), value: parseFloat(invForm.value), invested: parseFloat(invForm.invested), color: editItem?.color || INV_COLORS[investments.length % INV_COLORS.length], positions: editItem?.positions || [], dividends: editItem?.dividends || [] };
     setInvestments(p => idx >= 0 ? p.map((x, i) => i === idx ? item : x) : [...p, item]);
     setInvForm(mkInv()); setEditItem(null); setModal(null);
   };
@@ -506,7 +516,7 @@ export function useData() {
     if (!posForm.ticker || !posForm.shares || !posForm.buyPrice) return;
     const livePrc = prices[posForm.ticker];
     const currentPrice = parseFloat(posForm.currentPrice) || livePrc || 0;
-    const pos = { ...posForm, id: editItem?.posId || uid(), shares: parseFloat(posForm.shares), buyPrice: parseFloat(posForm.buyPrice), currentPrice };
+    const pos = { ...posForm, id: editItem?.posId || uid(), shares: parseFloat(posForm.shares), buyPrice: parseFloat(posForm.buyPrice), currentPrice, divYield: parseFloat(posForm.divYield) || 0 };
     setInvestments(p => p.map(inv => {
       if (inv.id !== drillInv?.id) return inv;
       const positions = editItem?.posId ? inv.positions.map(x => x.id === editItem.posId ? pos : x) : [...(inv.positions || []), pos];
@@ -579,6 +589,15 @@ export function useData() {
   const delDebt = id => setDebts(p => p.filter(d => d.id !== id));
   const openEditDebt = d => { setEditItem(d); setDebtForm(d); setModal('debt'); };
 
+  const addDividend = (invId, div) => {
+    if (!div.amount) return;
+    const item = { id: uid(), date: div.date, amount: parseFloat(div.amount) || 0, gross: div.gross, note: div.note || '' };
+    setInvestments(p => p.map(inv => inv.id !== invId ? inv : { ...inv, dividends: [...(inv.dividends || []), item] }));
+  };
+  const delDividend = (invId, divId) => {
+    setInvestments(p => p.map(inv => inv.id !== invId ? inv : { ...inv, dividends: (inv.dividends || []).filter(d => d.id !== divId) }));
+  };
+
   const exportCSV = () => {
     const rows = [['Date', 'Libellé', 'Catégorie', 'Type', 'Montant'], ...transactions.map(t => [t.date, t.label, t.category, t.type, t.amount])];
     const csv = rows.map(r => r.join(';')).join('\n');
@@ -620,5 +639,8 @@ export function useData() {
     saveGoal, delGoal,
     saveLoan, delLoan, openEditLoan,
     saveDebt, delDebt, openEditDebt,
+    divForm, setDivForm, divInvId, setDivInvId,
+    addDividend, delDividend,
+    allDividends, divThisYear, divByMonth,
   };
 }

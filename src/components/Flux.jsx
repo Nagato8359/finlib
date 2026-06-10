@@ -11,6 +11,7 @@ export default function Flux({ T, data }) {
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
   });
   const [forecastDays, setForecastDays] = useState(30);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const [csvRows, setCsvRows] = useState(null);
   const [csvSelected, setCsvSelected] = useState(new Set());
   const [csvImported, setCsvImported] = useState(null);
@@ -42,6 +43,51 @@ export default function Flux({ T, data }) {
   const forecastNeg = forecastData.some(p => p.neg);
   const forecastMin = Math.min(...forecastData.map(p => p.balance));
   const forecastMax = Math.max(...forecastData.map(p => p.balance));
+
+  // ── Comparaison mois/mois ─────────────────────────────────────────────────
+  const { monthComparison, topGains, subscriptions, totalSubsMonthly, missedSubs } = useMemo(() => {
+    const now = new Date();
+    const cm = now.getMonth(), cy = now.getFullYear();
+    const pm = cm === 0 ? 11 : cm - 1;
+    const py = cm === 0 ? cy - 1 : cy;
+    const currYM = `${cy}-${String(cm + 1).padStart(2, '0')}`;
+    const prevYM = `${py}-${String(pm + 1).padStart(2, '0')}`;
+
+    const currByCat = {}, prevByCat = {};
+    transactions.forEach(t => {
+      if (t.type !== 'expense') return;
+      if (t.date.startsWith(currYM)) currByCat[t.category] = (currByCat[t.category] || 0) + Math.abs(t.amount);
+      if (t.date.startsWith(prevYM)) prevByCat[t.category] = (prevByCat[t.category] || 0) + Math.abs(t.amount);
+    });
+
+    const allCats = [...new Set([...Object.keys(currByCat), ...Object.keys(prevByCat)])];
+    const mc = allCats.map(cat => {
+      const curr = currByCat[cat] || 0;
+      const prev = prevByCat[cat] || 0;
+      const diff = curr - prev;
+      const pct = prev > 0 ? (diff / prev) * 100 : (curr > 0 ? 100 : 0);
+      return { cat, curr, prev, diff, pct };
+    }).sort((a, b) => b.curr - a.curr);
+
+    const tg = [...mc].filter(x => Math.abs(x.pct) >= 5 && x.prev > 0).sort((a,b) => b.pct - a.pct);
+
+    // Subscriptions detection
+    const subMap = {};
+    transactions.filter(t => t.type === 'expense').forEach(t => {
+      const key = `${t.label.trim().toLowerCase()}|${Math.round(Math.abs(t.amount))}`;
+      if (!subMap[key]) subMap[key] = { label: t.label, amount: Math.abs(t.amount), months: new Set(), recurrent: false };
+      subMap[key].months.add(t.date.slice(0, 7));
+      if (t.recurrent || t.recurrentSourceId) subMap[key].recurrent = true;
+    });
+    const subs = Object.values(subMap)
+      .filter(s => s.months.size >= 2 || s.recurrent)
+      .map(s => ({ ...s, monthCount: s.months.size, presentThisMonth: s.months.has(currYM) }))
+      .sort((a, b) => b.amount - a.amount);
+    const tSubs = subs.reduce((s, sub) => s + sub.amount, 0);
+    const missed = subs.filter(s => !s.presentThisMonth && s.monthCount >= 2);
+
+    return { monthComparison: mc, topGains: tg, subscriptions: subs, totalSubsMonthly: tSubs, missedSubs: missed };
+  }, [transactions]);
 
   const cats = ['Tout', ...Object.keys(CAT_COLORS)];
 
@@ -140,6 +186,117 @@ export default function Flux({ T, data }) {
         <KPI T={T} label="Solde net" value={fEur(balance, true)} accent={balance >= 0 ? '#10b981' : '#f87171'} icon="⚖" />
         <KPI T={T} label="Taux d'épargne" value={Math.round(savingsRate) + '%'} accent="#10b981" icon="🎯" />
       </div>
+
+      {/* Analyse toggle */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={() => setShowAnalysis(p => !p)}
+          style={{ ...S.btnS, fontSize: 12, padding: '7px 16px', background: showAnalysis ? 'rgba(96,165,250,.12)' : T.cardBg, borderColor: showAnalysis ? '#60a5fa' : T.cardBorder, color: showAnalysis ? '#60a5fa' : T.textMuted }}>
+          {showAnalysis ? '▾' : '▸'} Analyse & Insights
+          {missedSubs.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(251,146,60,.2)', color: '#fb923c', padding: '2px 6px', borderRadius: 4 }}>{missedSubs.length} alerte{missedSubs.length > 1 ? 's' : ''}</span>}
+        </button>
+      </div>
+
+      {showAnalysis && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* ── Comparaison mois/mois ── */}
+          <div style={{ ...S.card }}>
+            <div style={{ marginBottom: 14 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Comparaison mois/mois</h3>
+              <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+                {MONTHS[new Date().getMonth() === 0 ? 11 : new Date().getMonth() - 1]} → {MONTHS[new Date().getMonth()]}
+              </p>
+            </div>
+
+            {topGains.length > 0 && (
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: topGains[0].diff > 0 ? 'rgba(248,113,113,.08)' : 'rgba(74,222,128,.08)', border: `1px solid ${topGains[0].diff > 0 ? 'rgba(248,113,113,.2)' : 'rgba(74,222,128,.2)'}`, borderRadius: 10, fontSize: 13 }}>
+                {topGains[0].diff > 0
+                  ? `Tu as dépensé ${Math.abs(topGains[0].pct).toFixed(0)}% de plus en ${topGains[0].cat} ce mois (+${fEur(topGains[0].diff)})`
+                  : `Tu as dépensé ${Math.abs(topGains[0].pct).toFixed(0)}% de moins en ${topGains[0].cat} ce mois (${fEur(topGains[0].diff)})`
+                }
+              </div>
+            )}
+
+            {monthComparison.length === 0 ? (
+              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Pas encore assez de données</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 100px', gap: 8, padding: '6px 10px', fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                  <span>Catégorie</span><span style={{ textAlign: 'right' }}>Mois préc.</span><span style={{ textAlign: 'right' }}>Ce mois</span><span style={{ textAlign: 'right' }}>Écart</span>
+                </div>
+                {monthComparison.map(({ cat, curr, prev, diff, pct }) => (
+                  <div key={cat} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 100px', gap: 8, padding: '8px 10px', background: T.bg2, borderRadius: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <div style={{ width: 7, height: 7, borderRadius: 2, background: CAT_COLORS[cat] || '#94a3b8', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: T.text }}>{cat}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: T.textMuted, textAlign: 'right' }}>{prev > 0 ? fEur(prev) : '—'}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: T.text, textAlign: 'right' }}>{curr > 0 ? fEur(curr) : '—'}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                      {diff !== 0 && prev > 0 ? (
+                        <>
+                          <span style={{ fontSize: 14 }}>{diff > 0 ? '↑' : '↓'}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: diff > 0 ? '#f87171' : '#4ade80' }}>
+                            {diff > 0 ? '+' : ''}{fEur(diff)} ({Math.abs(pct).toFixed(0)}%)
+                          </span>
+                        </>
+                      ) : curr > 0 && prev === 0 ? (
+                        <span style={{ fontSize: 10, color: '#fb923c' }}>Nouveau</span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: T.textFaint }}>—</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Détection abonnements ── */}
+          <div style={{ ...S.card }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Abonnements détectés</h3>
+                <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Prélèvements réguliers sur les derniers mois</p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>{fEur(totalSubsMonthly)}<span style={{ fontSize: 11, fontWeight: 400, color: T.textMuted }}>/mois</span></div>
+                <div style={{ fontSize: 11, color: T.textMuted }}>{fEur(totalSubsMonthly * 12)}/an</div>
+              </div>
+            </div>
+
+            {missedSubs.length > 0 && (
+              <div style={{ background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#fb923c', marginBottom: 6 }}>⚠ Abonnements non prélevés ce mois — oubliés ou résiliés ?</div>
+                {missedSubs.map((s, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#fb923c', padding: '2px 0' }}>· {s.label} — {fEur(s.amount)}/mois ({s.monthCount} mois d'historique)</div>
+                ))}
+              </div>
+            )}
+
+            {subscriptions.length === 0 ? (
+              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucun abonnement détecté</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {subscriptions.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: T.bg2, borderRadius: 10, opacity: s.presentThisMonth ? 1 : 0.65 }}>
+                    <div style={{ display: 'flex', align: 'center', gap: 10 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: T.text }}>
+                          {s.label}
+                          {s.recurrent && <span style={{ fontSize: 9, background: 'rgba(96,165,250,.15)', color: '#60a5fa', padding: '1px 5px', borderRadius: 4 }}>↻</span>}
+                          {!s.presentThisMonth && <span style={{ fontSize: 9, background: 'rgba(251,146,60,.15)', color: '#fb923c', padding: '1px 5px', borderRadius: 4 }}>absent ce mois</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textFaint }}>{s.monthCount} mois · {fEur(s.amount * 12)}/an</div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>{fEur(s.amount)}/mois</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 6-month chart */}
       <div style={{ ...S.card }}>
