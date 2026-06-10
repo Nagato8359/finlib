@@ -10,6 +10,7 @@ import Patrimoine from './components/Patrimoine';
 import Budget from './components/Budget';
 import Flux from './components/Flux';
 import Investir from './components/Investir';
+import IATab from './components/IATab';
 import Modals from './components/Modals';
 
 const TABS = [
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'budget',     label: 'Budget',     short: 'Budget',    icon: '📊' },
   { id: 'flux',       label: 'Flux',       short: 'Flux',      icon: '↕' },
   { id: 'investir',   label: 'Investir',   short: 'Investir',  icon: '🚀' },
+  { id: 'ia',         label: 'IA',         short: 'IA',        icon: '🤖' },
 ];
 
 const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted }) => (
@@ -40,6 +42,8 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     .fade-in { animation: fadeIn .2s ease; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-5px);opacity:1} }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
     .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
@@ -107,6 +111,7 @@ export default function App() {
     budget: <Budget T={T} data={data} />,
     flux: <Flux T={T} data={data} />,
     investir: <Investir T={T} />,
+    ia: <IATab T={T} data={data} />,
   };
 
   return (
