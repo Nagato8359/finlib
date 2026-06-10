@@ -17,63 +17,120 @@ function fmtEur(n) {
 
 function buildContext(data) {
   const pct = n => `${(+(n || 0)).toFixed(1)}%`;
+  const sign = n => (n >= 0 ? '+' : '') + fmtEur(n);
   let c = '';
 
-  c += `PATRIMOINE TOTAL : ${fmtEur(data.patrimoine)}\n`;
-  c += `  - Investissements : ${fmtEur(data.invTotal)} (investi : ${fmtEur(data.invInvested)}, PnL latent : ${fmtEur(data.pnlTotal)})\n`;
-  c += `  - Épargne/Cash : ${fmtEur(data.cashTotal)}\n`;
-  c += `  - Patrimoine matériel : ${fmtEur(data.healthTotal)} (coût d'acquisition : ${fmtEur(data.healthCost)})\n\n`;
+  // Patrimoine global avec répartition en %
+  const total = data.patrimoine || 0;
+  const invPct  = total > 0 ? ((data.invTotal   / total) * 100).toFixed(0) : 0;
+  const cashPct = total > 0 ? ((data.cashTotal  / total) * 100).toFixed(0) : 0;
+  const matPct  = total > 0 ? ((data.healthTotal / total) * 100).toFixed(0) : 0;
+  c += `═══ PATRIMOINE TOTAL : ${fmtEur(total)} ═══\n`;
+  c += `  • Investissements financiers : ${fmtEur(data.invTotal)} (${invPct}%)\n`;
+  c += `  • Épargne & liquidités       : ${fmtEur(data.cashTotal)} (${cashPct}%)\n`;
+  c += `  • Patrimoine matériel        : ${fmtEur(data.healthTotal)} (${matPct}%)\n`;
+  c += `  • Plus-value latente totale  : ${sign(data.pnlTotal || 0)}\n\n`;
 
-  c += `FINANCES MENSUELLES :\n`;
-  c += `  - Revenus : ${fmtEur(data.income)} | Dépenses : ${fmtEur(data.expense)} | Solde : ${fmtEur(data.balance)}\n`;
-  c += `  - Taux d'épargne : ${pct(data.savingsRate)} | Score de santé financière : ${data.score}/100\n\n`;
-
-  if (data.catData?.length) {
-    c += `DÉPENSES PAR CATÉGORIE (mois en cours) :\n`;
-    data.catData.forEach(cat => { c += `  - ${cat.name} : ${fmtEur(cat.value)}\n`; });
+  // Investissements — détail par enveloppe
+  if (data.investments?.length) {
+    c += `INVESTISSEMENTS — ${data.investments.length} enveloppe(s) :\n`;
+    c += `  Investi : ${fmtEur(data.invInvested)} | Valeur actuelle : ${fmtEur(data.invTotal)} | PnL : ${sign(data.pnlTotal || 0)}\n`;
+    data.investments.forEach(inv => {
+      const val      = inv.currentValue ?? inv.value ?? 0;
+      const invested = inv.invested ?? inv.cost ?? inv.buyPrice ?? null;
+      const pnlInv   = invested != null ? val - invested : null;
+      let line = `  - ${inv.name} (${inv.type ?? 'N/A'}) : ${fmtEur(val)}`;
+      if (invested != null) line += ` | investi : ${fmtEur(invested)} | PnL : ${sign(pnlInv)}`;
+      c += line + '\n';
+    });
     c += '\n';
   }
 
+  // Épargne — détail par compte
+  if (data.savings?.length) {
+    c += `COMPTES ÉPARGNE — ${data.savings.length} compte(s) :\n`;
+    data.savings.forEach(s => {
+      const bal = s.balance ?? s.amount ?? 0;
+      const annual = bal * ((s.rate || 0) / 100);
+      c += `  - ${s.name} : ${fmtEur(bal)} à ${s.rate}%/an (≈ ${fmtEur(annual)} d'intérêts/an)\n`;
+    });
+    c += `  Total épargne : ${fmtEur(data.cashTotal)}\n\n`;
+  }
+
+  // Actifs matériels — détail
+  if (data.healthAssets?.length) {
+    c += `ACTIFS MATÉRIELS — ${data.healthAssets.length} actif(s) :\n`;
+    data.healthAssets.forEach(a => {
+      const val  = a.value ?? a.estimatedValue ?? 0;
+      const cost = a.cost ?? a.purchasePrice ?? 0;
+      c += `  - ${a.name} (${a.type ?? 'N/A'}) : valeur ${fmtEur(val)} | acheté ${fmtEur(cost)} | ${sign(val - cost)}\n`;
+    });
+    c += '\n';
+  }
+
+  // Revenus & dépenses du mois
+  c += `FINANCES DU MOIS EN COURS :\n`;
+  c += `  • Revenus   : ${fmtEur(data.income)}\n`;
+  c += `  • Dépenses  : ${fmtEur(data.expense)}\n`;
+  c += `  • Solde     : ${fmtEur(data.balance)}\n`;
+  c += `  • Taux d'épargne         : ${pct(data.savingsRate)}\n`;
+  c += `  • Score santé financière : ${data.score}/100\n\n`;
+
+  // Dépenses par catégorie triées par montant
+  if (data.catData?.length) {
+    c += `DÉPENSES PAR CATÉGORIE :\n`;
+    [...data.catData].sort((a, b) => b.value - a.value).forEach(cat => {
+      const share = data.expense > 0 ? ((cat.value / data.expense) * 100).toFixed(0) : 0;
+      c += `  - ${cat.name} : ${fmtEur(cat.value)} (${share}% des dépenses)\n`;
+    });
+    c += '\n';
+  }
+
+  // Budget mensuel avec alertes dépassement
   if (data.budgetProgress && Object.keys(data.budgetProgress).length) {
     c += `BUDGET MENSUEL :\n`;
     Object.entries(data.budgetProgress).forEach(([cat, p]) => {
-      const used = p.limit > 0 ? ((p.spent / p.limit) * 100).toFixed(0) : '?';
-      c += `  - ${cat} : ${fmtEur(p.spent)} / ${fmtEur(p.limit)} (${used}% utilisé)\n`;
+      const used   = p.limit > 0 ? ((p.spent / p.limit) * 100).toFixed(0) : '?';
+      const alert  = p.limit > 0 && p.spent > p.limit ? ' ⚠ DÉPASSÉ' : '';
+      c += `  - ${cat} : ${fmtEur(p.spent)} / ${fmtEur(p.limit)} (${used}%)${alert}\n`;
     });
     c += '\n';
   }
 
+  // Dettes & crédits — détail
+  if (data.totalDebt > 0) {
+    c += `DETTES ET CRÉDITS :\n`;
+    c += `  Total dû : ${fmtEur(data.totalDebt)} | Mensualités : ${fmtEur(data.monthlyDebtPayments)} | Taux d'endettement : ${pct(data.endettementRate)}\n`;
+    data.loans?.forEach(l => {
+      const remaining = l.remaining ?? l.capital ?? l.amount ?? 0;
+      const monthly   = l.monthly ?? l.monthlyPayment ?? 0;
+      c += `  - Prêt "${l.name ?? l.label ?? 'N/A'}" : capital restant ${fmtEur(remaining)}, mensualité ${fmtEur(monthly)}${l.rate ? `, taux ${l.rate}%` : ''}\n`;
+    });
+    data.debts?.forEach(d => {
+      c += `  - Dette "${d.name ?? d.label ?? 'N/A'}" : ${fmtEur(d.amount ?? d.balance ?? 0)}${d.rate ? ` à ${d.rate}%` : ''}\n`;
+    });
+    c += '\n';
+  }
+
+  // Objectifs financiers
   if (data.goals?.length) {
     c += `OBJECTIFS FINANCIERS :\n`;
     data.goals.forEach(g => {
-      const p = g.target > 0 ? ((g.current / g.target) * 100).toFixed(1) : 0;
-      c += `  - ${g.name} : ${fmtEur(g.current)} / ${fmtEur(g.target)} (${p}%)\n`;
+      const progress  = g.target > 0 ? ((g.current / g.target) * 100).toFixed(1) : 0;
+      const remaining = (g.target ?? 0) - (g.current ?? 0);
+      c += `  - ${g.name} : ${fmtEur(g.current)} / ${fmtEur(g.target)} (${progress}% — reste ${fmtEur(remaining)})\n`;
     });
     c += '\n';
   }
 
-  if (data.totalDebt > 0) {
-    c += `DETTES ET CRÉDITS :\n`;
-    c += `  - Dette totale : ${fmtEur(data.totalDebt)} | Mensualités : ${fmtEur(data.monthlyDebtPayments)}\n`;
-    c += `  - Taux d'endettement : ${pct(data.endettementRate)}\n\n`;
-  }
-
-  if (data.savings?.length) {
-    c += `COMPTES ÉPARGNE :\n`;
-    data.savings.forEach(s => { c += `  - ${s.name} : ${fmtEur(s.balance ?? s.amount)} à ${s.rate}%/an\n`; });
-    c += '\n';
-  }
-
-  if (data.investments?.length) {
-    c += `PORTEFEUILLE INVESTISSEMENTS :\n`;
-    data.investments.forEach(inv => { c += `  - ${inv.name} (${inv.type ?? 'N/A'}) : ${fmtEur(inv.currentValue)}\n`; });
-    c += '\n';
-  }
-
+  // Ventes en cours
   const activeListings = data.listings?.filter(l => !l.sold) ?? [];
   if (activeListings.length) {
-    c += `VENTES EN COURS (PATRIMOINE MATÉRIEL) :\n`;
-    activeListings.forEach(l => { c += `  - ${l.name} : prix demandé ${fmtEur(l.sellPrice)}, acheté ${fmtEur(l.buyPrice)}\n`; });
+    c += `VENTES EN COURS :\n`;
+    activeListings.forEach(l => {
+      const profit = (l.sellPrice ?? 0) - (l.buyPrice ?? 0);
+      c += `  - ${l.name} : demandé ${fmtEur(l.sellPrice)}, acheté ${fmtEur(l.buyPrice)}, bénéfice potentiel ${sign(profit)}\n`;
+    });
     c += '\n';
   }
 
@@ -120,7 +177,30 @@ function MdText({ text, T }) {
   );
 }
 
-const ANALYSIS_PROMPT = ctx => `Tu es un conseiller financier expert. Voici la situation financière complète d'un utilisateur :\n\n${ctx}\nGénère un rapport d'analyse personnalisé en français avec exactement ces 5 sections. Cite des chiffres réels du profil :\n\n💪 **POINTS FORTS**\n(2-3 points positifs du profil)\n\n⚠️ **POINTS D'AMÉLIORATION**\n(2-3 domaines à travailler en priorité)\n\n💡 **CONSEILS SUR LES DÉPENSES**\n(conseils concrets basés sur les catégories de dépenses)\n\n📈 **RÉPARTITION DES INVESTISSEMENTS**\n(analyse de la diversification et recommandations)\n\n🔮 **PROJECTION ET RECOMMANDATIONS**\n(actions prioritaires à court/moyen terme)`;
+const ANALYSIS_PROMPT = ctx => `Tu es un conseiller financier expert francophone. Analyse la situation financière complète ci-dessous et rédige un rapport personnalisé UNIQUEMENT EN FRANÇAIS.
+
+DONNÉES FINANCIÈRES COMPLÈTES DE L'UTILISATEUR :
+${ctx}
+CONSIGNES :
+- Réponds EXCLUSIVEMENT en français
+- Cite des chiffres précis tirés des données (montants, pourcentages, ratios)
+- Sois concret, bienveillant et actionnable
+- Structure ta réponse avec exactement ces 5 sections dans cet ordre :
+
+💪 **POINTS FORTS**
+2-3 points positifs du profil avec chiffres à l'appui.
+
+⚠️ **POINTS D'AMÉLIORATION**
+2-3 domaines prioritaires à corriger avec chiffres et impact concret.
+
+💡 **CONSEILS SUR LES DÉPENSES**
+Analyse les postes de dépenses les plus importants et propose 2-3 optimisations concrètes avec économies estimées.
+
+📈 **RÉPARTITION DES INVESTISSEMENTS**
+Évalue la diversification du portefeuille (classes d'actifs, concentration) et propose des ajustements adaptés au profil.
+
+🔮 **PROJECTION ET RECOMMANDATIONS**
+3 actions prioritaires à réaliser dans les 3 prochains mois, avec impact financier estimé pour chacune.`;
 
 const SUGGESTIONS = [
   "Comment améliorer mon taux d'épargne ?",
@@ -167,7 +247,7 @@ export default function IATab({ T, data }) {
     setMessages(next);
     setChatLoading(true);
     try {
-      const sys = `Tu es l'assistant financier de Capitaly. Voici la situation de l'utilisateur :\n${ctx.current}\nRéponds en français, de façon concise et personnalisée (max 200 mots). Cite les chiffres réels quand pertinent.`;
+      const sys = `Tu es l'assistant financier expert de Capitaly. Tu réponds UNIQUEMENT EN FRANÇAIS, de façon concise et personnalisée (200 mots maximum par réponse).\n\nVoici la situation financière complète de l'utilisateur :\n${ctx.current}\nUtilise ces chiffres réels dans tes réponses quand c'est pertinent. Sois bienveillant, précis et actionnable.`;
       const contents = [
         { role: 'user', parts: [{ text: sys }] },
         { role: 'model', parts: [{ text: "Compris, je suis votre assistant financier Capitaly. Comment puis-je vous aider ?" }] },
