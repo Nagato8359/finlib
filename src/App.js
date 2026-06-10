@@ -12,6 +12,7 @@ import Flux from './components/Flux';
 import Investir from './components/Investir';
 import IATab from './components/IATab';
 import Modals from './components/Modals';
+import PositionFormModal from './components/PositionFormModal';
 
 const TABS = [
   { id: 'accueil',    label: 'Accueil',    short: 'Accueil',   icon: '🏠' },
@@ -132,6 +133,7 @@ export default function App() {
         </main>
         <Navigation T={T} tab={tab} setTab={setTab} TABS={TABS} />
         <Modals T={T} data={data} />
+        <PositionFormModal T={T} data={data} />
       </div>
     </>
   );

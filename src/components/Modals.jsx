@@ -1,4 +1,5 @@
 import { ModalShell, Label, makeS, fEur, fDate, today, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
+// modal === 'drill' (position form) is handled by PositionFormModal in App.js
 
 const FRow = ({ cols = 2, children }) => <div className={`frow frow-${cols}`}>{children}</div>;
 const FField = ({ label, children }) => <div><Label>{label}</Label>{children}</div>;
@@ -14,15 +15,15 @@ const mLeft = endDate => {
 export default function Modals({ T, data }) {
   const S = makeS(T);
   const {
-    modal, setModal, editItem, setEditItem, drillInv,
+    modal, setModal, editItem, setEditItem,
     txForm, setTxForm, healthForm, setHealthForm,
-    posForm, setPosForm, goalForm, setGoalForm, cashForm, setCashForm,
+    goalForm, setGoalForm, cashForm, setCashForm,
     listingForm, setListingForm, loanForm, setLoanForm, debtForm, setDebtForm,
-    mkTx, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt, mkPortfolio,
-    saveTx, saveHealth, savePosition, saveListing, saveCash, saveGoal, saveLoan, saveDebt,
+    mkTx, mkHealth, mkGoal, mkCash, mkListing, mkLoan, mkDebt, mkPortfolio,
+    saveTx, saveHealth, saveListing, saveCash, saveGoal, saveLoan, saveDebt,
     savePortfolio,
     portfolioForm, setPortfolioForm,
-    investments, prices, fetchTickerPrice, fetchingPrice,
+    investments,
     allAccounts, computedLoans,
     listings, soldHistory,
     divForm, setDivForm, divInvId, addDividend,
@@ -452,82 +453,6 @@ export default function Modals({ T, data }) {
     );
   }
 
-  // ── Formulaire position (drill-down) ─────────────────────────────────────────
-  if (modal === 'drill' && drillInv) {
-    const invType = drillInv.type || 'Autre';
-    const isCrypto = invType === 'Crypto';
-    const isAV = invType === 'Assurance-vie';
-    const isPE = invType === 'Épargne salariale';
-    const sharesLabel = isCrypto ? 'Quantité' : 'Nb de parts';
-    const buyPriceLabel = isCrypto ? 'DCA / Prix moyen (€)' : isAV || isPE ? 'VL souscription (€)' : 'PRU (€)';
-    const liveKey = posForm.isin || posForm.ticker;
-    const currentPriceLabel = isAV || isPE ? 'VL actuelle (€)' : fetchingPrice ? 'Récupération…' : prices[liveKey] != null ? 'Prix actuel ● LIVE' : 'Prix actuel (€)';
-    return (
-      <ModalShell T={T} title={editItem?.posId ? `Modifier la position — ${drillInv.name}` : `Nouvelle position — ${drillInv.name}`} onClose={() => { setModal(null); setPosForm(mkPos()); setEditItem(null); }}>
-        {isCrypto ? (
-          <FRow cols={2}>
-            <FField label="Coin (ex: BTC, ETH)">
-              <input type="text" placeholder="Ex: BTC, ETH, SOL" style={S.inp} value={posForm.ticker}
-                onChange={e => setPosForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))} />
-            </FField>
-            <FField label="Nom complet"><input type="text" placeholder="Bitcoin, Ethereum…" style={S.inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} /></FField>
-          </FRow>
-        ) : (
-          <>
-            <FRow cols={2}>
-              <FField label="ISIN (ex: IE00B4L5Y983)">
-                <input type="text" placeholder="Code ISIN à 12 caractères" style={S.inp} value={posForm.isin}
-                  onChange={e => setPosForm(p => ({ ...p, isin: e.target.value.toUpperCase() }))}
-                  onBlur={e => fetchTickerPrice(e.target.value.toUpperCase())} />
-              </FField>
-              <FField label="Nom complet"><input type="text" placeholder="Ex: MSCI World UCITS ETF" style={S.inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} /></FField>
-            </FRow>
-            <FRow cols={2}>
-              <FField label="Ticker Yahoo Finance (optionnel)">
-                <input type="text" placeholder="Ex: CW8.PA, AAPL — auto-résolu via ISIN" style={S.inp} value={posForm.ticker}
-                  onChange={e => setPosForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))}
-                  onBlur={e => !posForm.isin && fetchTickerPrice(e.target.value.toUpperCase())} />
-              </FField>
-              <FField label="Exchange / Place de cotation (optionnel)">
-                <input type="text" placeholder="Ex: Euronext Paris, NYSE" style={S.inp} value={posForm.exchange || ''}
-                  onChange={e => setPosForm(p => ({ ...p, exchange: e.target.value }))} />
-              </FField>
-            </FRow>
-          </>
-        )}
-
-        <FRow cols={3}>
-          <FField label={sharesLabel}><input type="number" placeholder="0" style={S.inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} /></FField>
-          <FField label={buyPriceLabel}><input type="number" placeholder="0" style={S.inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} /></FField>
-          <FField label={currentPriceLabel}>
-            <input type="number" placeholder={fetchingPrice ? '…' : 'Auto si ticker reconnu'} style={{ ...S.inp, opacity: fetchingPrice ? 0.6 : 1 }}
-              value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
-          </FField>
-        </FRow>
-        {!isCrypto && (
-          <FRow cols={1}>
-            <FField label="Rendement dividende annuel (% — optionnel)">
-              <input type="number" placeholder="0.00 — laisser vide si non applicable" step="0.01" style={S.inp} value={posForm.divYield ?? ''} onChange={e => setPosForm(p => ({ ...p, divYield: e.target.value }))} />
-            </FField>
-          </FRow>
-        )}
-        {posForm.shares && posForm.buyPrice && (
-          <div style={{ background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.15)', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 12, color: '#60a5fa' }}>
-            Valeur investie : {fEur(parseFloat(posForm.shares) * parseFloat(posForm.buyPrice))}
-            {posForm.currentPrice && parseFloat(posForm.currentPrice) > 0 && (
-              <span style={{ marginLeft: 12, color: parseFloat(posForm.currentPrice) >= parseFloat(posForm.buyPrice) ? '#4ade80' : '#f87171' }}>
-                · Valeur actuelle : {fEur(parseFloat(posForm.shares) * parseFloat(posForm.currentPrice))}
-              </span>
-            )}
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={savePosition} style={S.btnG}>{editItem?.posId ? 'Modifier' : 'Ajouter la position'}</button>
-          <button onClick={() => { setModal(null); setPosForm(mkPos()); setEditItem(null); }} style={S.btnS}>Annuler</button>
-        </div>
-      </ModalShell>
-    );
-  }
 
   // ── Crédit immobilier ─────────────────────────────────────────────────────
   if (modal === 'loan') {

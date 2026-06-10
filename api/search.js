@@ -1,0 +1,53 @@
+// Proxy CORS-safe search: Yahoo Finance (stocks/ISIN) and CoinGecko (crypto)
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const { type, q } = req.query;
+  if (!q || !type) return res.status(400).json({ error: 'Missing type or q' });
+
+  try {
+    if (type === 'stock') {
+      const resp = await fetch(
+        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=6&newsCount=0&enableFuzzyQuery=false`,
+        { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
+      );
+      if (!resp.ok) throw new Error(`Yahoo ${resp.status}`);
+      const data = await resp.json();
+      const results = (data?.quotes || [])
+        .filter(r => r.quoteType !== 'OPTION' && r.quoteType !== 'FUTURE')
+        .slice(0, 6)
+        .map(r => ({
+          symbol:   r.symbol,
+          name:     r.shortname || r.longname || r.symbol,
+          exchange: r.exchDisp || r.exchange || '',
+          type:     r.quoteType || '',
+        }));
+      return res.json(results);
+    }
+
+    if (type === 'crypto') {
+      const resp = await fetch(
+        `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if (!resp.ok) throw new Error(`CoinGecko ${resp.status}`);
+      const data = await resp.json();
+      const results = (data?.coins || []).slice(0, 8).map(c => ({
+        id:     c.id,
+        name:   c.name,
+        symbol: c.symbol.toUpperCase(),
+        thumb:  c.thumb || '',
+        rank:   c.market_cap_rank,
+      }));
+      return res.json(results);
+    }
+
+    return res.status(400).json({ error: 'type must be "stock" or "crypto"' });
+  } catch (err) {
+    console.error('[search]', type, q, err.message);
+    return res.status(500).json({ error: err.message });
+  }
+};

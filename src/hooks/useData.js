@@ -19,7 +19,23 @@ const mkPortfolio = () => ({
   value: '', invested: '', notes: '',
 });
 const mkHealth  = () => ({ name: '', category: '', buyPrice: '', currentValue: '', date: today(), notes: '', condition: 'Bon état', storageLocation: '' });
-const mkPos     = () => ({ isin: '', ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '', divYield: '' });
+const mkPos     = () => ({
+  // Core — backward compat
+  isin: '', ticker: '', name: '', shares: '', buyPrice: '', currentPrice: '', divYield: '',
+  // Common
+  posType: '', purchaseDate: '', notes: '',
+  // Stock extras
+  exchange: '', currency: 'EUR',
+  // Crypto
+  platform: '',
+  // Real estate
+  propertyType: 'Locatif', address: '', surface: '', purchaseValue: '',
+  estimatedValue: '', monthlyRent: '', monthlyCharges: '', linkedLoanId: '',
+  // Bond/fonds euros
+  insurer: '', guaranteedRate: '',
+  // Commodity
+  commodityType: 'Or', unit: 'grammes', storageLocation: '',
+});
 const mkGoal    = () => ({ name: '', target: '', deadline: '', color: '#10b981' });
 const mkCash    = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
 const mkListing = () => ({ name: '', category: '', platform: '', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '', condition: 'Bon état', storageLocation: '' });
@@ -565,10 +581,15 @@ export function useData() {
   const openEditHealth = h => { setEditItem(h); setHealthForm(h); setModal('health'); };
 
   const savePosition = () => {
-    if (!(posForm.isin || posForm.ticker) || !posForm.shares || !posForm.buyPrice) return;
-    const livePrc = prices[posForm.isin || posForm.ticker];
+    const ft = posForm.posType || 'stock';
+    const noIdNeeded = ft === 'realestate' || ft === 'bond' || ft === 'commodity';
+    if (!noIdNeeded && !(posForm.isin || posForm.ticker)) return;
+    const rawShares = noIdNeeded && !posForm.shares ? '1' : posForm.shares;
+    if (!rawShares || !posForm.buyPrice) return;
+    const liveKey = posForm.isin || posForm.ticker;
+    const livePrc = liveKey ? prices[liveKey] : undefined;
     const currentPrice = parseFloat(posForm.currentPrice) || livePrc || 0;
-    const pos = { ...posForm, id: editItem?.posId || uid(), shares: parseFloat(posForm.shares), buyPrice: parseFloat(posForm.buyPrice), currentPrice, divYield: parseFloat(posForm.divYield) || 0 };
+    const pos = { ...posForm, id: editItem?.posId || uid(), shares: parseFloat(rawShares), buyPrice: parseFloat(posForm.buyPrice), currentPrice, divYield: parseFloat(posForm.divYield) || 0 };
     setInvestments(p => p.map(inv => {
       if (inv.id !== drillInv?.id) return inv;
       const positions = editItem?.posId ? inv.positions.map(x => x.id === editItem.posId ? pos : x) : [...(inv.positions || []), pos];
