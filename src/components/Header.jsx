@@ -3,6 +3,7 @@ import logo from '../logo.png';
 import { ACCENT_OPTIONS } from '../hooks/useTheme';
 import { requestNotifPermission } from '../utils/notifications';
 import { useTranslation } from '../hooks/useTranslation';
+import ProfilePage from './ProfilePage';
 
 const CURRENCIES   = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
 const DATE_FORMATS = [
@@ -34,11 +35,10 @@ export default function Header({
   const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
 
   const [menuOpen, setMenuOpen]           = useState(false);
-  const [profileEdit, setProfileEdit]     = useState(false);
+  const [profilePage, setProfilePage]     = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [importFeedback, setImportFeedback] = useState('');
   const [displayName, setDisplayName]     = useState(() => localStorage.getItem('ct_displayname') || '');
-  const [editName, setEditName]           = useState('');
   const [notifEnabled, setNotifEnabled]   = useState(() => localStorage.getItem('ct_notif') !== '0');
 
   const menuRef     = useRef(null);
@@ -54,19 +54,13 @@ export default function Header({
     return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
   }, [menuOpen]);
 
-  const closeMenu = () => { setMenuOpen(false); setProfileEdit(false); setDeleteConfirm(false); setImportFeedback(''); };
+  const closeMenu = () => { setMenuOpen(false); setProfilePage(false); setDeleteConfirm(false); setImportFeedback(''); };
 
   const handleNotif = async () => {
     const next = !notifEnabled;
     setNotifEnabled(next);
     localStorage.setItem('ct_notif', next ? '1' : '0');
     if (next) await requestNotifPermission();
-  };
-
-  const saveName = () => {
-    localStorage.setItem('ct_displayname', editName);
-    setDisplayName(editName);
-    setProfileEdit(false);
   };
 
   const handleImport = async e => {
@@ -165,55 +159,47 @@ export default function Header({
 
           {/* ── Dropdown menu ─────────────────────────────────────────────── */}
           {menuOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 328, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
+
+              {/* ── Profile page overlay ───────────────────────────────── */}
+              {profilePage ? (
+                <ProfilePage
+                  T={T}
+                  user={user}
+                  accent={accent}
+                  onBack={() => { setProfilePage(false); setDisplayName(localStorage.getItem('ct_displayname') || ''); }}
+                  currency={currency}
+                  setCurrency={setCurrency}
+                  language={language}
+                  setLanguage={setLanguage}
+                  notifEnabled={notifEnabled}
+                  handleNotif={handleNotif}
+                />
+              ) : (
+              <>
 
               {/* ── 1. PROFIL ──────────────────────────────────────── */}
               {(user || demoMode) && (
                 <>
                   <SLabel>{t('menu_profile')}</SLabel>
-                  {!profileEdit ? (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: T.cardBg, borderRadius: 12, margin: '4px 0' }}>
-                        <div style={{ width: 42, height: 42, borderRadius: '50%', background: accent + '28', border: `2px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: accent, flexShrink: 0, letterSpacing: '-.02em' }}>
-                          {initials}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {displayName || (demoMode ? t('menu_demo_data') : email.split('@')[0])}
-                          </div>
-                          <div style={{ fontSize: 11, color: T.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {demoMode ? t('menu_demo_data') : email}
-                          </div>
-                        </div>
-                        {demoMode && (
-                          <span style={{ fontSize: 9, background: 'rgba(251,146,60,.15)', color: '#fb923c', padding: '2px 7px', borderRadius: 6, fontWeight: 700, letterSpacing: '.05em', flexShrink: 0 }}>DÉMO</span>
-                        )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: T.cardBg, borderRadius: 12, margin: '4px 0' }}>
+                    <div style={{ width: 42, height: 42, borderRadius: '50%', background: accent + '28', border: `2px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: accent, flexShrink: 0, letterSpacing: '-.02em' }}>
+                      {initials}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {displayName || (demoMode ? t('menu_demo_data') : email.split('@')[0])}
                       </div>
-                      {!demoMode && (
-                        <MBtn icon="✎" label={t('menu_edit_profile')} onClick={() => { setEditName(displayName); setProfileEdit(true); }} />
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ padding: '4px 8px 8px' }}>
-                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6, padding: '0 6px', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>{t('menu_display_name')}</div>
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="Prénom Nom"
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setProfileEdit(false); }}
-                        style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 8, color: T.text, padding: '8px 11px', fontSize: 13, outline: 'none', fontFamily: 'inherit', marginBottom: 8 }}
-                      />
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={saveName} style={{ flex: 1, background: `linear-gradient(135deg,${accent},${T.accentDark})`, border: 'none', borderRadius: 8, color: '#fff', padding: '7px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                          {t('menu_save')}
-                        </button>
-                        <button onClick={() => setProfileEdit(false)} style={{ flex: 1, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, color: T.textMuted, padding: '7px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                          {t('menu_cancel')}
-                        </button>
+                      <div style={{ fontSize: 11, color: T.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {demoMode ? t('menu_demo_data') : email}
                       </div>
                     </div>
+                    {demoMode && (
+                      <span style={{ fontSize: 9, background: 'rgba(251,146,60,.15)', color: '#fb923c', padding: '2px 7px', borderRadius: 6, fontWeight: 700, letterSpacing: '.05em', flexShrink: 0 }}>DÉMO</span>
+                    )}
+                  </div>
+                  {!demoMode && (
+                    <MBtn icon="✎" label={t('menu_edit_profile')} onClick={() => setProfilePage(true)} />
                   )}
                   <Divider />
                 </>
@@ -362,6 +348,9 @@ export default function Header({
                   {t('menu_logout')}
                 </button>
               ) : null}
+
+              </> /* end of regular menu */
+              )} {/* end of profilePage ternary */}
             </div>
           )}
         </div>
