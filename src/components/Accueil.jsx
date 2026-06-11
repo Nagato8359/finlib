@@ -172,9 +172,11 @@ export default function Accueil({ T, data, setTab }) {
     });
 
     const epargneNette = revenues + depenses; // depenses déjà négatif
-    const total = invPV + revenues + depenses + ventes;
+    // invPV n'a pas d'historique de prix → inclus dans total uniquement sur TOUT
+    const totalPeriod = revenues + depenses + ventes;
+    const total = perfTf === 'TOUT' ? invPV + totalPeriod : totalPeriod;
 
-    return { total, invPV, invPVPct, invInvestedTotal, revenues, depenses, ventes, epargneNette };
+    return { total, totalPeriod, invPV, invPVPct, invInvestedTotal, revenues, depenses, ventes, epargneNette };
   }, [perfTf, investments, invLiveValue, invLiveInvested, invInvested, transactions, soldHistory]);
 
   // ── Detail data for performance accordions ──────────────────────────────
@@ -421,9 +423,17 @@ export default function Accueil({ T, data, setTab }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
             {
-              key: 'inv', icon: '📈', label: 'Investissements', sublabel: 'PV latente totale', value: perfData.invPV,
+              key: 'inv', icon: '📈', label: 'Investissements',
+              sublabel: perfTf === 'TOUT' ? 'PV latente totale' : 'PV depuis achat · non filtré',
+              value: perfData.invPV,
+              nonPeriodic: perfTf !== 'TOUT',
               detail: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {perfTf !== 'TOUT' && (
+                    <div style={{ fontSize: 11, color: T.textFaint, padding: '6px 10px', background: T.bg2, borderRadius: 7, marginBottom: 4 }}>
+                      ℹ Pas d'historique de prix disponible — PV affichée depuis la date d'achat, indépendante de la période sélectionnée.
+                    </div>
+                  )}
                   {(investments || []).length === 0 && <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun investissement</div>}
                   {(investments || []).map(inv => {
                     const val = invLiveValue ? invLiveValue(inv) : (parseFloat(inv.value) || 0);
@@ -594,14 +604,15 @@ export default function Accueil({ T, data, setTab }) {
                 </div>
               ),
             },
-          ].map(({ key, icon, label, sublabel, value, detail }) => {
+          ].map(({ key, icon, label, sublabel, value, detail, nonPeriodic }) => {
             const isOpen = openPerf === key;
             const isZero = Math.abs(value) < 0.01;
-            const color = isZero ? T.textFaint : value >= 0 ? '#4ade80' : '#f87171';
-            const absTot = Math.abs(perfData.total);
+            // nonPeriodic = ligne investissements hors période TOUT : pas de barre de contribution
+            const color = isZero ? T.textFaint : nonPeriodic ? T.textMuted : value >= 0 ? '#4ade80' : '#f87171';
+            const absTot = nonPeriodic ? 0 : Math.abs(perfData.total);
             const contribPct = absTot > 0 ? (Math.abs(value) / absTot) * 100 : 0;
             return (
-              <div key={key} style={{ borderRadius: 12, overflow: 'hidden' }}>
+              <div key={key} style={{ borderRadius: 12, overflow: 'hidden', opacity: nonPeriodic ? 0.72 : 1 }}>
                 {/* Clickable header */}
                 <div
                   role="button" tabIndex={0}
@@ -620,10 +631,10 @@ export default function Accueil({ T, data, setTab }) {
                         {sublabel && <span style={{ fontSize: 10, color: T.textFaint, marginLeft: 6 }}>{sublabel}</span>}
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 700, color, whiteSpace: 'nowrap', marginLeft: 8 }}>
-                        {!isZero && value > 0 ? '+' : ''}{isZero ? '—' : fEur(value, true)}
+                        {!isZero && value > 0 && !nonPeriodic ? '+' : ''}{isZero ? '—' : fEur(value, true)}
                       </span>
                     </div>
-                    {!isZero && absTot > 0 && (
+                    {!isZero && !nonPeriodic && absTot > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
                         <div style={{ flex: 1, background: T.cardBorder, borderRadius: 3, height: 3, overflow: 'hidden' }}>
                           <div style={{ width: `${Math.min(100, contribPct)}%`, height: '100%', background: color, borderRadius: 3, transition: 'width .4s' }} />
