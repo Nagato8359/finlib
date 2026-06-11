@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { requestNotifPermission } from './utils/notifications';
 import { useTheme } from './hooks/useTheme';
 import { useData } from './hooks/useData';
@@ -39,6 +39,9 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-5px);opacity:1} }
     @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+    @keyframes splashIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes splashPulse { 0%,100%{opacity:1;filter:brightness(1)} 50%{opacity:.7;filter:brightness(1.3)} }
+    @keyframes splashOut { from { opacity:1; } to { opacity:0; } }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
     .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
@@ -70,6 +73,42 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
   `}</style>
 );
 
+function SplashScreen({ onDone }) {
+  const [phase, setPhase] = useState('in'); // in → pulse → out
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase('pulse'), 800);
+    const t2 = setTimeout(() => setPhase('out'), 1800);
+    const t3 = setTimeout(onDone, 2500);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [onDone]);
+
+  const anim = phase === 'in'
+    ? 'splashIn 0.8s ease forwards'
+    : phase === 'pulse'
+    ? 'splashPulse 1s ease infinite'
+    : 'splashOut 0.7s ease forwards';
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: '#080e1a', zIndex: 9999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      animation: phase === 'out' ? 'splashOut 0.7s ease forwards' : 'none',
+    }}>
+      <style>{`
+        @keyframes splashIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes splashPulse { 0%,100%{opacity:1;filter:brightness(1)} 50%{opacity:.7;filter:brightness(1.3)} }
+        @keyframes splashOut { from { opacity:1; } to { opacity:0; } }
+      `}</style>
+      <img
+        src="/logo.png"
+        alt="Capitaly"
+        style={{ height: 80, objectFit: 'contain', animation: anim }}
+      />
+    </div>
+  );
+}
+
 export default function App() {
   const {
     darkMode, setDarkMode, T, accentKey, setAccent,
@@ -77,6 +116,11 @@ export default function App() {
   } = useTheme();
   const data = useData();
   const [tab, setTab] = useState('accueil');
+  const [showSplash, setShowSplash] = useState(true);
+  const splashDoneRef = useRef(false);
+  const handleSplashDone = useRef(() => {
+    if (!splashDoneRef.current) { splashDoneRef.current = true; setShowSplash(false); }
+  }).current;
 
   // Recompute TABS after each render so labels reflect current language
   const TABS = [
@@ -110,6 +154,8 @@ export default function App() {
   useEffect(() => {
     if (data.user || data.demoMode) requestNotifPermission();
   }, [data.user, data.demoMode]);
+
+  if (showSplash) return <SplashScreen onDone={handleSplashDone} />;
 
   if (data.authLoading) {
     return (

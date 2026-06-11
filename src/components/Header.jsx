@@ -133,7 +133,7 @@ export default function Header({
 
         {/* Center — title + desktop nav */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
-          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-.03em', color: T.text, lineHeight: 1 }}>Capitaly</span>
+          <img src="/logo.png" alt="Capitaly" style={{ height: 32, objectFit: 'contain', display: 'block' }} />
           <nav className="top-nav" style={{ gap: 2, marginTop: 2 }}>
             {TABS.map(tb => (
               <button key={tb.id} onClick={() => setTab(tb.id)}
