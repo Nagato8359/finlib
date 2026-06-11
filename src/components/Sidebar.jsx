@@ -26,7 +26,7 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
       zIndex: 40, overflowY: 'auto',
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 20px 18px', flexShrink: 0 }}>
+      <div style={{ padding: '20px 12px 18px', flexShrink: 0 }}>
         <img src={logo} alt="Capitaly" style={{ width: 200, height: 'auto', display: 'block' }} />
       </div>
 
