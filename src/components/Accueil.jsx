@@ -283,12 +283,6 @@ export default function Accueil({ T, data, setTab }) {
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Alerts */}
-      {alerts.length > 0 && (
-        <div style={{ background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.2)', borderRadius: 14, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {alerts.map((a, i) => <div key={i} style={{ fontSize: 13, color: '#fb923c' }}>⚠ {a.msg}</div>)}
-        </div>
-      )}
 
       {/* ── Top 2-col grid ─────────────────────────────────────────────── */}
       <div className="accueil-top-grid" style={{ display: 'grid', gridTemplateColumns: '65fr 35fr', gap: 20, alignItems: 'start', width: '100%' }}>
