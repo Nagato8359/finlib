@@ -5,7 +5,7 @@ import {
   SEED_TX, SEED_INV, SEED_HEALTH, SEED_BUDGETS, SEED_GOALS, SEED_CASH, SEED_LISTINGS,
   calcScore, fEur, PORTFOLIO_TYPE_COLOR, CAT_TO_PORTFOLIO_TYPE,
 } from '../utils/constants';
-import { notify } from '../utils/notifications';
+import { notifyOnce, clearSentNotifications } from '../utils/notifications';
 
 const API_BASE = '';
 
@@ -187,11 +187,15 @@ export function useData() {
         const newRecurring = applyRecurrences(txs);
         if (newRecurring.length > 0) {
           txs = [...txs, ...newRecurring];
-          newRecurring.slice(0, 3).forEach(t =>
-            notify('Transaction récurrente ajoutée', `${t.label} — ${t.amount > 0 ? '+' : ''}${fEur(t.amount)}`)
-          );
-          if (newRecurring.length > 3)
-            notify('Transactions récurrentes', `${newRecurring.length} transactions ajoutées automatiquement`);
+          newRecurring.slice(0, 3).forEach(t => {
+            const month = t.date.slice(0, 7);
+            const srcId = t.recurrentSourceId || t.id;
+            notifyOnce(`recur_${srcId}_${month}`, 'Transaction récurrente ajoutée', `${t.label} — ${t.amount > 0 ? '+' : ''}${fEur(t.amount)}`);
+          });
+          if (newRecurring.length > 3) {
+            const month = newRecurring[0].date.slice(0, 7);
+            notifyOnce(`recur_batch_${month}`, 'Transactions récurrentes', `${newRecurring.length} transactions ajoutées automatiquement`);
+          }
         }
 
         setTransactions(txs);
@@ -248,6 +252,7 @@ export function useData() {
   const handleLogout = async () => {
     dataLoaded.current = false;
     setDemoMode(false);
+    clearSentNotifications();
     await supabase.auth.signOut();
     setTransactions([]); setInvestments([]); setHealthAssets([]);
     setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]);
@@ -439,24 +444,21 @@ export function useData() {
   }));
 
   // ── Budget & goal notifications ───────────────────────────────────────────
-  const prevBudgetPct = useRef({});
   useEffect(() => {
     if (!dataLoaded.current) return;
+    const month = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
     Object.entries(budgetProgress).forEach(([cat, { pct }]) => {
-      const prev = prevBudgetPct.current[cat] ?? 0;
-      if (pct >= 100 && prev < 100) notify('Budget dépassé !', `Budget ${cat} à ${Math.round(pct)}% — limite atteinte`);
-      else if (pct >= 80 && prev < 80) notify('Budget à 80%', `Budget ${cat} à ${Math.round(pct)}% de la limite`);
-      prevBudgetPct.current[cat] = pct;
+      if (pct >= 100) notifyOnce(`budget_${cat}_100_${month}`, 'Budget dépassé !', `Budget ${cat} à ${Math.round(pct)}% — limite atteinte`);
+      else if (pct >= 80) notifyOnce(`budget_${cat}_80_${month}`, 'Budget à 80%', `Budget ${cat} à ${Math.round(pct)}% de la limite`);
     });
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions, budgets]);
 
-  const prevGoalIds = useRef(new Set());
   useEffect(() => {
     if (!dataLoaded.current) return;
     goals.forEach(g => {
-      if (patrimoine >= g.target && !prevGoalIds.current.has(g.id)) {
-        prevGoalIds.current.add(g.id);
-        notify('Objectif atteint !', `Félicitations ! "${g.name}" (${fEur(g.target)}) est atteint.`);
+      if (patrimoine >= g.target) {
+        notifyOnce(`goal_${g.id}`, 'Objectif atteint !', `Félicitations ! "${g.name}" (${fEur(g.target)}) est atteint.`);
       }
     });
   }, [goals, patrimoine]);
