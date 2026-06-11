@@ -171,6 +171,7 @@ export function useData() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [demoMode, setDemoMode] = useState(false);
+  const [loadedPreferences, setLoadedPreferences] = useState(null);
   const dataLoaded = useRef(false);
   const saveTimer = useRef(null);
   const userRef = useRef(null);
@@ -206,6 +207,7 @@ export function useData() {
         if (data.proj_years) setProjYears(data.proj_years);
         if (data.proj_rate) setProjRate(data.proj_rate);
         if (data.proj_monthly !== undefined) setProjMonthly(data.proj_monthly);
+        if (data.preferences && typeof data.preferences === 'object') setLoadedPreferences(data.preferences);
       }
     } catch {}
     dataLoaded.current = true;
@@ -721,6 +723,13 @@ export function useData() {
     reader.readAsText(file);
   });
 
+  const savePreferences = useCallback(async (prefs) => {
+    if (!userRef.current) return;
+    try {
+      await supabase.from('user_data').update({ preferences: prefs, updated_at: new Date().toISOString() }).eq('user_id', userRef.current.id);
+    } catch {}
+  }, []);
+
   const deleteAccount = async () => {
     if (!userRef.current) return;
     await supabase.from('user_data').delete().eq('user_id', userRef.current.id);
@@ -771,5 +780,6 @@ export function useData() {
     addDividend, delDividend,
     allDividends, divThisYear, divByMonth,
     exportCSV, exportDataJSON, importJSON, deleteAccount,
+    loadedPreferences, savePreferences,
   };
 }

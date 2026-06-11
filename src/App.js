@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { requestNotifPermission } from './utils/notifications';
 import { useTheme } from './hooks/useTheme';
 import { useData } from './hooks/useData';
+import { t } from './utils/settings';
 import AuthScreen from './components/AuthScreen';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
@@ -13,15 +14,6 @@ import Investir from './components/Investir';
 import IATab from './components/IATab';
 import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
-
-const TABS = [
-  { id: 'accueil',    label: 'Accueil',    short: 'Accueil',   icon: '🏠' },
-  { id: 'patrimoine', label: 'Patrimoine', short: 'Patrimoine', icon: '◈' },
-  { id: 'budget',     label: 'Budget',     short: 'Budget',    icon: '📊' },
-  { id: 'flux',       label: 'Flux',       short: 'Flux',      icon: '↕' },
-  { id: 'investir',   label: 'Investir',   short: 'Investir',  icon: '🚀' },
-  { id: 'ia',         label: 'IA',         short: 'IA',        icon: '🤖' },
-];
 
 const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted, accent = '#10b981' }) => (
   <style>{`
@@ -78,9 +70,41 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
 );
 
 export default function App() {
-  const { darkMode, setDarkMode, T, accentKey, setAccent } = useTheme();
+  const {
+    darkMode, setDarkMode, T, accentKey, setAccent,
+    currency, setCurrency, language, setLanguage, dateFormat, setDateFormat,
+  } = useTheme();
   const data = useData();
   const [tab, setTab] = useState('accueil');
+
+  // Recompute TABS after each render so labels reflect current language
+  const TABS = [
+    { id: 'accueil',    label: t('nav_accueil'),    short: t('nav_accueil'),    icon: '🏠' },
+    { id: 'patrimoine', label: t('nav_patrimoine'), short: t('nav_patrimoine'), icon: '◈'  },
+    { id: 'budget',     label: t('nav_budget'),     short: t('nav_budget'),     icon: '📊' },
+    { id: 'flux',       label: t('nav_flux'),       short: t('nav_flux'),       icon: '↕'  },
+    { id: 'investir',   label: t('nav_investir'),   short: t('nav_investir'),   icon: '🚀' },
+    { id: 'ia',         label: t('nav_ia'),         short: t('nav_ia'),         icon: '🤖' },
+  ];
+
+  // Apply preferences loaded from Supabase on login
+  useEffect(() => {
+    const prefs = data.loadedPreferences;
+    if (!prefs) return;
+    if (prefs.currency)              setCurrency(prefs.currency);
+    if (prefs.language)              setLanguage(prefs.language);
+    if (prefs.dateFormat)            setDateFormat(prefs.dateFormat);
+    if (prefs.dark !== undefined)    setDarkMode(prefs.dark);
+    if (prefs.accent)                setAccent(prefs.accent);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.loadedPreferences]);
+
+  // Persist all preferences to Supabase whenever they change
+  useEffect(() => {
+    if (!data.user) return;
+    data.savePreferences({ currency, language, dateFormat, dark: darkMode, accent: accentKey });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currency, language, dateFormat, darkMode, accentKey, data.user]);
 
   useEffect(() => {
     if (data.user || data.demoMode) requestNotifPermission();
@@ -92,7 +116,7 @@ export default function App() {
         <style>{`body { background: #080e1a; } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }`}</style>
         <div style={{ minHeight: '100vh', background: '#080e1a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 36, animation: 'pulse 1.5s infinite' }}>💰</div>
-          <div style={{ color: '#4b5563', fontSize: 14 }}>Chargement…</div>
+          <div style={{ color: '#4b5563', fontSize: 14 }}>{t('loading')}</div>
         </div>
       </>
     );
@@ -126,6 +150,12 @@ export default function App() {
           setDarkMode={setDarkMode}
           accentKey={accentKey}
           setAccent={setAccent}
+          currency={currency}
+          setCurrency={setCurrency}
+          language={language}
+          setLanguage={setLanguage}
+          dateFormat={dateFormat}
+          setDateFormat={setDateFormat}
           tab={tab}
           setTab={setTab}
           TABS={TABS}

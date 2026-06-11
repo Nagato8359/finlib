@@ -1,10 +1,7 @@
 // ── Formatters ──────────────────────────────────────────────────────────────
-export const fEur = n => new Intl.NumberFormat('fr-FR', {
-  style: 'currency', currency: 'EUR',
-  minimumFractionDigits: 2, maximumFractionDigits: 2,
-}).format(n);
+import { fEur, fDate, t } from './settings';
+export { fEur, fDate, t };
 export const fPct = n => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
-export const fDate = d => new Date(d).toLocaleDateString('fr-FR');
 export const fPrice = n => {
   if (n == null) return '—';
   const dec = n < 1 ? 6 : n < 100 ? 2 : 0;

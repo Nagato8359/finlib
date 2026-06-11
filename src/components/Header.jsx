@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { ACCENT_OPTIONS } from '../hooks/useTheme';
 import { requestNotifPermission } from '../utils/notifications';
+import { t } from '../utils/settings';
 
-const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
+const CURRENCIES   = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
 const DATE_FORMATS = [
-  { key: 'dmy', label: 'JJ/MM/AAAA' },
-  { key: 'mdy', label: 'MM/JJ/AAAA' },
+  { key: 'dd/mm/yyyy', label: 'DD/MM/YYYY' },
+  { key: 'mm/dd/yyyy', label: 'MM/DD/YYYY' },
+  { key: 'yyyy-mm-dd', label: 'YYYY-MM-DD' },
 ];
 const APP_VERSION = '1.0.0';
 
@@ -22,21 +24,22 @@ const getInitials = (name, email) => {
   return local.slice(0, 2).toUpperCase();
 };
 
-export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent, tab, setTab, TABS, data }) {
+export default function Header({
+  T, darkMode, setDarkMode, accentKey, setAccent,
+  currency, setCurrency, language, setLanguage, dateFormat, setDateFormat,
+  tab, setTab, TABS, data,
+}) {
   const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [profileEdit, setProfileEdit] = useState(false);
+  const [menuOpen, setMenuOpen]           = useState(false);
+  const [profileEdit, setProfileEdit]     = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [importFeedback, setImportFeedback] = useState('');
-  const [displayName, setDisplayName] = useState(() => localStorage.getItem('ct_displayname') || '');
-  const [editName, setEditName] = useState('');
-  const [currency, setCurrency] = useState(() => localStorage.getItem('ct_currency') || 'EUR');
-  const [language, setLanguage] = useState(() => localStorage.getItem('ct_lang') || 'fr');
-  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('ct_notif') !== '0');
-  const [dateFormat, setDateFormat] = useState(() => localStorage.getItem('ct_datefmt') || 'dmy');
+  const [displayName, setDisplayName]     = useState(() => localStorage.getItem('ct_displayname') || '');
+  const [editName, setEditName]           = useState('');
+  const [notifEnabled, setNotifEnabled]   = useState(() => localStorage.getItem('ct_notif') !== '0');
 
-  const menuRef = useRef(null);
+  const menuRef     = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -51,15 +54,13 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
 
   const closeMenu = () => { setMenuOpen(false); setProfileEdit(false); setDeleteConfirm(false); setImportFeedback(''); };
 
-  const handleCurrency = v => { setCurrency(v); localStorage.setItem('ct_currency', v); };
-  const handleLanguage = v => { setLanguage(v); localStorage.setItem('ct_lang', v); };
-  const handleDateFormat = v => { setDateFormat(v); localStorage.setItem('ct_datefmt', v); };
   const handleNotif = async () => {
     const next = !notifEnabled;
     setNotifEnabled(next);
     localStorage.setItem('ct_notif', next ? '1' : '0');
     if (next) await requestNotifPermission();
   };
+
   const saveName = () => {
     localStorage.setItem('ct_displayname', editName);
     setDisplayName(editName);
@@ -71,17 +72,17 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
     if (!file) return;
     try {
       await importJSON(file);
-      setImportFeedback('✅ Import réussi !');
+      setImportFeedback(t('menu_import_ok'));
       setTimeout(() => setImportFeedback(''), 3000);
     } catch {
-      setImportFeedback('❌ Fichier invalide');
+      setImportFeedback(t('menu_import_err'));
       setTimeout(() => setImportFeedback(''), 3000);
     }
     e.target.value = '';
   };
 
-  const accent = T.accent || '#10b981';
-  const email = user?.email || '';
+  const accent   = T.accent || '#10b981';
+  const email    = user?.email || '';
   const initials = getInitials(displayName, email);
 
   // ── Shared sub-components ──────────────────────────────────────────────────
@@ -133,10 +134,10 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
           <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-.03em', color: T.text, lineHeight: 1 }}>Capitaly</span>
           <nav className="top-nav" style={{ gap: 2, marginTop: 2 }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ background: tab === t.id ? accent + '1f' : 'transparent', border: 'none', color: tab === t.id ? accent : T.textMuted, padding: '4px 12px', borderRadius: 8, fontSize: 13, fontWeight: tab === t.id ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s', whiteSpace: 'nowrap' }}>
-                <span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}
+            {TABS.map(tb => (
+              <button key={tb.id} onClick={() => setTab(tb.id)}
+                style={{ background: tab === tb.id ? accent + '1f' : 'transparent', border: 'none', color: tab === tb.id ? accent : T.textMuted, padding: '4px 12px', borderRadius: 8, fontSize: 13, fontWeight: tab === tb.id ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12 }}>{tb.icon}</span>{tb.label}
               </button>
             ))}
           </nav>
@@ -165,20 +166,19 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
               {/* ── 1. PROFIL ──────────────────────────────────────── */}
               {(user || demoMode) && (
                 <>
-                  <SLabel>Profil utilisateur</SLabel>
+                  <SLabel>{t('menu_profile')}</SLabel>
                   {!profileEdit ? (
                     <>
-                      {/* Avatar card */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: T.cardBg, borderRadius: 12, margin: '4px 0' }}>
                         <div style={{ width: 42, height: 42, borderRadius: '50%', background: accent + '28', border: `2px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: accent, flexShrink: 0, letterSpacing: '-.02em' }}>
                           {initials}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {displayName || (demoMode ? 'Mode démo' : email.split('@')[0])}
+                            {displayName || (demoMode ? t('menu_demo_data') : email.split('@')[0])}
                           </div>
                           <div style={{ fontSize: 11, color: T.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {demoMode ? 'Données de démonstration' : email}
+                            {demoMode ? t('menu_demo_data') : email}
                           </div>
                         </div>
                         {demoMode && (
@@ -186,12 +186,12 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
                         )}
                       </div>
                       {!demoMode && (
-                        <MBtn icon="✎" label="Modifier mon profil" onClick={() => { setEditName(displayName); setProfileEdit(true); }} />
+                        <MBtn icon="✎" label={t('menu_edit_profile')} onClick={() => { setEditName(displayName); setProfileEdit(true); }} />
                       )}
                     </>
                   ) : (
                     <div style={{ padding: '4px 8px 8px' }}>
-                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6, padding: '0 6px', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>Nom affiché</div>
+                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6, padding: '0 6px', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>{t('menu_display_name')}</div>
                       <input
                         autoFocus
                         type="text"
@@ -203,10 +203,10 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
                       />
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={saveName} style={{ flex: 1, background: `linear-gradient(135deg,${accent},${T.accentDark})`, border: 'none', borderRadius: 8, color: '#fff', padding: '7px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                          Enregistrer
+                          {t('menu_save')}
                         </button>
                         <button onClick={() => setProfileEdit(false)} style={{ flex: 1, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, color: T.textMuted, padding: '7px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                          Annuler
+                          {t('menu_cancel')}
                         </button>
                       </div>
                     </div>
@@ -216,25 +216,23 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
               )}
 
               {/* ── 2. APPARENCE ───────────────────────────────────── */}
-              <SLabel>Apparence</SLabel>
+              <SLabel>{t('menu_appearance')}</SLabel>
 
-              {/* Dark / Light toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px' }}>
                 <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{darkMode ? '🌙' : '☀️'}</span>
-                <span style={{ flex: 1, fontSize: 13, color: T.text }}>Thème</span>
+                <span style={{ flex: 1, fontSize: 13, color: T.text }}>{t('menu_theme')}</span>
                 <button
                   onClick={() => setDarkMode(!darkMode)}
                   style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, background: darkMode ? accent : T.cardBorder, border: 'none', cursor: 'pointer', transition: 'background .2s', padding: 0, flexShrink: 0 }}
                 >
                   <div style={{ position: 'absolute', top: 2, left: darkMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
                 </button>
-                <span style={{ fontSize: 11, color: T.textMuted, minWidth: 36 }}>{darkMode ? 'Sombre' : 'Clair'}</span>
+                <span style={{ fontSize: 11, color: T.textMuted, minWidth: 36 }}>{darkMode ? t('menu_dark') : t('menu_light')}</span>
               </div>
 
-              {/* Accent color picker */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px' }}>
                 <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>🎨</span>
-                <span style={{ flex: 1, fontSize: 13, color: T.text }}>Couleur</span>
+                <span style={{ flex: 1, fontSize: 13, color: T.text }}>{t('menu_color')}</span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {ACCENT_OPTIONS.map(opt => (
                     <button
@@ -250,42 +248,41 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
               <Divider />
 
               {/* ── 3. PARAMÈTRES ──────────────────────────────────── */}
-              <SLabel>Paramètres</SLabel>
+              <SLabel>{t('menu_settings')}</SLabel>
 
               <MSelect
-                icon="💱" label="Devise"
+                icon="💱" label={t('menu_currency')}
                 value={currency} options={CURRENCIES}
-                onChange={handleCurrency}
+                onChange={setCurrency}
               />
               <MSelect
-                icon="🌐" label="Langue"
+                icon="🌐" label={t('menu_language')}
                 value={language}
                 options={[{ key: 'fr', label: 'Français' }, { key: 'en', label: 'English' }]}
-                onChange={handleLanguage}
+                onChange={setLanguage}
               />
               <MSelect
-                icon="📅" label="Format dates"
+                icon="📅" label={t('menu_date_format')}
                 value={dateFormat} options={DATE_FORMATS}
-                onChange={handleDateFormat}
+                onChange={setDateFormat}
               />
 
-              {/* Notifications toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px' }}>
                 <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>🔔</span>
-                <span style={{ flex: 1, fontSize: 13, color: T.text }}>Notifications</span>
+                <span style={{ flex: 1, fontSize: 13, color: T.text }}>{t('menu_notifications')}</span>
                 <button
                   onClick={handleNotif}
                   style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, background: notifEnabled ? accent : T.cardBorder, border: 'none', cursor: 'pointer', transition: 'background .2s', padding: 0, flexShrink: 0 }}
                 >
                   <div style={{ position: 'absolute', top: 2, left: notifEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
                 </button>
-                <span style={{ fontSize: 11, color: T.textMuted, minWidth: 36 }}>{notifEnabled ? 'Actives' : 'Coupées'}</span>
+                <span style={{ fontSize: 11, color: T.textMuted, minWidth: 36 }}>{notifEnabled ? t('menu_notif_on') : t('menu_notif_off')}</span>
               </div>
 
               <Divider />
 
               {/* ── 4. DONNÉES ─────────────────────────────────────── */}
-              <SLabel>Données</SLabel>
+              <SLabel>{t('menu_data')}</SLabel>
 
               {importFeedback && (
                 <div style={{ margin: '0 8px 6px', padding: '8px 12px', background: importFeedback.startsWith('✅') ? 'rgba(74,222,128,.1)' : 'rgba(248,113,113,.1)', borderRadius: 8, fontSize: 12, color: importFeedback.startsWith('✅') ? '#4ade80' : '#f87171', fontWeight: 600 }}>
@@ -293,23 +290,23 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
                 </div>
               )}
 
-              <MBtn icon="⬇" label="Exporter JSON" onClick={() => { exportDataJSON(); closeMenu(); }} />
-              <MBtn icon="⬇" label="Exporter transactions CSV" onClick={() => { exportCSV(); closeMenu(); }} />
-              <MBtn icon="⬆" label="Importer données JSON" onClick={() => fileInputRef.current?.click()} />
+              <MBtn icon="⬇" label={t('menu_export_json')} onClick={() => { exportDataJSON(); closeMenu(); }} />
+              <MBtn icon="⬇" label={t('menu_export_csv')}  onClick={() => { exportCSV(); closeMenu(); }} />
+              <MBtn icon="⬆" label={t('menu_import_json')} onClick={() => fileInputRef.current?.click()} />
               <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
 
               {!demoMode && user && !deleteConfirm && (
-                <MBtn icon="🗑" label="Supprimer mon compte" onClick={() => setDeleteConfirm(true)} danger />
+                <MBtn icon="🗑" label={t('menu_delete_account')} onClick={() => setDeleteConfirm(true)} danger />
               )}
               {deleteConfirm && (
                 <div style={{ margin: '4px 8px', padding: '12px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 10 }}>
-                  <div style={{ fontSize: 12, color: '#f87171', fontWeight: 600, marginBottom: 8 }}>⚠ Supprimer définitivement toutes vos données ?</div>
+                  <div style={{ fontSize: 12, color: '#f87171', fontWeight: 600, marginBottom: 8 }}>⚠ {t('menu_delete_confirm')}</div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={async () => { closeMenu(); await deleteAccount(); }} style={{ flex: 1, background: '#f87171', border: 'none', borderRadius: 8, color: '#fff', padding: '7px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      Confirmer
+                      {t('menu_confirm')}
                     </button>
                     <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, color: T.textMuted, padding: '7px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      Annuler
+                      {t('menu_cancel')}
                     </button>
                   </div>
                 </div>
@@ -318,19 +315,19 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
               <Divider />
 
               {/* ── 5. À PROPOS ────────────────────────────────────── */}
-              <SLabel>À propos</SLabel>
+              <SLabel>{t('menu_about')}</SLabel>
 
               <div style={{ padding: '4px 14px 6px', display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
                   <span style={{ fontSize: 13, color: T.text, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>🚀</span>
-                    Version
+                    {t('menu_version')}
                   </span>
                   <span style={{ fontSize: 12, color: accent, fontWeight: 700, background: accent + '18', padding: '2px 8px', borderRadius: 6 }}>{APP_VERSION}</span>
                 </div>
                 {[
-                  { icon: '📜', label: 'Mentions légales' },
-                  { icon: '🔒', label: 'Politique de confidentialité' },
+                  { icon: '📜', label: t('menu_legal') },
+                  { icon: '🔒', label: t('menu_privacy') },
                 ].map(({ icon, label }) => (
                   <button key={label} style={{ width: '100%', background: 'transparent', border: 'none', color: T.textMuted, padding: '7px 0', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', borderRadius: 6, transition: 'color .1s' }}
                     onMouseEnter={e => e.currentTarget.style.color = T.text}
@@ -349,7 +346,7 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
 
               {/* ── 6. DÉCONNEXION ─────────────────────────────────── */}
               {demoMode ? (
-                <MBtn icon="→" label="Se connecter" onClick={() => { handleLogout(); closeMenu(); }} />
+                <MBtn icon="→" label={t('menu_login')} onClick={() => { handleLogout(); closeMenu(); }} />
               ) : user ? (
                 <button
                   onClick={() => { handleLogout(); closeMenu(); }}
@@ -358,7 +355,7 @@ export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent,
                   onMouseLeave={e => e.currentTarget.style.background = 'rgba(248,113,113,.06)'}
                 >
                   <span style={{ fontSize: 15 }}>⎋</span>
-                  Déconnexion
+                  {t('menu_logout')}
                 </button>
               ) : null}
             </div>
