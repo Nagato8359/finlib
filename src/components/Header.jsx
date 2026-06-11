@@ -126,6 +126,8 @@ export default function Header({
   );
 
   return (
+    <>
+    <style>{`.header-logo { height: 44px; } @media (max-width: 768px) { .header-logo { height: 38px; } }`}</style>
     <header className="hdr" style={{ borderBottom: `1px solid ${T.cardBorder}`, position: 'sticky', top: 0, background: T.bg, zIndex: 50, transition: 'background .2s', paddingTop: 'env(safe-area-inset-top)' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr 48px', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
@@ -134,7 +136,7 @@ export default function Header({
 
         {/* Center — title + desktop nav */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
-          <img src={logo} alt="Capitaly" style={{ height: 32, objectFit: 'contain', display: 'block' }} />
+          <img src={logo} alt="Capitaly" className="header-logo" style={{ objectFit: 'contain', display: 'block' }} />
           <nav className="top-nav" style={{ gap: 2, marginTop: 2 }}>
             {TABS.map(tb => (
               <button key={tb.id} onClick={() => setTab(tb.id)}
@@ -365,5 +367,6 @@ export default function Header({
         </div>
       </div>
     </header>
+    </>
   );
 }
