@@ -97,7 +97,7 @@ export default function Accueil({ T, data, setTab }) {
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
     invTotal, invInvested, cashTotal, healthTotal,
-    income, balance, savingsRate, score, alerts,
+    income, balance, savingsRate, score,
     goals, healthCost,
     investments, invLiveValue, invLiveInvested,
     soldHistory,
