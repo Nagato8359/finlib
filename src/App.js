@@ -7,6 +7,7 @@ import { t } from './utils/settings';
 import { LanguageProvider } from './context/LanguageContext';
 import AuthScreen from './components/AuthScreen';
 import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 import Navigation from './components/Navigation';
 import Accueil from './components/Accueil';
 import Patrimoine from './components/Patrimoine';
@@ -59,7 +60,16 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     .pill-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .pill-nav::-webkit-scrollbar { display: none; }
     input[type=range] { accent-color: ${accent}; cursor: pointer; width: 100%; }
+    /* ── Sidebar layout ─────────────────────────────────────────────────── */
+    .sidebar { display: flex !important; }
+    .app-main { padding-left: 220px; min-height: 100vh; display: flex; flex-direction: column; }
+    .sb-item:not(.sb-active):hover { color: #10b981 !important; background: rgba(16,185,129,0.06) !important; }
+    /* On desktop with sidebar: hide header logo + top-nav */
+    .app-main .hdr-logo  { display: none !important; }
+    .app-main .top-nav   { display: none !important; }
     @media (max-width: 768px) {
+      .sidebar { display: none !important; }
+      .app-main { padding-left: 0; }
       .top-nav { display: none !important; }
       .bot-nav { display: flex !important; }
       .g2 { grid-template-columns: 1fr 1fr; }
@@ -67,6 +77,8 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
       .g4 { grid-template-columns: 1fr 1fr; }
       .frow-3 { grid-template-columns: 1fr 1fr; }
       input, select, textarea { font-size: 16px !important; }
+      /* Restore header elements on mobile */
+      .app-main .hdr-logo { display: block !important; }
     }
     @media (max-width: 450px) {
       .g3, .g4 { grid-template-columns: 1fr 1fr; }
@@ -192,28 +204,31 @@ export default function App() {
     <LanguageProvider language={language}>
     <>
       <GlobalCSS {...T} accent={T.accent} />
-      <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
-        <Header
-          T={T}
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          accentKey={accentKey}
-          setAccent={setAccent}
-          currency={currency}
-          setCurrency={setCurrency}
-          language={language}
-          setLanguage={setLanguage}
-          dateFormat={dateFormat}
-          setDateFormat={setDateFormat}
-          tab={tab}
-          setTab={setTab}
-          TABS={TABS}
-          data={data}
-        />
-        <main style={{ flex: 1, maxWidth: 1200, width: '100%', margin: '0 auto', padding: '24px 20px', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>
-          {tabContent[tab] || tabContent.accueil}
-        </main>
-        <Navigation T={T} tab={tab} setTab={setTab} TABS={TABS} />
+      <div style={{ background: T.bg, display: 'flex', minHeight: '100vh' }}>
+        <Sidebar T={T} tab={tab} setTab={setTab} TABS={TABS} data={data} />
+        <div className="app-main">
+          <Header
+            T={T}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            accentKey={accentKey}
+            setAccent={setAccent}
+            currency={currency}
+            setCurrency={setCurrency}
+            language={language}
+            setLanguage={setLanguage}
+            dateFormat={dateFormat}
+            setDateFormat={setDateFormat}
+            tab={tab}
+            setTab={setTab}
+            TABS={TABS}
+            data={data}
+          />
+          <main style={{ flex: 1, maxWidth: 1280, width: '100%', margin: '0 auto', padding: '28px 28px', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>
+            {tabContent[tab] || tabContent.accueil}
+          </main>
+          <Navigation T={T} tab={tab} setTab={setTab} TABS={TABS} />
+        </div>
         <Modals T={T} data={data} />
         <PositionFormModal T={T} data={data} />
       </div>
