@@ -62,7 +62,7 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     input[type=range] { accent-color: ${accent}; cursor: pointer; width: 100%; }
     /* ── Sidebar layout ─────────────────────────────────────────────────── */
     .sidebar { display: flex !important; }
-    .app-main { padding-left: 220px; min-height: 100vh; display: flex; flex-direction: column; }
+    .app-main { padding-left: 220px; width: 100%; min-height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
     .sb-item:not(.sb-active):hover { color: #10b981 !important; background: rgba(16,185,129,0.06) !important; }
     /* On desktop with sidebar: hide header logo + top-nav */
     .app-main .hdr-logo  { display: none !important; }
@@ -224,7 +224,7 @@ export default function App() {
             TABS={TABS}
             data={data}
           />
-          <main style={{ flex: 1, maxWidth: 1280, width: '100%', margin: '0 auto', padding: '28px 28px', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>
+          <main style={{ flex: 1, width: '100%', padding: '28px', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>
             {tabContent[tab] || tabContent.accueil}
           </main>
           <Navigation T={T} tab={tab} setTab={setTab} TABS={TABS} />

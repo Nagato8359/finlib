@@ -156,7 +156,7 @@ export default function Accueil({ T, data, setTab }) {
       )}
 
       {/* ── Top 2-col grid ─────────────────────────────────────────────── */}
-      <div className="accueil-top-grid" style={{ display: 'grid', gridTemplateColumns: '65fr 35fr', gap: 20, alignItems: 'start' }}>
+      <div className="accueil-top-grid" style={{ display: 'grid', gridTemplateColumns: '65fr 35fr', gap: 20, alignItems: 'start', width: '100%' }}>
 
         {/* LEFT — patrimoine + chart */}
         <div style={{ ...card }}>
@@ -200,7 +200,7 @@ export default function Accueil({ T, data, setTab }) {
           </div>
 
           {/* Chart */}
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={patrimoineHistory} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="patG" x1="0" y1="0" x2="0" y2="1">
