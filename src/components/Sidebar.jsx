@@ -19,14 +19,14 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
   return (
     <aside className="sidebar" style={{
       width: 220, flexShrink: 0,
-      background: '#0d1117',
-      borderRight: '1px solid rgba(255,255,255,0.06)',
+      background: 'linear-gradient(to bottom, #0d1117, #0a0f1a, #080e1a)',
+      boxShadow: '2px 0 20px rgba(0,0,0,0.4)',
       display: 'flex', flexDirection: 'column',
       position: 'fixed', top: 0, left: 0, height: '100vh',
       zIndex: 40, overflowY: 'auto',
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 20px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+      <div style={{ padding: '20px 20px 18px', flexShrink: 0 }}>
         <img src={logo} alt="Capitaly" style={{ width: 200, height: 'auto', display: 'block' }} />
       </div>
 
@@ -62,7 +62,6 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
       {/* User */}
       <div style={{
         padding: '14px 14px',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', alignItems: 'center', gap: 10,
         flexShrink: 0,
       }}>
