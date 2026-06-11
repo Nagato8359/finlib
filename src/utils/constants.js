@@ -1,8 +1,8 @@
 // ── Formatters ──────────────────────────────────────────────────────────────
-export const fEur = (n, c = false) =>
-  c && Math.abs(n) >= 1000
-    ? (n / 1000).toFixed(1).replace('.', ',') + ' k€'
-    : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+export const fEur = n => new Intl.NumberFormat('fr-FR', {
+  style: 'currency', currency: 'EUR',
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
+}).format(n);
 export const fPct = n => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
 export const fDate = d => new Date(d).toLocaleDateString('fr-FR');
 export const fPrice = n => {
