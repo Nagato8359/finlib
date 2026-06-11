@@ -45,7 +45,27 @@ module.exports = async function handler(req, res) {
       return res.json(results);
     }
 
-    return res.status(400).json({ error: 'type must be "stock" or "crypto"' });
+    if (type === 'divinfo') {
+      const resp = await fetch(
+        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(q)}?modules=summaryDetail`,
+        { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
+      );
+      if (!resp.ok) throw new Error(`Yahoo quoteSummary ${resp.status}`);
+      const data = await resp.json();
+      const sd = data?.quoteSummary?.result?.[0]?.summaryDetail || {};
+
+      const yieldRaw = sd.dividendYield?.raw;
+      const rateRaw  = sd.dividendRate?.raw;
+      const exDate   = sd.exDividendDate?.fmt || null;
+
+      return res.json({
+        divYield:  yieldRaw != null ? parseFloat((yieldRaw * 100).toFixed(3)) : null,
+        divRate:   rateRaw  != null ? parseFloat(rateRaw.toFixed(4))          : null,
+        exDivDate: exDate,
+      });
+    }
+
+    return res.status(400).json({ error: 'type must be "stock", "crypto", or "divinfo"' });
   } catch (err) {
     console.error('[search]', type, q, err.message);
     return res.status(500).json({ error: err.message });

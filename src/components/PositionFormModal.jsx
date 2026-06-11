@@ -100,9 +100,25 @@ export default function PositionFormModal({ T, data }) {
         }));
         mark('ticker', 'name', 'exchange');
         fetchTickerPrice(/^[A-Z]{2}[A-Z0-9]{10}$/.test(query) ? query : first.symbol);
+        fetchDivInfo(first.symbol);
       }
     } catch (err) { console.error('[searchStock]', err.message); }
     setSearching(false);
+  };
+
+  const fetchDivInfo = async (ticker) => {
+    if (!ticker) return;
+    try {
+      const res = await fetch(`/api/search?type=divinfo&q=${encodeURIComponent(ticker)}`);
+      if (!res.ok) return;
+      const info = await res.json();
+      const updates = {};
+      const marks = [];
+      if (info.divYield != null) { updates.divYield = info.divYield; marks.push('divYield'); }
+      if (info.divRate  != null) { updates.divRate  = info.divRate;  marks.push('divRate'); }
+      if (info.exDivDate)        { updates.exDivDate = info.exDivDate; marks.push('exDivDate'); }
+      if (marks.length) { setPosForm(p => ({ ...p, ...updates })); mark(...marks); }
+    } catch {}
   };
 
   const handleIsinChange = (e) => {
@@ -292,8 +308,59 @@ export default function PositionFormModal({ T, data }) {
                 <FF label="Date d'achat">
                   <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
                 </FF>
-                <FF label="Rendement dividende (%)">
-                  <input type="number" placeholder="0.00" min="0" step="0.01" style={inp} value={posForm.divYield || ''} onChange={e => setPosForm(p => ({ ...p, divYield: e.target.value }))} />
+                <FF label="Rendement dividende (%)" auto={isAuto('divYield')}>
+                  {isAuto('divYield') && posForm.divYield === 0 ? (
+                    <div style={{ ...inp, display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
+                      <span style={{ color: '#a78bfa', fontWeight: 600 }}>Capitalisant</span>
+                      <span style={{ fontSize: 11, color: T.textMuted, background: 'rgba(167,139,250,.1)', border: '1px solid rgba(167,139,250,.2)', borderRadius: 4, padding: '2px 7px' }}>0 %</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      style={isAuto('divYield') ? inpAuto : inp}
+                      value={posForm.divYield || ''}
+                      onChange={e => { setAutoFilled(p => { const n = new Set(p); n.delete('divYield'); return n; }); setPosForm(p => ({ ...p, divYield: e.target.value })); }}
+                    />
+                  )}
+                </FF>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
+                <FF label="Dividende / action (€)" auto={isAuto('divRate')}>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                    style={isAuto('divRate') ? inpAuto : inp}
+                    value={posForm.divRate || ''}
+                    onChange={e => { setAutoFilled(p => { const n = new Set(p); n.delete('divRate'); return n; }); setPosForm(p => ({ ...p, divRate: e.target.value })); }}
+                  />
+                </FF>
+                <FF label="Date de détachement" auto={isAuto('exDivDate')}>
+                  <input
+                    type="text"
+                    placeholder="YYYY-MM-DD"
+                    style={isAuto('exDivDate') ? inpAuto : inp}
+                    value={posForm.exDivDate || ''}
+                    onChange={e => { setAutoFilled(p => { const n = new Set(p); n.delete('exDivDate'); return n; }); setPosForm(p => ({ ...p, exDivDate: e.target.value })); }}
+                  />
+                </FF>
+                <FF label="Fréquence">
+                  <select
+                    style={inp}
+                    value={posForm.divFrequency || ''}
+                    onChange={e => setPosForm(p => ({ ...p, divFrequency: e.target.value }))}
+                  >
+                    <option value="">— Inconnue —</option>
+                    <option value="Mensuel">Mensuel</option>
+                    <option value="Trimestriel">Trimestriel</option>
+                    <option value="Semestriel">Semestriel</option>
+                    <option value="Annuel">Annuel</option>
+                  </select>
                 </FF>
               </div>
 

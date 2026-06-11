@@ -25,7 +25,7 @@ const mkPos     = () => ({
   // Common
   posType: '', purchaseDate: '', notes: '',
   // Stock extras
-  exchange: '', currency: 'EUR',
+  exchange: '', currency: 'EUR', divRate: '', exDivDate: '', divFrequency: '',
   // Crypto
   platform: '',
   // Real estate
