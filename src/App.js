@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import logo from './logo.png';
 import { requestNotifPermission } from './utils/notifications';
 import { useTheme } from './hooks/useTheme';
 import { useData } from './hooks/useData';
@@ -101,7 +102,7 @@ function SplashScreen({ onDone }) {
         @keyframes splashOut { from { opacity:1; } to { opacity:0; } }
       `}</style>
       <img
-        src="/logo.png"
+        src={logo}
         alt="Capitaly"
         style={{ height: 80, objectFit: 'contain', animation: anim }}
       />
