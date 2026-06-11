@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ACCENT_OPTIONS } from '../hooks/useTheme';
 import { requestNotifPermission } from '../utils/notifications';
-import { t } from '../utils/settings';
+import { useTranslation } from '../hooks/useTranslation';
 
 const CURRENCIES   = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
 const DATE_FORMATS = [
@@ -29,6 +29,7 @@ export default function Header({
   currency, setCurrency, language, setLanguage, dateFormat, setDateFormat,
   tab, setTab, TABS, data,
 }) {
+  const { t } = useTranslation();
   const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
 
   const [menuOpen, setMenuOpen]           = useState(false);

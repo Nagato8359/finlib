@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from '../hooks/useTranslation';
 
 async function callGemini(contents, isAutoAnalysis = false) {
   const res = await fetch('/api/gemini', {
@@ -202,14 +203,15 @@ Analyse les postes de dépenses les plus importants et propose 2-3 optimisations
 🔮 **PROJECTION ET RECOMMANDATIONS**
 3 actions prioritaires à réaliser dans les 3 prochains mois, avec impact financier estimé pour chacune.`;
 
-const SUGGESTIONS = [
-  "Comment améliorer mon taux d'épargne ?",
-  'Où placer mon épargne disponible ?',
-  "Mon niveau d'endettement est-il raisonnable ?",
-  'Analyse mes dépenses par catégorie',
+const SUGGESTION_KEYS = [
+  'ia_suggestion_1',
+  'ia_suggestion_2',
+  'ia_suggestion_3',
+  'ia_suggestion_4',
 ];
 
 export default function IATab({ T, data }) {
+  const { t } = useTranslation();
   const [analysisState, setAnalysisState] = useState('loading'); // loading | done | error
   const [analysis, setAnalysis] = useState('');
   const [analysisError, setAnalysisError] = useState('');
@@ -270,17 +272,17 @@ export default function IATab({ T, data }) {
       <div style={{ textAlign: 'center', paddingBottom: 2 }}>
         <div style={{ fontSize: 38 }}>🤖</div>
         <div style={{ fontSize: 21, fontWeight: 800, color: T.text, letterSpacing: '-.03em', marginTop: 6 }}>Capitaly IA</div>
-        <div style={{ fontSize: 13, color: T.textMuted, marginTop: 4 }}>Analyse intelligente de votre patrimoine</div>
+        <div style={{ fontSize: 13, color: T.textMuted, marginTop: 4 }}>{t('ia_subtitle')}</div>
       </div>
 
       {/* Analysis card */}
       <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>📊 Analyse de votre patrimoine</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{t('ia_analysis_title')}</span>
           {analysisState === 'done' && (
             <button onClick={runAnalysis}
               style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 8, color: '#10b981', padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              ↻ Actualiser
+              {t('ia_refresh')}
             </button>
           )}
         </div>
@@ -288,7 +290,7 @@ export default function IATab({ T, data }) {
         {analysisState === 'loading' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 16 }}>
             <div style={{ width: 36, height: 36, border: `3px solid ${T.cardBorder}`, borderTopColor: '#10b981', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
-            <div style={{ fontSize: 14, color: T.textMuted }}>Capitaly IA analyse votre patrimoine…</div>
+            <div style={{ fontSize: 14, color: T.textMuted }}>{t('ia_loading')}</div>
           </div>
         )}
 
@@ -297,7 +299,7 @@ export default function IATab({ T, data }) {
             <div style={{ fontSize: 13, color: '#f87171', marginBottom: 10 }}>❌ {analysisError}</div>
             <button onClick={runAnalysis}
               style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 8, color: '#f87171', padding: '6px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Réessayer
+              {t('ia_retry')}
             </button>
           </div>
         )}
@@ -307,16 +309,16 @@ export default function IATab({ T, data }) {
 
       {/* Chat card — shown even on error so user can still ask questions */}
       <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>💬 Posez une question</span>
+        <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{t('ia_chat_title')}</span>
 
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {SUGGESTIONS.map(s => (
-              <button key={s} onClick={() => setInput(s)}
+            {SUGGESTION_KEYS.map(key => (
+              <button key={key} onClick={() => setInput(t(key))}
                 style={{ background: 'transparent', border: `1px solid ${T.cardBorder}`, borderRadius: 20, color: T.textMuted, padding: '6px 13px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#10b981'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = T.cardBorder}>
-                {s}
+                {t(key)}
               </button>
             ))}
           </div>
@@ -355,7 +357,7 @@ export default function IATab({ T, data }) {
         <form onSubmit={sendMessage} style={{ display: 'flex', gap: 8 }}>
           <input
             value={input} onChange={e => setInput(e.target.value)}
-            placeholder="Posez une question sur vos finances…"
+            placeholder={t('ia_placeholder')}
             style={{ flex: 1, background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 12, color: T.text, padding: '10px 14px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
           />
           <button type="submit" disabled={!input.trim() || chatLoading}
@@ -367,7 +369,7 @@ export default function IATab({ T, data }) {
 
       {/* Disclaimer */}
       <div style={{ background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.18)', borderRadius: 12, padding: '12px 16px', fontSize: 12, color: '#fbbf24', lineHeight: 1.55 }}>
-        ⚠️ Capitaly IA fournit des informations à titre éducatif uniquement. Ceci ne constitue pas un conseil en investissement. Consultez un conseiller financier agréé pour toute décision importante.
+        {t('ia_disclaimer')}
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
-import fr from '../i18n/fr';
-import en from '../i18n/en';
+import { fr, en } from '../i18n/translations';
 
 export const RATES   = { EUR: 1, USD: 1.08, GBP: 0.85, CHF: 0.96, JPY: 163, CAD: 1.47, AUD: 1.66 };
 export const SYMBOLS = { EUR: '€', USD: '$', GBP: '£', CHF: 'CHF', JPY: '¥', CAD: 'CA$', AUD: 'A$' };

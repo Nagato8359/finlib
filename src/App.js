@@ -3,6 +3,7 @@ import { requestNotifPermission } from './utils/notifications';
 import { useTheme } from './hooks/useTheme';
 import { useData } from './hooks/useData';
 import { t } from './utils/settings';
+import { LanguageProvider } from './context/LanguageContext';
 import AuthScreen from './components/AuthScreen';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
@@ -141,6 +142,7 @@ export default function App() {
   };
 
   return (
+    <LanguageProvider language={language}>
     <>
       <GlobalCSS {...T} accent={T.accent} />
       <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
@@ -169,5 +171,6 @@ export default function App() {
         <PositionFormModal T={T} data={data} />
       </div>
     </>
+    </LanguageProvider>
   );
 }

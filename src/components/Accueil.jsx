@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { KPI, TT, makeS, fEur, fPct, fDate, MONTHS } from '../utils/constants';
+import { useTranslation } from '../hooks/useTranslation';
 
 const TF_DAYS = { '1J': 1, '7J': 7, '1M': 30, '3M': 90, '1AN': 365 };
 
 export default function Accueil({ T, data, setTab }) {
   const S = makeS(T);
+  const { t } = useTranslation();
   const [chartTf, setChartTf] = useState('1M');
 
   const {
@@ -34,9 +36,9 @@ export default function Accueil({ T, data, setTab }) {
         : MONTHS[date.getMonth()] + (days > 90 ? ` ${date.getFullYear().toString().slice(2)}` : '');
       if (!seen.has(label)) { seen.add(label); points.push({ label, Patrimoine: val }); }
     }
-    points.push({ label: 'Auj.', Patrimoine: Math.round(baseNet) });
+    points.push({ label: t('today_label'), Patrimoine: Math.round(baseNet) });
     return points;
-  }, [chartTf, transactions, patrimoine, patrimoineNet]);
+  }, [chartTf, transactions, patrimoine, patrimoineNet, t]);
 
   const displayPatrimoine = patrimoineNet ?? patrimoine;
   const change = patrimoineHistory.length > 1 ? displayPatrimoine - patrimoineHistory[0].Patrimoine : 0;
@@ -53,19 +55,19 @@ export default function Accueil({ T, data, setTab }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
-              Patrimoine total{linkedLoanDebt > 0 && <span style={{ marginLeft: 6, fontSize: 10, color: T.textFaint, fontWeight: 400 }}>valeur nette</span>}
+              {t('accueil_patrimoine_total')}{linkedLoanDebt > 0 && <span style={{ marginLeft: 6, fontSize: 10, color: T.textFaint, fontWeight: 400 }}>{t('accueil_net_value')}</span>}
             </div>
             <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.04em', color: T.text }}>{fEur(displayPatrimoine)}</div>
             {linkedLoanDebt > 0 && (
               <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 2 }}>
-                Brut : {fEur(patrimoine)} · Dettes immo : <span style={{ color: '#f87171' }}>−{fEur(linkedLoanDebt)}</span>
+                {t('accueil_gross')} : {fEur(patrimoine)} · {t('accueil_immo_debt')} : <span style={{ color: '#f87171' }}>−{fEur(linkedLoanDebt)}</span>
               </div>
             )}
             <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: change >= 0 ? '#4ade80' : '#f87171' }}>
                 {change >= 0 ? '+' : ''}{fEur(change, true)} ({fPct(changePct)})
               </span>
-              <span style={{ fontSize: 12, color: T.textMuted }}>sur {chartTf}</span>
+              <span style={{ fontSize: 12, color: T.textMuted }}>{`${t('over')} ${chartTf}`}</span>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -104,13 +106,13 @@ export default function Accueil({ T, data, setTab }) {
 
       {/* KPIs */}
       <div className="g4">
-        <KPI T={T} label="Patrimoine total" value={fEur(displayPatrimoine, true)}
+        <KPI T={T} label={t('accueil_patrimoine_total')} value={fEur(displayPatrimoine, true)}
           sub={fPct((pnlTotal / Math.max(1, invInvested + healthCost)) * 100)} icon="🏛️" />
-        <KPI T={T} label="Revenus du mois" value={fEur(income, true)} accent="#4ade80" icon="💰" />
-        <KPI T={T} label="Taux d'épargne" value={Math.round(savingsRate) + '%'}
-          sub={fEur(balance) + ' épargnés'} accent={balance >= 0 ? '#10b981' : '#f87171'} icon="🎯" />
+        <KPI T={T} label={t('accueil_revenus_mois')} value={fEur(income, true)} accent="#4ade80" icon="💰" />
+        <KPI T={T} label={t('accueil_epargne_rate')} value={Math.round(savingsRate) + '%'}
+          sub={`${fEur(balance)} ${t('accueil_saved')}`} accent={balance >= 0 ? '#10b981' : '#f87171'} icon="🎯" />
         <div style={{ ...S.card, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em' }}>Score santé</div>
+          <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('accueil_health_score')}</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: scoreColor }}>{score}<span style={{ fontSize: 13, fontWeight: 400, color: T.textMuted }}>/100</span></div>
           <div style={{ background: T.cardBorder, borderRadius: 4, height: 4, overflow: 'hidden' }}>
             <div style={{ width: `${score}%`, height: '100%', background: scoreColor, borderRadius: 4, transition: 'width .5s' }} />
@@ -121,11 +123,11 @@ export default function Accueil({ T, data, setTab }) {
       {/* Patrimoine breakdown + Pie */}
       <div className="g21">
         <div style={{ ...S.card }}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Répartition du patrimoine</h3>
+          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>{t('accueil_repartition')}</h3>
           {[
-            { label: linkedLoanDebt > 0 ? 'Investissements (net)' : 'Investissements', val: invTotal - (linkedLoanDebt || 0), color: '#10b981', icon: '📈', onClick: () => setTab('patrimoine') },
-            { label: 'Épargne & Cash', val: cashTotal, color: '#34d399', icon: '🏦', onClick: () => setTab('patrimoine') },
-            { label: 'Patrimoine matériel', val: healthTotal, color: '#60a5fa', icon: '🏠', onClick: () => setTab('patrimoine') },
+            { label: linkedLoanDebt > 0 ? t('accueil_investissements_net') : t('accueil_investissements'), val: invTotal - (linkedLoanDebt || 0), color: '#10b981', icon: '📈', onClick: () => setTab('patrimoine') },
+            { label: t('accueil_epargne_cash'), val: cashTotal, color: '#34d399', icon: '🏦', onClick: () => setTab('patrimoine') },
+            { label: t('accueil_materiel'), val: healthTotal, color: '#60a5fa', icon: '🏠', onClick: () => setTab('patrimoine') },
           ].map(({ label, val, color, icon, onClick }) => (
             <div key={label} onClick={onClick} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: `1px solid ${T.cardBorder}`, cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -141,7 +143,7 @@ export default function Accueil({ T, data, setTab }) {
         </div>
         {catData.length > 0 ? (
           <div style={{ ...S.card }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>Dépenses ce mois</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>{t('accueil_depenses')}</h3>
             <ResponsiveContainer width="100%" height={130}>
               <PieChart>
                 <Pie data={catData} cx="50%" cy="50%" innerRadius={38} outerRadius={60} paddingAngle={3} dataKey="value">
@@ -164,7 +166,7 @@ export default function Accueil({ T, data, setTab }) {
           </div>
         ) : (
           <div style={{ ...S.card, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textFaint, fontSize: 13 }}>
-            Aucune dépense ce mois
+            {t('accueil_no_expense')}
           </div>
         )}
       </div>
@@ -173,8 +175,8 @@ export default function Accueil({ T, data, setTab }) {
       {goals.length > 0 && (
         <div style={{ ...S.card }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Objectifs financiers</h3>
-            <button onClick={() => setTab('budget')} style={{ ...S.btnS, padding: '4px 12px', fontSize: 11 }}>Voir tout →</button>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('accueil_objectifs')}</h3>
+            <button onClick={() => setTab('budget')} style={{ ...S.btnS, padding: '4px 12px', fontSize: 11 }}>{t('see_all')}</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 12 }}>
             {goals.map(g => {
@@ -184,7 +186,7 @@ export default function Accueil({ T, data, setTab }) {
                 <div key={g.id} style={{ background: T.bg2, borderRadius: 12, padding: 14, borderLeft: `3px solid ${g.color}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{g.name}</span>
-                    <span style={{ fontSize: 11, color: T.textMuted }}>{monthsLeft} mois</span>
+                    <span style={{ fontSize: 11, color: T.textMuted }}>{monthsLeft} {t('months')}</span>
                   </div>
                   <div style={{ background: T.cardBorder, borderRadius: 4, height: 6, overflow: 'hidden', marginBottom: 6 }}>
                     <div style={{ width: `${pct}%`, height: '100%', background: g.color, borderRadius: 4, transition: 'width .5s' }} />
@@ -203,11 +205,11 @@ export default function Accueil({ T, data, setTab }) {
       {/* Last transactions */}
       <div style={{ ...S.card }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Dernières transactions</h3>
-          <button onClick={() => setTab('flux')} style={{ ...S.btnS, padding: '4px 12px', fontSize: 11 }}>Voir tout →</button>
+          <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('accueil_last_tx')}</h3>
+          <button onClick={() => setTab('flux')} style={{ ...S.btnS, padding: '4px 12px', fontSize: 11 }}>{t('see_all')}</button>
         </div>
         {transactions.length === 0 ? (
-          <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '24px 0' }}>Aucune transaction — allez dans Flux pour en ajouter</div>
+          <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '24px 0' }}>{t('accueil_no_tx')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {transactions.slice(0, 6).map(t => (

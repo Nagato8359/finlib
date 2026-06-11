@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { makeS, fEur, today, uid, PORTFOLIO_IMMO_TYPES, getInvFormType } from '../utils/constants';
+import { useTranslation } from '../hooks/useTranslation';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const META = {
-  stock:      { icon: '📈', label: 'Action / ETF',        color: '#10b981', grad: 'linear-gradient(135deg,#052e16,#065f46)' },
-  crypto:     { icon: '🪙', label: 'Cryptomonnaie',       color: '#f59e0b', grad: 'linear-gradient(135deg,#451a03,#78350f)' },
-  realestate: { icon: '🏠', label: 'Bien immobilier',     color: '#fb923c', grad: 'linear-gradient(135deg,#431407,#9a3412)' },
-  bond:       { icon: '🛡️', label: 'Fonds / Obligations', color: '#a78bfa', grad: 'linear-gradient(135deg,#2e1065,#4c1d95)' },
-  commodity:  { icon: '🥇', label: 'Matière première',    color: '#EAB308', grad: 'linear-gradient(135deg,#422006,#854d0e)' },
-  other:      { icon: '📦', label: 'Actif divers',         color: '#94a3b8', grad: 'linear-gradient(135deg,#0f172a,#1e293b)' },
+const META_STYLE = {
+  stock:      { icon: '📈', color: '#10b981', grad: 'linear-gradient(135deg,#052e16,#065f46)' },
+  crypto:     { icon: '🪙', color: '#f59e0b', grad: 'linear-gradient(135deg,#451a03,#78350f)' },
+  realestate: { icon: '🏠', color: '#fb923c', grad: 'linear-gradient(135deg,#431407,#9a3412)' },
+  bond:       { icon: '🛡️', color: '#a78bfa', grad: 'linear-gradient(135deg,#2e1065,#4c1d95)' },
+  commodity:  { icon: '🥇', color: '#EAB308', grad: 'linear-gradient(135deg,#422006,#854d0e)' },
+  other:      { icon: '📦', color: '#94a3b8', grad: 'linear-gradient(135deg,#0f172a,#1e293b)' },
 };
 const COMMODITY_TYPES = ['Or', 'Argent', 'Platine', 'Palladium', 'Pétrole', 'Cuivre', 'Autre'];
 const COMMODITY_UNITS = ['grammes', 'onces troy', 'kilogrammes'];
@@ -43,6 +44,15 @@ export default function PositionFormModal({ T, data }) {
     fetchTickerPrice, fetchingPrice, prices, computedLoans, setInvestments,
   } = data;
 
+  const { t } = useTranslation();
+  const META = {
+    stock:      { ...META_STYLE.stock,      label: t('pos_type_stock') },
+    crypto:     { ...META_STYLE.crypto,     label: t('pos_type_crypto') },
+    realestate: { ...META_STYLE.realestate, label: t('pos_type_realestate') },
+    bond:       { ...META_STYLE.bond,       label: t('pos_type_bond') },
+    commodity:  { ...META_STYLE.commodity,  label: t('pos_type_commodity') },
+    other:      { ...META_STYLE.other,      label: t('pos_type_other') },
+  };
   const S = makeS(T);
   const [searching, setSearching] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -224,7 +234,7 @@ export default function PositionFormModal({ T, data }) {
             <div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>{meta.label}</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
-                {editItem?.posId ? 'Modifier la position' : 'Nouvelle position'}
+                {editItem?.posId ? t('pos_edit_title') : t('pos_new_title')}
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 2 }}>{drillInv.name}</div>
             </div>
@@ -240,7 +250,7 @@ export default function PositionFormModal({ T, data }) {
             <>
               {/* ISIN + search button */}
               <div style={{ marginBottom: 14 }}>
-                <LBL auto={isAuto('isin')}>Code ISIN</LBL>
+                <LBL auto={isAuto('isin')}>{t('pos_isin')}</LBL>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     type="text"
@@ -257,19 +267,19 @@ export default function PositionFormModal({ T, data }) {
                     style={{ background: meta.grad, border: 'none', borderRadius: 8, color: '#fff', padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: posForm.isin ? 'pointer' : 'not-allowed', opacity: !posForm.isin ? 0.4 : 1, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}
                   >
                     {searching ? <Spinner /> : '🔍'}
-                    {searching ? 'Recherche…' : 'Rechercher'}
+                    {searching ? t('pos_searching') : t('pos_search')}
                   </button>
                 </div>
                 <div style={{ fontSize: 11, color: T.textMuted, marginTop: 5 }}>
-                  Saisissez un ISIN (12 car.) ou un ticker puis cliquez Rechercher pour auto-compléter
+                  {t('pos_isin_hint')}
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Nom complet" auto={isAuto('name')}>
+                <FF label={t('pos_full_name')} auto={isAuto('name')}>
                   <input type="text" placeholder="MSCI World UCITS ETF…" style={isAuto('name') ? inpAuto : inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} />
                 </FF>
-                <FF label="Ticker" auto={isAuto('ticker')}>
+                <FF label={t('pos_ticker')} auto={isAuto('ticker')}>
                   <input
                     type="text"
                     placeholder="CW8.PA, AAPL, MC.PA…"
@@ -282,10 +292,10 @@ export default function PositionFormModal({ T, data }) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Place de cotation" auto={isAuto('exchange')}>
+                <FF label={t('pos_exchange')} auto={isAuto('exchange')}>
                   <input type="text" placeholder="Euronext Paris, NYSE…" style={isAuto('exchange') ? inpAuto : inp} value={posForm.exchange || ''} onChange={e => setPosForm(p => ({ ...p, exchange: e.target.value }))} />
                 </FF>
-                <FF label="Devise">
+                <FF label={t('pos_currency')}>
                   <select style={inp} value={posForm.currency || 'EUR'} onChange={e => setPosForm(p => ({ ...p, currency: e.target.value }))}>
                     {['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD'].map(c => <option key={c}>{c}</option>)}
                   </select>
@@ -293,25 +303,25 @@ export default function PositionFormModal({ T, data }) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-                <FF label="Nb de parts">
+                <FF label={t('pos_shares')}>
                   <input type="number" placeholder="0" min="0" step="any" style={inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} />
                 </FF>
-                <FF label="PRU (€)">
+                <FF label={t('pos_dca_price')}>
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
                 </FF>
-                <FF label={fetchingPrice ? 'Récupération…' : prices[liveKey] != null ? 'Prix LIVE ●' : 'Prix actuel (€)'} auto={prices[liveKey] != null}>
+                <FF label={fetchingPrice ? t('pos_fetching') : prices[liveKey] != null ? t('pos_live_price') : t('pos_current_price')} auto={prices[liveKey] != null}>
                   <input type="number" placeholder="Auto via ISIN" min="0" step="any" style={{ ...(prices[liveKey] != null ? inpAuto : inp), opacity: fetchingPrice ? 0.5 : 1 }} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Date d'achat">
+                <FF label={t('pos_buy_date')}>
                   <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
                 </FF>
-                <FF label="Rendement dividende (%)" auto={isAuto('divYield')}>
+                <FF label={t('pos_div_yield')} auto={isAuto('divYield')}>
                   {isAuto('divYield') && posForm.divYield === 0 ? (
                     <div style={{ ...inp, display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
-                      <span style={{ color: '#a78bfa', fontWeight: 600 }}>Capitalisant</span>
+                      <span style={{ color: '#a78bfa', fontWeight: 600 }}>{t('pos_accumulating')}</span>
                       <span style={{ fontSize: 11, color: T.textMuted, background: 'rgba(167,139,250,.1)', border: '1px solid rgba(167,139,250,.2)', borderRadius: 4, padding: '2px 7px' }}>0 %</span>
                     </div>
                   ) : (
@@ -329,7 +339,7 @@ export default function PositionFormModal({ T, data }) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-                <FF label="Dividende / action (€)" auto={isAuto('divRate')}>
+                <FF label={t('pos_div_rate')} auto={isAuto('divRate')}>
                   <input
                     type="number"
                     placeholder="0.00"
@@ -340,7 +350,7 @@ export default function PositionFormModal({ T, data }) {
                     onChange={e => { setAutoFilled(p => { const n = new Set(p); n.delete('divRate'); return n; }); setPosForm(p => ({ ...p, divRate: e.target.value })); }}
                   />
                 </FF>
-                <FF label="Date de détachement" auto={isAuto('exDivDate')}>
+                <FF label={t('pos_ex_div_date')} auto={isAuto('exDivDate')}>
                   <input
                     type="text"
                     placeholder="YYYY-MM-DD"
@@ -349,23 +359,23 @@ export default function PositionFormModal({ T, data }) {
                     onChange={e => { setAutoFilled(p => { const n = new Set(p); n.delete('exDivDate'); return n; }); setPosForm(p => ({ ...p, exDivDate: e.target.value })); }}
                   />
                 </FF>
-                <FF label="Fréquence">
+                <FF label={t('pos_frequency')}>
                   <select
                     style={inp}
                     value={posForm.divFrequency || ''}
                     onChange={e => setPosForm(p => ({ ...p, divFrequency: e.target.value }))}
                   >
-                    <option value="">— Inconnue —</option>
-                    <option value="Mensuel">Mensuel</option>
-                    <option value="Trimestriel">Trimestriel</option>
-                    <option value="Semestriel">Semestriel</option>
-                    <option value="Annuel">Annuel</option>
+                    <option value="">{t('pos_freq_unknown')}</option>
+                    <option value="Mensuel">{t('pos_freq_monthly')}</option>
+                    <option value="Trimestriel">{t('pos_freq_quarterly')}</option>
+                    <option value="Semestriel">{t('pos_freq_biannual')}</option>
+                    <option value="Annuel">{t('pos_freq_annual')}</option>
                   </select>
                 </FF>
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <FF label="Notes">
+                <FF label={t('pos_notes')}>
                   <input type="text" placeholder="Stratégie DCA, objectif de vente…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
                 </FF>
               </div>
@@ -376,7 +386,7 @@ export default function PositionFormModal({ T, data }) {
           {formType === 'crypto' && (
             <>
               <div style={{ marginBottom: 14, position: 'relative' }} ref={sugRef}>
-                <LBL>Rechercher une crypto</LBL>
+                <LBL>{t('pos_crypto_search')}</LBL>
                 <div style={{ position: 'relative' }}>
                   <input
                     type="text"
@@ -418,7 +428,7 @@ export default function PositionFormModal({ T, data }) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Symbole" auto={isAuto('ticker')}>
+                <FF label={t('pos_symbol')} auto={isAuto('ticker')}>
                   <input
                     type="text"
                     placeholder="BTC, ETH, SOL…"
@@ -428,31 +438,31 @@ export default function PositionFormModal({ T, data }) {
                     onBlur={e => { if (e.target.value) fetchTickerPrice(e.target.value.toUpperCase()); }}
                   />
                 </FF>
-                <FF label={fetchingPrice ? 'Récupération…' : prices[posForm.ticker] != null ? 'Prix LIVE ●' : 'Prix actuel (€)'} auto={prices[posForm.ticker] != null}>
+                <FF label={fetchingPrice ? t('pos_fetching') : prices[posForm.ticker] != null ? t('pos_live_price') : t('pos_current_price')} auto={prices[posForm.ticker] != null}>
                   <input type="number" placeholder="Auto via CoinGecko" min="0" step="any" style={{ ...(prices[posForm.ticker] != null ? inpAuto : inp), opacity: fetchingPrice ? 0.5 : 1 }} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-                <FF label="Quantité">
+                <FF label={t('pos_quantity')}>
                   <input type="number" placeholder="0.001" min="0" step="any" style={inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} />
                 </FF>
-                <FF label="DCA / Prix moyen (€)">
+                <FF label={t('pos_dca')}>
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
                 </FF>
-                <FF label="Plateforme">
+                <FF label={t('pos_platform')}>
                   <select style={inp} value={posForm.platform || ''} onChange={e => setPosForm(p => ({ ...p, platform: e.target.value }))}>
-                    <option value="">— Choisir —</option>
+                    <option value="">{t('pos_choose')}</option>
                     {CRYPTO_PLATFORMS.map(pl => <option key={pl}>{pl}</option>)}
                   </select>
                 </FF>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Date d'achat">
+                <FF label={t('pos_buy_date')}>
                   <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
                 </FF>
-                <FF label="Notes">
+                <FF label={t('pos_notes')}>
                   <input type="text" placeholder="Cold wallet, staking…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
                 </FF>
               </div>
@@ -463,54 +473,54 @@ export default function PositionFormModal({ T, data }) {
           {formType === 'realestate' && (
             <>
               <div style={{ marginBottom: 14 }}>
-                <FF label="Description du bien">
+                <FF label={t('pos_property_desc')}>
                   <input type="text" placeholder="Appartement Paris 11e, SCPI Corum…" style={inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Type de bien">
+                <FF label={t('pos_property_type')}>
                   <select style={inp} value={posForm.propertyType || 'Locatif'} onChange={e => setPosForm(p => ({ ...p, propertyType: e.target.value }))}>
-                    {PORTFOLIO_IMMO_TYPES.map(t => <option key={t}>{t}</option>)}
+                    {PORTFOLIO_IMMO_TYPES.map(pt => <option key={pt}>{pt}</option>)}
                   </select>
                 </FF>
-                <FF label="Surface (m²)">
+                <FF label={t('pos_surface')}>
                   <input type="number" placeholder="0" min="0" style={inp} value={posForm.surface || ''} onChange={e => setPosForm(p => ({ ...p, surface: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <FF label="Adresse">
+                <FF label={t('pos_address')}>
                   <input type="text" placeholder="12 rue des Lilas, 75011 Paris" style={inp} value={posForm.address || ''} onChange={e => setPosForm(p => ({ ...p, address: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Valeur d'achat (€)">
+                <FF label={t('pos_buy_value')}>
                   <input type="number" placeholder="0" min="0" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value, purchaseValue: e.target.value }))} />
                 </FF>
-                <FF label="Valeur actuelle estimée (€)">
+                <FF label={t('pos_current_estimate')}>
                   <input type="number" placeholder="0" min="0" style={inp} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value, estimatedValue: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Date d'acquisition">
+                <FF label={t('pos_acq_date')}>
                   <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
                 </FF>
-                <FF label="Loyer mensuel (€)">
+                <FF label={t('pos_monthly_rent')}>
                   <input type="number" placeholder="0" min="0" style={inp} value={posForm.monthlyRent || ''} onChange={e => setPosForm(p => ({ ...p, monthlyRent: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Charges mensuelles (€)">
+                <FF label={t('pos_monthly_charges')}>
                   <input type="number" placeholder="0" min="0" style={inp} value={posForm.monthlyCharges || ''} onChange={e => setPosForm(p => ({ ...p, monthlyCharges: e.target.value }))} />
                 </FF>
-                <FF label="Crédit associé (optionnel)">
+                <FF label={t('pos_linked_loan')}>
                   <select style={inp} value={posForm.linkedLoanId || ''} onChange={e => setPosForm(p => ({ ...p, linkedLoanId: e.target.value }))}>
-                    <option value="">— Aucun crédit lié —</option>
+                    <option value="">{t('pos_no_linked_loan')}</option>
                     {computedLoans.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </select>
                 </FF>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <FF label="Notes">
+                <FF label={t('pos_notes')}>
                   <input type="text" placeholder="Remarques, travaux prévus…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
                 </FF>
               </div>
@@ -521,21 +531,21 @@ export default function PositionFormModal({ T, data }) {
           {formType === 'bond' && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Nom du fonds">
+                <FF label={t('pos_fund_name')}>
                   <input type="text" placeholder="Fonds euros Generali, OAT 2035…" style={inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} />
                 </FF>
-                <FF label="Assureur / Émetteur">
+                <FF label={t('pos_insurer')}>
                   <select style={inp} value={posForm.insurer || ''} onChange={e => setPosForm(p => ({ ...p, insurer: e.target.value }))}>
-                    <option value="">— Sélectionner —</option>
+                    <option value="">{t('pos_select')}</option>
                     {AV_INSURERS.map(a => <option key={a}>{a}</option>)}
                   </select>
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Montant investi (€)">
+                <FF label={t('pos_invested')}>
                   <input type="number" placeholder="0" min="0" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
                 </FF>
-                <FF label="Taux garanti (%)">
+                <FF label={t('pos_guaranteed_rate')}>
                   <input
                     type="number"
                     placeholder="2.50"
@@ -555,15 +565,15 @@ export default function PositionFormModal({ T, data }) {
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Valeur actuelle (€)" auto={!!posForm.guaranteedRate && !!posForm.buyPrice}>
+                <FF label={t('pos_current_value')} auto={!!posForm.guaranteedRate && !!posForm.buyPrice}>
                   <input type="number" placeholder="0" min="0" style={posForm.guaranteedRate && posForm.buyPrice ? inpAuto : inp} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
-                <FF label="Date d'investissement">
+                <FF label={t('pos_invest_date')}>
                   <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <FF label="Notes">
+                <FF label={t('pos_notes')}>
                   <input type="text" placeholder="Durée, objectif, observations…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
                 </FF>
               </div>
@@ -574,41 +584,41 @@ export default function PositionFormModal({ T, data }) {
           {formType === 'commodity' && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Type">
+                <FF label={t('pos_commodity_type')}>
                   <select style={inp} value={posForm.commodityType || 'Or'} onChange={e => setPosForm(p => ({ ...p, commodityType: e.target.value, name: p.name || e.target.value }))}>
-                    {COMMODITY_TYPES.map(t => <option key={t}>{t}</option>)}
+                    {COMMODITY_TYPES.map(ct => <option key={ct}>{ct}</option>)}
                   </select>
                 </FF>
-                <FF label="Nom / Description">
+                <FF label={t('pos_commodity_name')}>
                   <input type="text" placeholder="Lingot 250g, Pièce Napoléon…" style={inp} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-                <FF label="Quantité">
+                <FF label={t('pos_quantity')}>
                   <input type="number" placeholder="0" min="0" step="any" style={inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} />
                 </FF>
-                <FF label="Unité">
+                <FF label={t('pos_unit')}>
                   <select style={inp} value={posForm.unit || 'grammes'} onChange={e => setPosForm(p => ({ ...p, unit: e.target.value }))}>
                     {COMMODITY_UNITS.map(u => <option key={u}>{u}</option>)}
                   </select>
                 </FF>
-                <FF label="Prix d'achat unitaire (€)">
+                <FF label={t('pos_unit_price_buy')}>
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-                <FF label="Prix actuel unitaire (€)">
+                <FF label={t('pos_unit_price_curr')}>
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
-                <FF label="Lieu de stockage">
+                <FF label={t('pos_storage')}>
                   <input type="text" placeholder="Coffre bancaire, Domicile…" style={inp} value={posForm.storageLocation || ''} onChange={e => setPosForm(p => ({ ...p, storageLocation: e.target.value }))} />
                 </FF>
-                <FF label="Date d'achat">
+                <FF label={t('pos_buy_date')}>
                   <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <FF label="Notes">
+                <FF label={t('pos_notes')}>
                   <input type="text" placeholder="Lingot certifié, pièces millésime…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
                 </FF>
               </div>
@@ -619,26 +629,26 @@ export default function PositionFormModal({ T, data }) {
           {formType === 'other' && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Nom de l'actif" span={2}>
+                <FF label={t('pos_asset_name')} span={2}>
                   <input type="text" placeholder="Ex : NFT, Option, Billet de collection…" style={{ ...inp }} value={posForm.name} onChange={e => setPosForm(p => ({ ...p, name: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-                <FF label="Quantité">
+                <FF label={t('pos_quantity')}>
                   <input type="number" placeholder="1" min="0" step="any" style={inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} />
                 </FF>
-                <FF label="Prix d'achat unitaire (€)">
+                <FF label={t('pos_unit_price_buy')}>
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
                 </FF>
-                <FF label="Prix actuel unitaire (€)">
+                <FF label={t('pos_unit_price_curr')}>
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <FF label="Date d'achat">
+                <FF label={t('pos_buy_date')}>
                   <input type="date" style={inp} value={posForm.purchaseDate || ''} onChange={e => setPosForm(p => ({ ...p, purchaseDate: e.target.value }))} />
                 </FF>
-                <FF label="Notes">
+                <FF label={t('pos_notes')}>
                   <input type="text" placeholder="Remarques…" style={inp} value={posForm.notes || ''} onChange={e => setPosForm(p => ({ ...p, notes: e.target.value }))} />
                 </FF>
               </div>
@@ -648,12 +658,12 @@ export default function PositionFormModal({ T, data }) {
           {/* ── Preview card ────────────────────────────────────────────────────── */}
           {hasPreview && (
             <div style={{ background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
-              <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 12 }}>Aperçu de la position</div>
+              <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 12 }}>{t('pos_preview')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
                 {[
-                  { label: 'Investi', val: fEur(invested), color: '#60a5fa' },
-                  { label: livePx > 0 ? 'Valeur actuelle' : 'Valeur achat', val: fEur(livePx > 0 ? curVal : invested), color: T.text },
-                  { label: 'P&L estimé', val: `${pnl >= 0 ? '+' : ''}${fEur(pnl)}${pnlPct !== 0 ? ` (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)` : ''}`, color: pnl >= 0 ? '#4ade80' : '#f87171' },
+                  { label: t('pos_invested_label'), val: fEur(invested), color: '#60a5fa' },
+                  { label: livePx > 0 ? t('pos_current_val_label') : t('pos_buy_val_label'), val: fEur(livePx > 0 ? curVal : invested), color: T.text },
+                  { label: t('pos_pnl_label'), val: `${pnl >= 0 ? '+' : ''}${fEur(pnl)}${pnlPct !== 0 ? ` (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)` : ''}`, color: pnl >= 0 ? '#4ade80' : '#f87171' },
                 ].map(({ label, val, color }) => (
                   <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,.03)', borderRadius: 10, padding: '10px 8px' }}>
                     <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>{label}</div>
@@ -664,16 +674,16 @@ export default function PositionFormModal({ T, data }) {
 
               {formType === 'bond' && posForm.guaranteedRate && parseFloat(posForm.guaranteedRate) > 0 && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}`, fontSize: 12, color: meta.color, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  💸 Intérêts annuels estimés : <strong>+{fEur(invested * parseFloat(posForm.guaranteedRate) / 100)}</strong>
+                  {t('pos_bond_interests')} : <strong>+{fEur(invested * parseFloat(posForm.guaranteedRate) / 100)}</strong>
                   <span style={{ color: T.textMuted }}>({posForm.guaranteedRate}%/an)</span>
                 </div>
               )}
 
               {formType === 'realestate' && posForm.monthlyRent && parseFloat(posForm.monthlyRent) > 0 && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}`, fontSize: 12, color: meta.color, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  🏠 Rendement locatif brut :
+                  {t('pos_rental_yield')} :
                   <strong>{bp > 0 ? ((parseFloat(posForm.monthlyRent) * 12 / bp) * 100).toFixed(2) + '%' : '—'}/an</strong>
-                  <span style={{ color: T.textMuted }}>({fEur(parseFloat(posForm.monthlyRent))}/mois)</span>
+                  <span style={{ color: T.textMuted }}>({fEur(parseFloat(posForm.monthlyRent))}{t('per_month')})</span>
                 </div>
               )}
 
@@ -691,10 +701,10 @@ export default function PositionFormModal({ T, data }) {
               onClick={handleSave}
               style={{ ...S.btnG, flex: 1, padding: '13px', fontSize: 14, borderRadius: 12, background: meta.grad }}
             >
-              {editItem?.posId ? '✓ Enregistrer les modifications' : `+ Ajouter à ${drillInv.name}`}
+              {editItem?.posId ? t('pos_save_edit') : t('pos_add_to', drillInv.name)}
             </button>
             <button onClick={onClose} style={{ ...S.btnS, padding: '13px 20px', fontSize: 14, borderRadius: 12 }}>
-              Annuler
+              {t('pos_cancel')}
             </button>
           </div>
         </div>

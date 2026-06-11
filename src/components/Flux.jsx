@@ -2,9 +2,11 @@ import { useState, useMemo, useRef, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { KPI, TT, makeS, fEur, fDate, MONTHS, CAT_COLORS } from '../utils/constants';
 import { parseCSV } from '../hooks/useData';
+import { useTranslation } from '../hooks/useTranslation';
 
 export default function Flux({ T, data }) {
   const S = makeS(T);
+  const { t } = useTranslation();
   const [fluxCat, setFluxCat] = useState('Tout');
   const [fluxMonth, setFluxMonth] = useState(() => {
     const n = new Date();
@@ -23,13 +25,13 @@ export default function Flux({ T, data }) {
 
   const monthOptions = useMemo(() => {
     const n = new Date();
-    const opts = [{ value: 'all', label: 'Tous les mois' }];
+    const opts = [{ value: 'all', label: t('flux_all_months') }];
     for (let i = 0; i < 12; i++) {
       const d = new Date(n.getFullYear(), n.getMonth() - i, 1);
       opts.push({ value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}` });
     }
     return opts;
-  }, []);
+  }, [t]);
 
   const filtered = useMemo(() => {
     return transactions.filter(t => {
@@ -130,20 +132,20 @@ export default function Flux({ T, data }) {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>Flux de trésorerie</h1>
-          <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>Toutes vos entrées et sorties</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>{t('flux_title')}</h1>
+          <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>{t('flux_subtitle')}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={exportCSV} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>↓ CSV</button>
-          <button onClick={() => fileInputRef.current?.click()} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>↑ Importer CSV</button>
-          <button onClick={() => { setEditItem(null); setTxForm(mkTx()); setModal('tx'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Transaction</button>
+          <button onClick={exportCSV} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>{t('flux_export_csv')}</button>
+          <button onClick={() => fileInputRef.current?.click()} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>{t('flux_import_csv')}</button>
+          <button onClick={() => { setEditItem(null); setTxForm(mkTx()); setModal('tx'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>{t('flux_add_tx')}</button>
         </div>
         <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleFileChange} />
       </div>
 
       {csvImported !== null && (
         <div style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: '#4ade80', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{csvImported} transaction{csvImported !== 1 ? 's' : ''} importée{csvImported !== 1 ? 's' : ''} avec succès</span>
+          <span>{t('flux_imported', csvImported, csvImported > 1 ? 's' : '')}</span>
           <button onClick={() => setCsvImported(null)} style={{ background: 'none', border: 'none', color: '#4ade80', cursor: 'pointer', fontSize: 16 }}>×</button>
         </div>
       )}
@@ -153,13 +155,13 @@ export default function Flux({ T, data }) {
         <div style={{ ...S.card, borderColor: '#60a5fa' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Aperçu import CSV</h3>
-              <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{csvRows.length} ligne{csvRows.length !== 1 ? 's' : ''} détectée{csvRows.length !== 1 ? 's' : ''} · {csvSelected.size} sélectionnée{csvSelected.size !== 1 ? 's' : ''}</div>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{t('flux_csv_preview')}</h3>
+              <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{t('flux_csv_rows', csvRows.length, csvRows.length > 1 ? 's' : '')} · {t('flux_csv_selected', csvSelected.size, csvSelected.size > 1 ? 's' : '')}</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setCsvRows(null); setCsvSelected(new Set()); }} style={{ ...S.btnS, fontSize: 12, padding: '6px 12px' }}>Annuler</button>
+              <button onClick={() => { setCsvRows(null); setCsvSelected(new Set()); }} style={{ ...S.btnS, fontSize: 12, padding: '6px 12px' }}>{t('cancel')}</button>
               <button onClick={confirmImport} disabled={csvSelected.size === 0} style={{ ...S.btnG, fontSize: 12, padding: '6px 14px', opacity: csvSelected.size === 0 ? 0.5 : 1 }}>
-                Importer {csvSelected.size > 0 ? csvSelected.size : ''} tx
+                {t('flux_csv_import_btn', csvSelected.size > 0 ? csvSelected.size : '')}
               </button>
             </div>
           </div>
@@ -173,7 +175,7 @@ export default function Flux({ T, data }) {
                 <span style={{ fontSize: 12, fontWeight: 600, color: r.amount >= 0 ? '#4ade80' : '#f87171', minWidth: 80, textAlign: 'right', flexShrink: 0 }}>
                   {r.amount >= 0 ? '+' : ''}{fEur(r.amount)}
                 </span>
-                {r.isDup && <span style={{ fontSize: 10, color: '#fb923c', flexShrink: 0 }}>doublon</span>}
+                {r.isDup && <span style={{ fontSize: 10, color: '#fb923c', flexShrink: 0 }}>{t('duplicate')}</span>}
               </label>
             ))}
           </div>
@@ -181,18 +183,18 @@ export default function Flux({ T, data }) {
       )}
 
       <div className="g4">
-        <KPI T={T} label="Revenus" value={fEur(income, true)} accent="#4ade80" icon="↓" />
-        <KPI T={T} label="Dépenses" value={fEur(expense, true)} accent="#f87171" icon="↑" />
-        <KPI T={T} label="Solde net" value={fEur(balance, true)} accent={balance >= 0 ? '#10b981' : '#f87171'} icon="⚖" />
-        <KPI T={T} label="Taux d'épargne" value={Math.round(savingsRate) + '%'} accent="#10b981" icon="🎯" />
+        <KPI T={T} label={t('flux_kpi_income')} value={fEur(income, true)} accent="#4ade80" icon="↓" />
+        <KPI T={T} label={t('flux_kpi_expense')} value={fEur(expense, true)} accent="#f87171" icon="↑" />
+        <KPI T={T} label={t('flux_kpi_balance')} value={fEur(balance, true)} accent={balance >= 0 ? '#10b981' : '#f87171'} icon="⚖" />
+        <KPI T={T} label={t('flux_kpi_rate')} value={Math.round(savingsRate) + '%'} accent="#10b981" icon="🎯" />
       </div>
 
       {/* Analyse toggle */}
       <div style={{ display: 'flex', gap: 8 }}>
         <button onClick={() => setShowAnalysis(p => !p)}
           style={{ ...S.btnS, fontSize: 12, padding: '7px 16px', background: showAnalysis ? 'rgba(96,165,250,.12)' : T.cardBg, borderColor: showAnalysis ? '#60a5fa' : T.cardBorder, color: showAnalysis ? '#60a5fa' : T.textMuted }}>
-          {showAnalysis ? '▾' : '▸'} Analyse & Insights
-          {missedSubs.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(251,146,60,.2)', color: '#fb923c', padding: '2px 6px', borderRadius: 4 }}>{missedSubs.length} alerte{missedSubs.length > 1 ? 's' : ''}</span>}
+          {showAnalysis ? '▾' : '▸'} {t('flux_analysis')}
+          {missedSubs.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(251,146,60,.2)', color: '#fb923c', padding: '2px 6px', borderRadius: 4 }}>{t('flux_alert_n', missedSubs.length, missedSubs.length > 1 ? 's' : '')}</span>}
         </button>
       </div>
 
@@ -201,7 +203,7 @@ export default function Flux({ T, data }) {
           {/* ── Comparaison mois/mois ── */}
           <div style={{ ...S.card }}>
             <div style={{ marginBottom: 14 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Comparaison mois/mois</h3>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('flux_comparison')}</h3>
               <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
                 {MONTHS[new Date().getMonth() === 0 ? 11 : new Date().getMonth() - 1]} → {MONTHS[new Date().getMonth()]}
               </p>
@@ -217,11 +219,11 @@ export default function Flux({ T, data }) {
             )}
 
             {monthComparison.length === 0 ? (
-              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Pas encore assez de données</div>
+              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>{t('flux_no_data')}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 100px', gap: 8, padding: '6px 10px', fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-                  <span>Catégorie</span><span style={{ textAlign: 'right' }}>Mois préc.</span><span style={{ textAlign: 'right' }}>Ce mois</span><span style={{ textAlign: 'right' }}>Écart</span>
+                  <span>{t('flux_col_cat')}</span><span style={{ textAlign: 'right' }}>{t('flux_col_prev')}</span><span style={{ textAlign: 'right' }}>{t('flux_col_curr')}</span><span style={{ textAlign: 'right' }}>{t('flux_col_diff')}</span>
                 </div>
                 {monthComparison.map(({ cat, curr, prev, diff, pct }) => (
                   <div key={cat} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 100px', gap: 8, padding: '8px 10px', background: T.bg2, borderRadius: 8, alignItems: 'center' }}>
@@ -240,7 +242,7 @@ export default function Flux({ T, data }) {
                           </span>
                         </>
                       ) : curr > 0 && prev === 0 ? (
-                        <span style={{ fontSize: 10, color: '#fb923c' }}>Nouveau</span>
+                        <span style={{ fontSize: 10, color: '#fb923c' }}>{t('new_label')}</span>
                       ) : (
                         <span style={{ fontSize: 11, color: T.textFaint }}>—</span>
                       )}
@@ -255,26 +257,26 @@ export default function Flux({ T, data }) {
           <div style={{ ...S.card }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
               <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Abonnements détectés</h3>
-                <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Prélèvements réguliers sur les derniers mois</p>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('flux_subs_title')}</h3>
+                <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{t('flux_subs_subtitle')}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>{fEur(totalSubsMonthly)}<span style={{ fontSize: 11, fontWeight: 400, color: T.textMuted }}>/mois</span></div>
-                <div style={{ fontSize: 11, color: T.textMuted }}>{fEur(totalSubsMonthly * 12)}/an</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>{fEur(totalSubsMonthly)}<span style={{ fontSize: 11, fontWeight: 400, color: T.textMuted }}>{t('per_month')}</span></div>
+                <div style={{ fontSize: 11, color: T.textMuted }}>{fEur(totalSubsMonthly * 12)}{t('per_year')}</div>
               </div>
             </div>
 
             {missedSubs.length > 0 && (
               <div style={{ background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#fb923c', marginBottom: 6 }}>⚠ Abonnements non prélevés ce mois — oubliés ou résiliés ?</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#fb923c', marginBottom: 6 }}>{t('flux_subs_warning')}</div>
                 {missedSubs.map((s, i) => (
-                  <div key={i} style={{ fontSize: 12, color: '#fb923c', padding: '2px 0' }}>· {s.label} — {fEur(s.amount)}/mois ({s.monthCount} mois d'historique)</div>
+                  <div key={i} style={{ fontSize: 12, color: '#fb923c', padding: '2px 0' }}>· {s.label} — {fEur(s.amount)}{t('per_month')} ({t('flux_subs_history', s.monthCount)})</div>
                 ))}
               </div>
             )}
 
             {subscriptions.length === 0 ? (
-              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucun abonnement détecté</div>
+              <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>{t('flux_no_subs')}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {subscriptions.map((s, i) => (
@@ -284,12 +286,12 @@ export default function Flux({ T, data }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: T.text }}>
                           {s.label}
                           {s.recurrent && <span style={{ fontSize: 9, background: 'rgba(96,165,250,.15)', color: '#60a5fa', padding: '1px 5px', borderRadius: 4 }}>↻</span>}
-                          {!s.presentThisMonth && <span style={{ fontSize: 9, background: 'rgba(251,146,60,.15)', color: '#fb923c', padding: '1px 5px', borderRadius: 4 }}>absent ce mois</span>}
+                          {!s.presentThisMonth && <span style={{ fontSize: 9, background: 'rgba(251,146,60,.15)', color: '#fb923c', padding: '1px 5px', borderRadius: 4 }}>{t('flux_subs_absent')}</span>}
                         </div>
-                        <div style={{ fontSize: 11, color: T.textFaint }}>{s.monthCount} mois · {fEur(s.amount * 12)}/an</div>
+                        <div style={{ fontSize: 11, color: T.textFaint }}>{t('flux_subs_history', s.monthCount)} · {fEur(s.amount * 12)}{t('per_year')}</div>
                       </div>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>{fEur(s.amount)}/mois</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>{fEur(s.amount)}{t('per_month')}</span>
                   </div>
                 ))}
               </div>
@@ -300,7 +302,7 @@ export default function Flux({ T, data }) {
 
       {/* 6-month chart */}
       <div style={{ ...S.card }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Revenus vs Dépenses — 6 mois</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>{t('flux_chart_title')}</h3>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={monthlyData} barGap={4}>
             <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
@@ -317,8 +319,8 @@ export default function Flux({ T, data }) {
       <div style={{ ...S.card, borderColor: forecastNeg ? 'rgba(248,113,113,.4)' : T.cardBorder }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
           <div>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Prévision de trésorerie</h3>
-            <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Basée sur vos transactions récurrentes</p>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('flux_forecast_title')}</h3>
+            <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{t('flux_forecast_subtitle')}</p>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             {[30, 60, 90].map(d => (
@@ -332,19 +334,19 @@ export default function Flux({ T, data }) {
 
         {forecastNeg && (
           <div style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6 }}>
-            ⚠ Solde prévu négatif ({fEur(forecastMin)}) dans les {forecastDays} prochains jours
+            {t('flux_forecast_negative', fEur(forecastMin), forecastDays)}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 14, marginBottom: 10 }}>
           <div style={{ fontSize: 12, color: T.textMuted }}>
-            Solde prévu dans <span style={{ fontWeight: 700, color: forecastData[forecastData.length - 1]?.balance < 0 ? '#f87171' : '#4ade80' }}>
-              {forecastDays}j : {fEur(forecastData[forecastData.length - 1]?.balance || 0)}
+            <span style={{ fontWeight: 700, color: forecastData[forecastData.length - 1]?.balance < 0 ? '#f87171' : '#4ade80' }}>
+              {t('flux_forecast_balance', forecastDays, fEur(forecastData[forecastData.length - 1]?.balance || 0))}
             </span>
           </div>
           {forecastMin < forecastMax && (
             <div style={{ fontSize: 12, color: T.textMuted }}>
-              Min : <span style={{ color: forecastMin < 0 ? '#f87171' : T.text, fontWeight: 600 }}>{fEur(forecastMin)}</span>
+              {t('flux_forecast_min')} <span style={{ color: forecastMin < 0 ? '#f87171' : T.text, fontWeight: 600 }}>{fEur(forecastMin)}</span>
             </div>
           )}
         </div>
@@ -371,7 +373,7 @@ export default function Flux({ T, data }) {
           {cats.map(c => (
             <button key={c} onClick={() => setFluxCat(c)}
               style={{ background: fluxCat === c ? (CAT_COLORS[c] ? CAT_COLORS[c] + '22' : 'rgba(16,185,129,.12)') : 'transparent', border: `1px solid ${fluxCat === c ? (CAT_COLORS[c] || '#10b981') : T.cardBorder}`, color: fluxCat === c ? (CAT_COLORS[c] || '#10b981') : T.textMuted, borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: fluxCat === c ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-              {c}
+              {c === 'Tout' ? t('flux_filter_all') : c}
             </button>
           ))}
         </div>
@@ -380,10 +382,10 @@ export default function Flux({ T, data }) {
       {/* Transactions list */}
       <div style={{ ...S.card }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Transactions ({filtered.length})</h3>
+          <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('flux_tx_list', filtered.length)}</h3>
         </div>
         {filtered.length === 0 ? (
-          <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Aucune transaction pour ces filtres</div>
+          <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '32px 0' }}>{t('flux_no_tx')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {filtered.map(t => {
