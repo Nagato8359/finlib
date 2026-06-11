@@ -1,103 +1,366 @@
 import { useState, useRef, useEffect } from 'react';
+import { ACCENT_OPTIONS } from '../hooks/useTheme';
+import { requestNotifPermission } from '../utils/notifications';
 
-export default function Header({ T, darkMode, setDarkMode, tab, setTab, TABS, data }) {
-  const { user, demoMode, handleLogout } = data;
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
+const DATE_FORMATS = [
+  { key: 'dmy', label: 'JJ/MM/AAAA' },
+  { key: 'mdy', label: 'MM/JJ/AAAA' },
+];
+const APP_VERSION = '1.0.0';
+
+const getInitials = (name, email) => {
+  if (name) {
+    const parts = name.trim().split(' ').filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  if (!email) return '?';
+  const local = email.split('@')[0];
+  const parts = local.split(/[._-]/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return local.slice(0, 2).toUpperCase();
+};
+
+export default function Header({ T, darkMode, setDarkMode, accentKey, setAccent, tab, setTab, TABS, data }) {
+  const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
+
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileEdit, setProfileEdit] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [importFeedback, setImportFeedback] = useState('');
+  const [displayName, setDisplayName] = useState(() => localStorage.getItem('ct_displayname') || '');
+  const [editName, setEditName] = useState('');
+  const [currency, setCurrency] = useState(() => localStorage.getItem('ct_currency') || 'EUR');
+  const [language, setLanguage] = useState(() => localStorage.getItem('ct_lang') || 'fr');
+  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('ct_notif') !== '0');
+  const [dateFormat, setDateFormat] = useState(() => localStorage.getItem('ct_datefmt') || 'dmy');
+
   const menuRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!menuOpen) return;
-    const onClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    const handler = e => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) closeMenu();
     };
-    document.addEventListener('mousedown', onClickOutside);
-    document.addEventListener('touchstart', onClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', onClickOutside);
-      document.removeEventListener('touchstart', onClickOutside);
-    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
   }, [menuOpen]);
+
+  const closeMenu = () => { setMenuOpen(false); setProfileEdit(false); setDeleteConfirm(false); setImportFeedback(''); };
+
+  const handleCurrency = v => { setCurrency(v); localStorage.setItem('ct_currency', v); };
+  const handleLanguage = v => { setLanguage(v); localStorage.setItem('ct_lang', v); };
+  const handleDateFormat = v => { setDateFormat(v); localStorage.setItem('ct_datefmt', v); };
+  const handleNotif = async () => {
+    const next = !notifEnabled;
+    setNotifEnabled(next);
+    localStorage.setItem('ct_notif', next ? '1' : '0');
+    if (next) await requestNotifPermission();
+  };
+  const saveName = () => {
+    localStorage.setItem('ct_displayname', editName);
+    setDisplayName(editName);
+    setProfileEdit(false);
+  };
+
+  const handleImport = async e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await importJSON(file);
+      setImportFeedback('✅ Import réussi !');
+      setTimeout(() => setImportFeedback(''), 3000);
+    } catch {
+      setImportFeedback('❌ Fichier invalide');
+      setTimeout(() => setImportFeedback(''), 3000);
+    }
+    e.target.value = '';
+  };
+
+  const accent = T.accent || '#10b981';
+  const email = user?.email || '';
+  const initials = getInitials(displayName, email);
+
+  // ── Shared sub-components ──────────────────────────────────────────────────
+  const Divider = () => <div style={{ height: 1, background: T.cardBorder, margin: '6px 8px' }} />;
+
+  const SLabel = ({ children }) => (
+    <div style={{ padding: '10px 14px 3px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>
+      {children}
+    </div>
+  );
+
+  const MBtn = ({ icon, label, onClick, danger, right, muted }) => (
+    <button
+      onClick={onClick}
+      style={{ width: '100%', background: 'transparent', border: 'none', color: danger ? '#f87171' : muted ? T.textMuted : T.text, padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s', textAlign: 'left' }}
+      onMouseEnter={e => e.currentTarget.style.background = danger ? 'rgba(248,113,113,.08)' : T.cardBg}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      <span style={{ fontSize: 14, flexShrink: 0, width: 18, textAlign: 'center', lineHeight: 1 }}>{icon}</span>
+      <span style={{ flex: 1, lineHeight: 1.3 }}>{label}</span>
+      {right && <span style={{ fontSize: 11, color: T.textFaint, fontWeight: 500 }}>{right}</span>}
+    </button>
+  );
+
+  const MSelect = ({ icon, label, value, options, onChange }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', borderRadius: 8 }}>
+      <span style={{ fontSize: 14, flexShrink: 0, width: 18, textAlign: 'center' }}>{icon}</span>
+      <span style={{ flex: 1, fontSize: 13, color: T.text }}>{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 6, color: T.text, padding: '4px 8px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
+      >
+        {options.map(o => (
+          <option key={o.key || o} value={o.key || o}>{o.label || o}</option>
+        ))}
+      </select>
+    </div>
+  );
 
   return (
     <header className="hdr" style={{ borderBottom: `1px solid ${T.cardBorder}`, position: 'sticky', top: 0, background: T.bg, zIndex: 50, transition: 'background .2s', paddingTop: 'env(safe-area-inset-top)' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr 48px', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
-        {/* Left — empty placeholder for grid balance */}
+        {/* Left — placeholder */}
         <div />
 
         {/* Center — title + desktop nav */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
           <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-.03em', color: T.text, lineHeight: 1 }}>Capitaly</span>
-
-          {/* Desktop nav */}
           <nav className="top-nav" style={{ gap: 2, marginTop: 2 }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ background: tab === t.id ? 'rgba(16,185,129,.12)' : 'transparent', border: 'none', color: tab === t.id ? '#10b981' : T.textMuted, padding: '4px 12px', borderRadius: 8, fontSize: 13, fontWeight: tab === t.id ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s', whiteSpace: 'nowrap' }}>
+                style={{ background: tab === t.id ? accent + '1f' : 'transparent', border: 'none', color: tab === t.id ? accent : T.textMuted, padding: '4px 12px', borderRadius: 8, fontSize: 13, fontWeight: tab === t.id ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s', whiteSpace: 'nowrap' }}>
                 <span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}
               </button>
             ))}
           </nav>
         </div>
 
-        {/* Right — hamburger menu */}
+        {/* Right — avatar / hamburger */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }} ref={menuRef}>
           <button
             onClick={() => setMenuOpen(o => !o)}
-            style={{ background: menuOpen ? T.cardBg : 'transparent', border: `1px solid ${menuOpen ? T.cardBorder : 'transparent'}`, borderRadius: 10, color: T.text, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, cursor: 'pointer', transition: 'all .15s', flexShrink: 0 }}
             aria-label="Menu"
+            style={{ background: menuOpen ? T.cardBg : 'transparent', border: `1px solid ${menuOpen ? T.cardBorder : 'transparent'}`, borderRadius: 12, color: T.text, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0, padding: 0 }}
           >
-            {menuOpen ? '✕' : '≡'}
+            {(user && !demoMode) ? (
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: accent + '28', border: `2px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, letterSpacing: '-.02em' }}>
+                {initials}
+              </div>
+            ) : (
+              <span style={{ fontSize: menuOpen ? 16 : 20 }}>{menuOpen ? '✕' : '≡'}</span>
+            )}
           </button>
 
+          {/* ── Dropdown menu ─────────────────────────────────────────────── */}
           {menuOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% - 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: '8px', minWidth: 210, boxShadow: '0 8px 32px rgba(0,0,0,0.28)', zIndex: 200 }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 328, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
 
-              {/* Theme toggle */}
-              <button
-                onClick={() => { setDarkMode(!darkMode); setMenuOpen(false); }}
-                style={{ width: '100%', background: 'transparent', border: 'none', color: T.text, padding: '10px 14px', borderRadius: 8, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = T.cardBg}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <span style={{ fontSize: 16 }}>{darkMode ? '☀️' : '🌙'}</span>
-                {darkMode ? 'Mode clair' : 'Mode sombre'}
-              </button>
-
-              <div style={{ height: 1, background: T.cardBorder, margin: '4px 0' }} />
-
-              {/* Auth actions */}
-              {demoMode ? (
-                <button
-                  onClick={() => { data.handleLogout(); setMenuOpen(false); }}
-                  style={{ width: '100%', background: 'transparent', border: 'none', color: '#10b981', padding: '10px 14px', borderRadius: 8, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 600 }}
-                  onMouseEnter={e => e.currentTarget.style.background = T.cardBg}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <span style={{ fontSize: 16 }}>→</span>
-                  Se connecter
-                </button>
-              ) : user ? (
+              {/* ── 1. PROFIL ──────────────────────────────────────── */}
+              {(user || demoMode) && (
                 <>
-                  <div style={{ padding: '6px 14px', fontSize: 11, color: T.textFaint, letterSpacing: '.02em' }}>{user.email}</div>
-                  <button
-                    onClick={() => { handleLogout(); setMenuOpen(false); }}
-                    style={{ width: '100%', background: 'transparent', border: 'none', color: '#f87171', padding: '10px 14px', borderRadius: 8, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <span style={{ fontSize: 16 }}>⎋</span>
-                    Déconnexion
-                  </button>
-                </>
-              ) : null}
-
-              {demoMode && (
-                <>
-                  <div style={{ height: 1, background: T.cardBorder, margin: '4px 0' }} />
-                  <div style={{ padding: '6px 14px', fontSize: 11, color: '#fb923c', fontWeight: 700, letterSpacing: '.05em' }}>MODE DÉMO</div>
+                  <SLabel>Profil utilisateur</SLabel>
+                  {!profileEdit ? (
+                    <>
+                      {/* Avatar card */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: T.cardBg, borderRadius: 12, margin: '4px 0' }}>
+                        <div style={{ width: 42, height: 42, borderRadius: '50%', background: accent + '28', border: `2px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: accent, flexShrink: 0, letterSpacing: '-.02em' }}>
+                          {initials}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {displayName || (demoMode ? 'Mode démo' : email.split('@')[0])}
+                          </div>
+                          <div style={{ fontSize: 11, color: T.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {demoMode ? 'Données de démonstration' : email}
+                          </div>
+                        </div>
+                        {demoMode && (
+                          <span style={{ fontSize: 9, background: 'rgba(251,146,60,.15)', color: '#fb923c', padding: '2px 7px', borderRadius: 6, fontWeight: 700, letterSpacing: '.05em', flexShrink: 0 }}>DÉMO</span>
+                        )}
+                      </div>
+                      {!demoMode && (
+                        <MBtn icon="✎" label="Modifier mon profil" onClick={() => { setEditName(displayName); setProfileEdit(true); }} />
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ padding: '4px 8px 8px' }}>
+                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6, padding: '0 6px', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>Nom affiché</div>
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="Prénom Nom"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setProfileEdit(false); }}
+                        style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 8, color: T.text, padding: '8px 11px', fontSize: 13, outline: 'none', fontFamily: 'inherit', marginBottom: 8 }}
+                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={saveName} style={{ flex: 1, background: `linear-gradient(135deg,${accent},${T.accentDark})`, border: 'none', borderRadius: 8, color: '#fff', padding: '7px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Enregistrer
+                        </button>
+                        <button onClick={() => setProfileEdit(false)} style={{ flex: 1, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, color: T.textMuted, padding: '7px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <Divider />
                 </>
               )}
+
+              {/* ── 2. APPARENCE ───────────────────────────────────── */}
+              <SLabel>Apparence</SLabel>
+
+              {/* Dark / Light toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px' }}>
+                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{darkMode ? '🌙' : '☀️'}</span>
+                <span style={{ flex: 1, fontSize: 13, color: T.text }}>Thème</span>
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, background: darkMode ? accent : T.cardBorder, border: 'none', cursor: 'pointer', transition: 'background .2s', padding: 0, flexShrink: 0 }}
+                >
+                  <div style={{ position: 'absolute', top: 2, left: darkMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
+                </button>
+                <span style={{ fontSize: 11, color: T.textMuted, minWidth: 36 }}>{darkMode ? 'Sombre' : 'Clair'}</span>
+              </div>
+
+              {/* Accent color picker */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px' }}>
+                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>🎨</span>
+                <span style={{ flex: 1, fontSize: 13, color: T.text }}>Couleur</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {ACCENT_OPTIONS.map(opt => (
+                    <button
+                      key={opt.key}
+                      title={opt.label}
+                      onClick={() => setAccent(opt.key)}
+                      style={{ width: 22, height: 22, borderRadius: '50%', background: opt.main, border: accentKey === opt.key ? `3px solid ${T.text}` : `2px solid transparent`, cursor: 'pointer', padding: 0, outline: 'none', boxShadow: accentKey === opt.key ? `0 0 0 1px ${opt.main}` : 'none', transition: 'transform .1s', transform: accentKey === opt.key ? 'scale(1.15)' : 'scale(1)' }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <Divider />
+
+              {/* ── 3. PARAMÈTRES ──────────────────────────────────── */}
+              <SLabel>Paramètres</SLabel>
+
+              <MSelect
+                icon="💱" label="Devise"
+                value={currency} options={CURRENCIES}
+                onChange={handleCurrency}
+              />
+              <MSelect
+                icon="🌐" label="Langue"
+                value={language}
+                options={[{ key: 'fr', label: 'Français' }, { key: 'en', label: 'English' }]}
+                onChange={handleLanguage}
+              />
+              <MSelect
+                icon="📅" label="Format dates"
+                value={dateFormat} options={DATE_FORMATS}
+                onChange={handleDateFormat}
+              />
+
+              {/* Notifications toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px' }}>
+                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>🔔</span>
+                <span style={{ flex: 1, fontSize: 13, color: T.text }}>Notifications</span>
+                <button
+                  onClick={handleNotif}
+                  style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, background: notifEnabled ? accent : T.cardBorder, border: 'none', cursor: 'pointer', transition: 'background .2s', padding: 0, flexShrink: 0 }}
+                >
+                  <div style={{ position: 'absolute', top: 2, left: notifEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
+                </button>
+                <span style={{ fontSize: 11, color: T.textMuted, minWidth: 36 }}>{notifEnabled ? 'Actives' : 'Coupées'}</span>
+              </div>
+
+              <Divider />
+
+              {/* ── 4. DONNÉES ─────────────────────────────────────── */}
+              <SLabel>Données</SLabel>
+
+              {importFeedback && (
+                <div style={{ margin: '0 8px 6px', padding: '8px 12px', background: importFeedback.startsWith('✅') ? 'rgba(74,222,128,.1)' : 'rgba(248,113,113,.1)', borderRadius: 8, fontSize: 12, color: importFeedback.startsWith('✅') ? '#4ade80' : '#f87171', fontWeight: 600 }}>
+                  {importFeedback}
+                </div>
+              )}
+
+              <MBtn icon="⬇" label="Exporter JSON" onClick={() => { exportDataJSON(); closeMenu(); }} />
+              <MBtn icon="⬇" label="Exporter transactions CSV" onClick={() => { exportCSV(); closeMenu(); }} />
+              <MBtn icon="⬆" label="Importer données JSON" onClick={() => fileInputRef.current?.click()} />
+              <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
+
+              {!demoMode && user && !deleteConfirm && (
+                <MBtn icon="🗑" label="Supprimer mon compte" onClick={() => setDeleteConfirm(true)} danger />
+              )}
+              {deleteConfirm && (
+                <div style={{ margin: '4px 8px', padding: '12px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 10 }}>
+                  <div style={{ fontSize: 12, color: '#f87171', fontWeight: 600, marginBottom: 8 }}>⚠ Supprimer définitivement toutes vos données ?</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={async () => { closeMenu(); await deleteAccount(); }} style={{ flex: 1, background: '#f87171', border: 'none', borderRadius: 8, color: '#fff', padding: '7px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Confirmer
+                    </button>
+                    <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, color: T.textMuted, padding: '7px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <Divider />
+
+              {/* ── 5. À PROPOS ────────────────────────────────────── */}
+              <SLabel>À propos</SLabel>
+
+              <div style={{ padding: '4px 14px 6px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+                  <span style={{ fontSize: 13, color: T.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>🚀</span>
+                    Version
+                  </span>
+                  <span style={{ fontSize: 12, color: accent, fontWeight: 700, background: accent + '18', padding: '2px 8px', borderRadius: 6 }}>{APP_VERSION}</span>
+                </div>
+                {[
+                  { icon: '📜', label: 'Mentions légales' },
+                  { icon: '🔒', label: 'Politique de confidentialité' },
+                ].map(({ icon, label }) => (
+                  <button key={label} style={{ width: '100%', background: 'transparent', border: 'none', color: T.textMuted, padding: '7px 0', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', borderRadius: 6, transition: 'color .1s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = T.text}
+                    onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{icon}</span>
+                    {label}
+                  </button>
+                ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
+                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>✉️</span>
+                  <span style={{ fontSize: 12, color: accent, fontFamily: 'inherit' }}>contact@capitaly.fr</span>
+                </div>
+              </div>
+
+              <Divider />
+
+              {/* ── 6. DÉCONNEXION ─────────────────────────────────── */}
+              {demoMode ? (
+                <MBtn icon="→" label="Se connecter" onClick={() => { handleLogout(); closeMenu(); }} />
+              ) : user ? (
+                <button
+                  onClick={() => { handleLogout(); closeMenu(); }}
+                  style={{ width: '100%', background: 'rgba(248,113,113,.06)', border: '1px solid rgba(248,113,113,.15)', borderRadius: 10, color: '#f87171', padding: '10px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'background .15s', margin: '2px 0 0' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,.12)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(248,113,113,.06)'}
+                >
+                  <span style={{ fontSize: 15 }}>⎋</span>
+                  Déconnexion
+                </button>
+              ) : null}
             </div>
           )}
         </div>

@@ -12,7 +12,7 @@ export default function Navigation({ T, tab, setTab, TABS }) {
         <button key={t.id} onClick={() => setTab(t.id)}
           style={{
             flex: 1, border: 'none', background: 'none',
-            color: tab === t.id ? '#10b981' : T.textMuted,
+            color: tab === t.id ? (T.accent || '#10b981') : T.textMuted,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             gap: 3, cursor: 'pointer', fontFamily: 'inherit',
             minHeight: 56, padding: '8px 4px',

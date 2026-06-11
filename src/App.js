@@ -23,7 +23,7 @@ const TABS = [
   { id: 'ia',         label: 'IA',         short: 'IA',        icon: '🤖' },
 ];
 
-const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted }) => (
+const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted, accent = '#10b981' }) => (
   <style>{`
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
@@ -35,7 +35,7 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
       overflow-x: hidden;
     }
     input, select, button, textarea { font-family: inherit; }
-    input:focus, select:focus, textarea:focus { outline: 2px solid #10b981; outline-offset: 1px; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid ${accent}; outline-offset: 1px; }
     select option { background: ${bg3}; color: ${text}; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -45,7 +45,7 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-5px);opacity:1} }
-    @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
+    @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
     .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
@@ -61,7 +61,7 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     }
     .pill-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .pill-nav::-webkit-scrollbar { display: none; }
-    input[type=range] { accent-color: #10b981; cursor: pointer; width: 100%; }
+    input[type=range] { accent-color: ${accent}; cursor: pointer; width: 100%; }
     @media (max-width: 768px) {
       .top-nav { display: none !important; }
       .bot-nav { display: flex !important; }
@@ -78,7 +78,7 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
 );
 
 export default function App() {
-  const { darkMode, setDarkMode, T } = useTheme();
+  const { darkMode, setDarkMode, T, accentKey, setAccent } = useTheme();
   const data = useData();
   const [tab, setTab] = useState('accueil');
 
@@ -118,12 +118,14 @@ export default function App() {
 
   return (
     <>
-      <GlobalCSS {...T} />
+      <GlobalCSS {...T} accent={T.accent} />
       <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
         <Header
           T={T}
           darkMode={darkMode}
           setDarkMode={setDarkMode}
+          accentKey={accentKey}
+          setAccent={setAccent}
           tab={tab}
           setTab={setTab}
           TABS={TABS}

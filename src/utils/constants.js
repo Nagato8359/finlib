@@ -32,7 +32,7 @@ export const LK = {
 export const makeS = T => ({
   card: { background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '20px 24px' },
   inp: { background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 8, color: T.text, padding: '9px 12px', fontSize: 13, outline: 'none', width: '100%', fontFamily: 'inherit' },
-  btnG: { background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', borderRadius: 8, color: '#fff', padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  btnG: { background: `linear-gradient(135deg,${T.accent || '#10b981'},${T.accentDark || '#059669'})`, border: 'none', borderRadius: 8, color: '#fff', padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   btnS: { background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, color: T.textMuted, padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
   btnD: { background: 'rgba(248,113,113,0.10)', border: 'none', borderRadius: 8, color: '#f87171', padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
 });

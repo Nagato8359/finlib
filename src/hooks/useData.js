@@ -687,6 +687,52 @@ export function useData() {
     a.click();
   };
 
+  const exportDataJSON = () => {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      transactions, investments, savings, health_assets: healthAssets,
+      loans, debts, goals, listings, sold_history: soldHistory,
+    };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+    a.download = `capitaly-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+  };
+
+  const importJSON = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const d = JSON.parse(e.target.result);
+        if (d.transactions?.length)   setTransactions(d.transactions);
+        if (d.investments?.length)    setInvestments(d.investments);
+        if (d.savings?.length)        setSavings(d.savings);
+        if (d.health_assets?.length)  setHealthAssets(d.health_assets);
+        if (d.loans?.length)          setLoans(d.loans);
+        if (d.debts?.length)          setDebts(d.debts);
+        if (d.goals?.length)          setGoals(d.goals);
+        if (d.listings?.length)       setListings(d.listings);
+        if (d.sold_history?.length)   setSoldHistory(d.sold_history);
+        resolve(true);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+
+  const deleteAccount = async () => {
+    if (!userRef.current) return;
+    await supabase.from('user_data').delete().eq('user_id', userRef.current.id);
+    await supabase.auth.signOut();
+    dataLoaded.current = false;
+    setTransactions([]); setInvestments([]); setHealthAssets([]);
+    setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]);
+    setListings([]); setSoldHistory([]);
+    setLoans([]); setDebts([]);
+    setUser(null);
+  };
+
   return {
     user, authLoading, demoMode, handleLogout, activateDemo,
     transactions, investments, healthAssets, budgets, setBudgets,
@@ -709,7 +755,7 @@ export function useData() {
     income, expense, balance, savingsRate, pnlTotal,
     totalLoanDebt, totalConsumerDebt, totalDebt, monthlyDebtPayments, endettementRate,
     score, alerts, budgetProgress, monthlyData, catData, projData,
-    invLiveValue, invLiveInvested, setInvestments, exportCSV,
+    invLiveValue, invLiveInvested, setInvestments,
     computeForecast, importTransactions,
     saveTx, delTx, openEditTx,
     saveInv, delInv, openEditInv,
@@ -724,5 +770,6 @@ export function useData() {
     divForm, setDivForm, divInvId, setDivInvId,
     addDividend, delDividend,
     allDividends, divThisYear, divByMonth,
+    exportCSV, exportDataJSON, importJSON, deleteAccount,
   };
 }
