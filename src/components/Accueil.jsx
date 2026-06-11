@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
@@ -91,6 +91,8 @@ export default function Accueil({ T, data, setTab }) {
   const [openPerf, setOpenPerf]   = useState(null); // 'inv'|'revenus'|'depenses'|'ventes'|'epargne'
   const [openInvId, setOpenInvId] = useState(null); // envelope sub-accordion
   const [openCat, setOpenCat]     = useState(null); // dépenses category sub-accordion
+  const perfPricesCache = useRef({}); // { 'KEY__TF': { changePct, loading, error } }
+  const [perfPrices, setPerfPrices] = useState({});
 
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
@@ -100,6 +102,43 @@ export default function Accueil({ T, data, setTab }) {
     investments, invLiveValue, invLiveInvested,
     soldHistory,
   } = data;
+
+  // ── Performance prices — fetch period % via /api/performance ────────────
+  useEffect(() => {
+    if (perfTf === 'TOUT') return;
+    const seen = new Set();
+    const toFetch = [];
+    (investments || []).forEach(inv => {
+      const isCrypto = /crypto/i.test(inv.type || '');
+      (inv.positions || []).forEach(p => {
+        const key = (p.isin || p.ticker || '').toUpperCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        const cacheKey = `${key}__${perfTf}`;
+        if (cacheKey in perfPricesCache.current) return;
+        perfPricesCache.current[cacheKey] = { loading: true };
+        toFetch.push({ key, cacheKey, isCrypto });
+      });
+    });
+    if (toFetch.length === 0) return;
+    // Trigger re-render to show loading state
+    setPerfPrices({ ...perfPricesCache.current });
+
+    Promise.allSettled(
+      toFetch.map(({ key, cacheKey }) =>
+        fetch(`/api/performance?key=${encodeURIComponent(key)}&tf=${perfTf}`)
+          .then(r => r.json())
+          .then(data => {
+            perfPricesCache.current[cacheKey] = data.error
+              ? { error: data.error }
+              : { changePct: data.changePct };
+          })
+          .catch(err => {
+            perfPricesCache.current[cacheKey] = { error: err.message };
+          })
+      )
+    ).then(() => setPerfPrices({ ...perfPricesCache.current }));
+  }, [perfTf, investments]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Patrimoine history ───────────────────────────────────────────────────
   const patrimoineHistory = useMemo(() => {
@@ -464,13 +503,24 @@ export default function Accueil({ T, data, setTab }) {
                           <div style={{ background: T.bg3 || T.bg2 }}>
                             {(inv.positions || []).length === 0 && <div style={{ padding: '8px 14px', fontSize: 11, color: T.textFaint }}>Aucune position renseignée</div>}
                             {(inv.positions || []).map((p, pi) => {
-                              const liveKey = p.isin || p.ticker;
+                              const liveKey = (p.isin || p.ticker || '').toUpperCase();
                               const livePrice = (liveKey && data.prices?.[liveKey]) || p.currentPrice || 0;
                               const posVal = (p.shares || 0) * livePrice;
                               const posBuy = (p.shares || 0) * (p.buyPrice || 0);
                               const posPV = posVal - posBuy; const posPVPct = posBuy > 0 ? (posPV / posBuy) * 100 : 0;
                               const posName = p.name || p.ticker || p.isin || p.commodityType || `Position ${pi + 1}`;
-                              const posCol = posPV >= 0 ? '#4ade80' : '#f87171';
+
+                              // Period % from API (when not TOUT)
+                              const priceEntry = liveKey ? perfPrices[`${liveKey}__${perfTf}`] : null;
+                              const periodPct = priceEntry?.changePct;
+                              const periodLoading = priceEntry?.loading;
+                              const usePeriod = perfTf !== 'TOUT' && liveKey;
+                              const dispPct = usePeriod ? periodPct : posPVPct;
+                              const dispPV  = usePeriod
+                                ? (periodPct != null ? posVal * periodPct / 100 : null)
+                                : posPV;
+                              const posCol = (dispPct ?? 0) >= 0 ? '#4ade80' : '#f87171';
+
                               return (
                                 <div key={p.id || pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderTop: `1px solid ${T.cardBorder}` }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -479,7 +529,15 @@ export default function Accueil({ T, data, setTab }) {
                                   </div>
                                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                     <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{fEur(posVal, true)}</div>
-                                    {posBuy > 0 && <div style={{ fontSize: 10, color: posCol }}>{posPV >= 0 ? '+' : ''}{fEur(posPV, true)} ({posPVPct >= 0 ? '+' : ''}{posPVPct.toFixed(1)}%)</div>}
+                                    {periodLoading && usePeriod
+                                      ? <div style={{ fontSize: 10, color: T.textFaint }}>…</div>
+                                      : (dispPct != null || (!usePeriod && posBuy > 0)) && (
+                                        <div style={{ fontSize: 10, color: posCol }}>
+                                          {dispPV != null ? `${dispPV >= 0 ? '+' : ''}${fEur(dispPV, true)} ` : ''}
+                                          ({(dispPct ?? 0) >= 0 ? '+' : ''}{(dispPct ?? 0).toFixed(2)}%)
+                                        </div>
+                                      )
+                                    }
                                   </div>
                                 </div>
                               );

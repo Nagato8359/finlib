@@ -135,4 +135,4 @@ async function resolvePriceByKey(key) {
   return resolvePrice(key);
 }
 
-module.exports = { resolvePrice, resolvePriceByKey };
+module.exports = { resolvePrice, resolvePriceByKey, CRYPTO_MAP, isinToTicker, yfGet, YF_UA };
