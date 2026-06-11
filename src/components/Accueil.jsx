@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
 import { TT, makeS, fEur, fPct, fDate, MONTHS } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
+import { computeTrophies } from '../utils/trophies';
+import Confetti from './Confetti';
 
 const TF_DAYS = { '1J': 1, '7J': 7, '1M': 30, '3M': 90, '1AN': 365 };
 const PERF_TF_DAYS = { '1J': 1, '1S': 7, '1M': 30, '3M': 90, '1AN': 365, 'TOUT': null };
@@ -85,6 +87,7 @@ export default function Accueil({ T, data, setTab }) {
   const { t } = useTranslation();
   const [chartTf, setChartTf] = useState('1M');
   const [perfTf, setPerfTf] = useState('1M');
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
@@ -170,6 +173,25 @@ export default function Accueil({ T, data, setTab }) {
 
     return { total, invPV, invPVPct, invInvestedTotal, revenues, depenses, ventes, epargneNette };
   }, [perfTf, investments, invLiveValue, invLiveInvested, invInvested, transactions, soldHistory]);
+
+  // ── Trophées ─────────────────────────────────────────────────────────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const trophyResult = useMemo(() => computeTrophies(data), [
+    data.patrimoine, data.investments, data.invLiveValue, data.savingsRate,
+    data.transactions, data.budgets, data.goals, data.soldHistory,
+    data.score, data.user,
+  ]);
+
+  useEffect(() => {
+    const notified = JSON.parse(localStorage.getItem('ct_notified_trophies') || '[]');
+    const newOnes = trophyResult.trophies.filter(t => t.unlocked && !notified.includes(t.id));
+    if (newOnes.length > 0) {
+      setShowConfetti(true);
+      localStorage.setItem('ct_notified_trophies', JSON.stringify([...notified, ...newOnes.map(t => t.id)]));
+    }
+  }, [trophyResult]);
+
+  const handleConfettiDone = useCallback(() => setShowConfetti(false), []);
 
   // ── Asset cards ──────────────────────────────────────────────────────────
   const assetCards = useMemo(() => {
@@ -407,6 +429,68 @@ export default function Accueil({ T, data, setTab }) {
           })}
         </div>
       </div>
+
+      {/* ── Trophées & Statut ─────────────────────────────────────────── */}
+      <div style={{ ...card }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            🏆 Trophées & Statut
+          </div>
+          <span style={{ fontSize: 11, color: T.textFaint }}>Menu ≡ → Trophées pour le détail</span>
+        </div>
+
+        {/* Status + progress */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 32, lineHeight: 1 }}>{trophyResult.status.icon}</span>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{trophyResult.status.label}</div>
+              <div style={{ fontSize: 11, color: T.textFaint }}>{trophyResult.totalPoints} pts</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 10, color: T.textFaint }}>
+              <span>{trophyResult.status.icon} {trophyResult.status.label}</span>
+              {trophyResult.nextStatus && <span>{trophyResult.nextStatus.icon} {trophyResult.nextStatus.label}</span>}
+            </div>
+            <div style={{ background: T.cardBorder, borderRadius: 6, height: 7, overflow: 'hidden' }}>
+              <div style={{ width: `${trophyResult.progressPct}%`, height: '100%', background: `linear-gradient(90deg,${T.accent || '#10b981'},${T.accent || '#10b981'}cc)`, borderRadius: 6, transition: 'width .5s' }} />
+            </div>
+            {trophyResult.nextStatus && (
+              <div style={{ fontSize: 10, color: T.textFaint, marginTop: 3, textAlign: 'right' }}>
+                {trophyResult.pointsToNext} pts pour {trophyResult.nextStatus.label}
+              </div>
+            )}
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: T.accent || '#10b981', letterSpacing: '-.03em' }}>{trophyResult.unlockedCount}</div>
+            <div style={{ fontSize: 10, color: T.textFaint }}>/ {trophyResult.totalCount} trophées</div>
+          </div>
+        </div>
+
+        {/* Recent unlocked trophies */}
+        {trophyResult.unlockedCount > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {trophyResult.trophies.filter(t => t.unlocked).slice(0, 6).map(t => (
+              <div key={t.id} title={`${t.name} — ${t.desc} (+${t.pts} pts)`}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: (T.accent || '#10b981') + '12', border: `1px solid ${(T.accent || '#10b981')}33`, borderRadius: 20 }}>
+                <span style={{ fontSize: 14, lineHeight: 1 }}>{t.icon}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{t.name}</span>
+              </div>
+            ))}
+            {trophyResult.unlockedCount > 6 && (
+              <div style={{ padding: '5px 10px', background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 20, fontSize: 11, color: T.textMuted }}>
+                +{trophyResult.unlockedCount - 6} autres
+              </div>
+            )}
+          </div>
+        )}
+        {trophyResult.unlockedCount === 0 && (
+          <div style={{ fontSize: 13, color: T.textFaint, textAlign: 'center', padding: '12px 0' }}>Aucun trophée débloqué pour l'instant 🔒</div>
+        )}
+      </div>
+
+      <Confetti active={showConfetti} onDone={handleConfettiDone} />
 
       {/* ── Asset cards horizontal scroll ──────────────────────────────── */}
       {assetCards.length > 0 && (

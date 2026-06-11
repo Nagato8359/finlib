@@ -4,6 +4,7 @@ import { ACCENT_OPTIONS } from '../hooks/useTheme';
 import { requestNotifPermission } from '../utils/notifications';
 import { useTranslation } from '../hooks/useTranslation';
 import ProfilePage from './ProfilePage';
+import TrophiesPage from './TrophiesPage';
 
 const CURRENCIES   = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
 const DATE_FORMATS = [
@@ -36,6 +37,7 @@ export default function Header({
 
   const [menuOpen, setMenuOpen]           = useState(false);
   const [profilePage, setProfilePage]     = useState(false);
+  const [trophiesPage, setTrophiesPage]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [importFeedback, setImportFeedback] = useState('');
   const [displayName, setDisplayName]     = useState(() => localStorage.getItem('ct_displayname') || '');
@@ -54,7 +56,7 @@ export default function Header({
     return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
   }, [menuOpen]);
 
-  const closeMenu = () => { setMenuOpen(false); setProfilePage(false); setDeleteConfirm(false); setImportFeedback(''); };
+  const closeMenu = () => { setMenuOpen(false); setProfilePage(false); setTrophiesPage(false); setDeleteConfirm(false); setImportFeedback(''); };
 
   const handleNotif = async () => {
     const next = !notifEnabled;
@@ -161,7 +163,7 @@ export default function Header({
           {menuOpen && (
             <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
 
-              {/* ── Profile page overlay ───────────────────────────────── */}
+              {/* ── Overlay pages ─────────────────────────────────────── */}
               {profilePage ? (
                 <ProfilePage
                   T={T}
@@ -174,6 +176,13 @@ export default function Header({
                   setLanguage={setLanguage}
                   notifEnabled={notifEnabled}
                   handleNotif={handleNotif}
+                />
+              ) : trophiesPage ? (
+                <TrophiesPage
+                  T={T}
+                  accent={accent}
+                  onBack={() => setTrophiesPage(false)}
+                  data={data}
                 />
               ) : (
               <>
@@ -201,6 +210,7 @@ export default function Header({
                   {!demoMode && (
                     <MBtn icon="✎" label={t('menu_edit_profile')} onClick={() => setProfilePage(true)} />
                   )}
+                  <MBtn icon="🏆" label="Trophées & Statut" onClick={() => setTrophiesPage(true)} />
                   <Divider />
                 </>
               )}
