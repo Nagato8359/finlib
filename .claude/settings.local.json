@@ -27,7 +27,11 @@
       "Bash(npx vercel *)",
       "Bash(vercel logs *)",
       "PowerShell(Get-Content *)",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\alexa\\\\finlib\\\\src\\\\components\\\\Modals.jsx\" | Measure-Object -Line\\).Lines)",
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\alexa\\\\finlib\\\\src\\\\components\\\\Patrimoine.jsx\" | Measure-Object -Line\\).Lines)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\alexa\\\\finlib\\\\src\\\\i18n\")",
+      "Bash(Out-Null)"
     ]
   }
 }
