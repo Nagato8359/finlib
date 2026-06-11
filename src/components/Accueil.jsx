@@ -9,7 +9,8 @@ export default function Accueil({ T, data, setTab }) {
   const [chartTf, setChartTf] = useState('1M');
 
   const {
-    transactions, patrimoine, invTotal, cashTotal, healthTotal,
+    transactions, patrimoine, patrimoineNet, linkedLoanDebt,
+    invTotal, cashTotal, healthTotal,
     income, balance, savingsRate, score, alerts,
     goals, pnlTotal, invInvested, healthCost, catData,
   } = data;
@@ -20,11 +21,12 @@ export default function Accueil({ T, data, setTab }) {
     const now = new Date();
     const points = [];
     const seen = new Set();
+    const baseNet = patrimoineNet ?? patrimoine;
     for (let i = days; i >= 0; i -= step) {
       const date = new Date(now.getTime() - i * 86400000);
       const futureTx = transactions.filter(t => new Date(t.date) > date && new Date(t.date) <= now);
       const cashDiff = futureTx.reduce((s, t) => s + t.amount, 0);
-      const val = Math.max(0, patrimoine - cashDiff);
+      const val = Math.max(0, baseNet - cashDiff);
       const label = days <= 7
         ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
         : days <= 30
@@ -32,11 +34,12 @@ export default function Accueil({ T, data, setTab }) {
         : MONTHS[date.getMonth()] + (days > 90 ? ` ${date.getFullYear().toString().slice(2)}` : '');
       if (!seen.has(label)) { seen.add(label); points.push({ label, Patrimoine: val }); }
     }
-    points.push({ label: 'Auj.', Patrimoine: Math.round(patrimoine) });
+    points.push({ label: 'Auj.', Patrimoine: Math.round(baseNet) });
     return points;
-  }, [chartTf, transactions, patrimoine]);
+  }, [chartTf, transactions, patrimoine, patrimoineNet]);
 
-  const change = patrimoineHistory.length > 1 ? patrimoine - patrimoineHistory[0].Patrimoine : 0;
+  const displayPatrimoine = patrimoineNet ?? patrimoine;
+  const change = patrimoineHistory.length > 1 ? displayPatrimoine - patrimoineHistory[0].Patrimoine : 0;
   const changePct = patrimoineHistory.length > 1 && patrimoineHistory[0].Patrimoine > 0
     ? (change / patrimoineHistory[0].Patrimoine) * 100 : 0;
 
@@ -49,8 +52,15 @@ export default function Accueil({ T, data, setTab }) {
       <div style={{ ...S.card }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Patrimoine total</div>
-            <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.04em', color: T.text }}>{fEur(patrimoine)}</div>
+            <div style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
+              Patrimoine total{linkedLoanDebt > 0 && <span style={{ marginLeft: 6, fontSize: 10, color: T.textFaint, fontWeight: 400 }}>valeur nette</span>}
+            </div>
+            <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.04em', color: T.text }}>{fEur(displayPatrimoine)}</div>
+            {linkedLoanDebt > 0 && (
+              <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 2 }}>
+                Brut : {fEur(patrimoine)} · Dettes immo : <span style={{ color: '#f87171' }}>−{fEur(linkedLoanDebt)}</span>
+              </div>
+            )}
             <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: change >= 0 ? '#4ade80' : '#f87171' }}>
                 {change >= 0 ? '+' : ''}{fEur(change, true)} ({fPct(changePct)})
@@ -94,7 +104,7 @@ export default function Accueil({ T, data, setTab }) {
 
       {/* KPIs */}
       <div className="g4">
-        <KPI T={T} label="Patrimoine total" value={fEur(patrimoine, true)}
+        <KPI T={T} label="Patrimoine total" value={fEur(displayPatrimoine, true)}
           sub={fPct((pnlTotal / Math.max(1, invInvested + healthCost)) * 100)} icon="🏛️" />
         <KPI T={T} label="Revenus du mois" value={fEur(income, true)} accent="#4ade80" icon="💰" />
         <KPI T={T} label="Taux d'épargne" value={Math.round(savingsRate) + '%'}
@@ -113,7 +123,7 @@ export default function Accueil({ T, data, setTab }) {
         <div style={{ ...S.card }}>
           <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Répartition du patrimoine</h3>
           {[
-            { label: 'Investissements', val: invTotal, color: '#10b981', icon: '📈', onClick: () => setTab('patrimoine') },
+            { label: linkedLoanDebt > 0 ? 'Investissements (net)' : 'Investissements', val: invTotal - (linkedLoanDebt || 0), color: '#10b981', icon: '📈', onClick: () => setTab('patrimoine') },
             { label: 'Épargne & Cash', val: cashTotal, color: '#34d399', icon: '🏦', onClick: () => setTab('patrimoine') },
             { label: 'Patrimoine matériel', val: healthTotal, color: '#60a5fa', icon: '🏠', onClick: () => setTab('patrimoine') },
           ].map(({ label, val, color, icon, onClick }) => (
@@ -124,7 +134,7 @@ export default function Accueil({ T, data, setTab }) {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color }}>{fEur(val, true)}</div>
-                <div style={{ fontSize: 11, color: T.textMuted }}>{patrimoine > 0 ? ((val / patrimoine) * 100).toFixed(0) : 0}%</div>
+                <div style={{ fontSize: 11, color: T.textMuted }}>{displayPatrimoine > 0 ? ((val / displayPatrimoine) * 100).toFixed(0) : 0}%</div>
               </div>
             </div>
           ))}
@@ -168,7 +178,7 @@ export default function Accueil({ T, data, setTab }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 12 }}>
             {goals.map(g => {
-              const pct = Math.min(100, (data.patrimoine / g.target) * 100);
+              const pct = Math.min(100, (displayPatrimoine / g.target) * 100);
               const monthsLeft = Math.max(0, Math.round((new Date(g.deadline) - new Date()) / (1000 * 60 * 60 * 24 * 30)));
               return (
                 <div key={g.id} style={{ background: T.bg2, borderRadius: 12, padding: 14, borderLeft: `3px solid ${g.color}` }}>
@@ -181,7 +191,7 @@ export default function Accueil({ T, data, setTab }) {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                     <span style={{ color: g.color, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
-                    <span style={{ color: T.textMuted }}>{fEur(data.patrimoine, true)} / {fEur(g.target, true)}</span>
+                    <span style={{ color: T.textMuted }}>{fEur(displayPatrimoine, true)} / {fEur(g.target, true)}</span>
                   </div>
                 </div>
               );

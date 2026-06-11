@@ -360,6 +360,14 @@ export function useData() {
   const pnlTotal   = (invTotal - invInvested) + (healthTotal - healthCost);
 
   const totalLoanDebt     = computedLoans.reduce((s, l) => s + l.computedRemaining, 0);
+  // Debt explicitly linked to an investment (immo loanId) — used for net patrimoine
+  const linkedLoanDebt = investments
+    .filter(inv => inv.loanId)
+    .reduce((s, inv) => {
+      const loan = computedLoans.find(l => l.id === inv.loanId);
+      return s + (loan?.computedRemaining || 0);
+    }, 0);
+  const patrimoineNet = patrimoine - linkedLoanDebt;
   const totalConsumerDebt = debts.reduce((s, d) => s + (parseFloat(d.capitalRemaining) || 0), 0);
   const totalDebt         = totalLoanDebt + totalConsumerDebt;
   const monthlyLoanPayments = loans.reduce((s, l) => s + (parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0), 0);
@@ -692,7 +700,8 @@ export function useData() {
     posForm, setPosForm, goalForm, setGoalForm, cashForm, setCashForm,
     listingForm, setListingForm, loanForm, setLoanForm, debtForm, setDebtForm,
     mkTx, mkInv, mkHealth, mkPos, mkGoal, mkCash, mkListing, mkLoan, mkDebt, mkPortfolio,
-    patrimoine, invTotal, invInvested, cashTotal, healthTotal, healthCost,
+    patrimoine, patrimoineNet, linkedLoanDebt,
+    invTotal, invInvested, cashTotal, healthTotal, healthCost,
     annualInterests, avgRate,
     listingsBuyTotal: listings.reduce((s, l) => s + l.buyPrice, 0),
     listingsSellTotal: listings.reduce((s, l) => s + l.sellPrice, 0),

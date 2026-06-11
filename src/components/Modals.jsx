@@ -250,6 +250,14 @@ export default function Modals({ T, data }) {
               <FField style={f} label="Loyer mensuel (€)"><input type="number" placeholder="0" style={S.inp} value={portfolioForm.loyerMensuel} onChange={e => setPortfolioForm(p => ({ ...p, loyerMensuel: e.target.value }))} /></FField>
               <FField style={f} label="Charges mensuelles (€)"><input type="number" placeholder="0" style={S.inp} value={portfolioForm.chargesMensuelles} onChange={e => setPortfolioForm(p => ({ ...p, chargesMensuelles: e.target.value }))} /></FField>
             </FRow>
+            <FRow cols={1}>
+              <FField style={f} label="Crédit associé">
+                <select style={S.inp} value={portfolioForm.loanId} onChange={e => setPortfolioForm(p => ({ ...p, loanId: e.target.value }))}>
+                  <option value="">— Aucun crédit —</option>
+                  {computedLoans.map(l => <option key={l.id} value={l.id}>{l.name} — {fEur(l.computedRemaining)} restants</option>)}
+                </select>
+              </FField>
+            </FRow>
           </>
         )}
 

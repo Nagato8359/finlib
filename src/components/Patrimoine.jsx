@@ -50,7 +50,7 @@ export default function Patrimoine({ T, data }) {
     computedSavings, cashTotal, annualInterests, avgRate,
     healthAssets, healthTotal, healthCost,
     listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit, soldProfitThisYear,
-    computedLoans, totalLoanDebt,
+    computedLoans, totalLoanDebt, linkedLoanDebt,
     patrimoine, projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly, projData,
     setModal, setEditItem, setDrillInv, drillInv, setDivInvId,
     openEditPortfolio, delInv, openEditCash, delCash, openEditHealth, delHealth,
@@ -166,6 +166,37 @@ export default function Patrimoine({ T, data }) {
               {cur.notes && <span style={{ fontSize: 12, color: T.textMuted, width: '100%' }}>Notes : <em style={{ color: T.text }}>{cur.notes}</em></span>}
             </div>
           </div>
+
+          {/* Financement immo (crédit lié) */}
+          {type === 'Immobilier' && cur.loanId && (() => {
+            const linkedLoan = computedLoans.find(l => l.id === cur.loanId);
+            if (!linkedLoan) return null;
+            const monthly = (parseFloat(linkedLoan.monthlyPayment) || 0) + (parseFloat(linkedLoan.insuranceAmount) || 0);
+            const netValue = lv - linkedLoan.computedRemaining;
+            const loyer = parseFloat(cur.loyerMensuel) || 0;
+            const charges = parseFloat(cur.chargesMensuelles) || 0;
+            const effort = loyer - monthly - charges;
+            return (
+              <div style={{ ...S.card, borderLeft: '3px solid #f87171' }}>
+                <h3 style={{ fontSize: 12, color: T.textMuted, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '.04em' }}>Financement — {linkedLoan.name}</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
+                  {[
+                    { label: 'Valeur brute', val: fEur(lv), color: typeColor },
+                    { label: 'Capital restant dû', val: fEur(linkedLoan.computedRemaining), color: '#f87171' },
+                    { label: 'Valeur nette', val: fEur(netValue), color: netValue >= 0 ? '#4ade80' : '#f87171' },
+                    { label: 'Mensualité totale', val: fEur(monthly) + '/mois', color: '#fb923c' },
+                    ...(loyer > 0 ? [{ label: 'Effort d\'épargne', val: fEur(effort) + '/mois', color: effort >= 0 ? '#4ade80' : '#f87171', hint: 'Loyer − mensualité − charges' }] : []),
+                  ].map(({ label, val, color, hint }) => (
+                    <div key={label} style={{ background: T.bg2, borderRadius: 10, padding: '10px 14px' }}>
+                      <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color }}>{val}</div>
+                      {hint && <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>{hint}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Positions */}
           {showPositions && (
@@ -898,7 +929,17 @@ export default function Patrimoine({ T, data }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>Patrimoine</h1>
-          <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>Total : <strong style={{ color: '#10b981' }}>{fEur(patrimoine)}</strong></p>
+          <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>
+            {linkedLoanDebt > 0 ? (
+              <>
+                Brut : <strong style={{ color: '#10b981' }}>{fEur(patrimoine)}</strong>
+                {' · '}Net : <strong style={{ color: '#4ade80' }}>{fEur(patrimoine - linkedLoanDebt)}</strong>
+                <span style={{ fontSize: 11, color: T.textFaint }}> (après dettes immo)</span>
+              </>
+            ) : (
+              <>Total : <strong style={{ color: '#10b981' }}>{fEur(patrimoine)}</strong></>
+            )}
+          </p>
         </div>
       </div>
       <SubNav />
