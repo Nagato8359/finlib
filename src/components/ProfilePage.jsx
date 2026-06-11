@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const SITUATIONS_FAMILIALES = ['Célibataire', 'En couple', 'Marié(e)', 'Pacsé(e)', 'Divorcé(e)', 'Veuf/Veuve'];
@@ -9,32 +9,6 @@ const EMPTY_PROFILE = {
   telephone: '', adresse: '', codePostal: '', ville: '', pays: '',
   statut: '', employeur: '', revenuMensuel: '', anciennete: '',
 };
-
-// ── Sous-composants au niveau module (jamais recréés à chaque render) ─────────
-
-function SectionTitle({ T, icon, label }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px', paddingBottom: 8, borderBottom: `1px solid ${T.cardBorder}` }}>
-      <span style={{ fontSize: 13 }}>{icon}</span>
-      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>{label}</span>
-    </div>
-  );
-}
-
-function Field({ T, label, children, half }) {
-  return (
-    <div style={{ flex: half ? '0 0 calc(50% - 5px)' : '1 1 100%', marginBottom: 8 }}>
-      <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
-      {children}
-    </div>
-  );
-}
-
-function Row({ children }) {
-  return <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>{children}</div>;
-}
-
-// ── Composant principal ───────────────────────────────────────────────────────
 
 export default function ProfilePage({ T, user, accent, onBack, currency, setCurrency, language, setLanguage, notifEnabled, handleNotif }) {
   const [profile, setProfile] = useState(EMPTY_PROFILE);
@@ -58,9 +32,26 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
     load();
   }, [user?.id]);
 
-  const set = (key, val) => setProfile(prev => ({ ...prev, [key]: val }));
+  // Stable references — never recreated during typing
+  const set = useCallback((key, val) => setProfile(prev => ({ ...prev, [key]: val })), []);
 
-  const save = async () => {
+  const inp = useMemo(() => ({
+    width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`,
+    borderRadius: 8, color: T.text, padding: '8px 10px', fontSize: 13,
+    outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+  }), [T.inputBg, T.inputBorder, T.text]);
+
+  const lbl = useMemo(() => ({
+    fontSize: 10, color: T.textMuted, marginBottom: 4,
+    fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em',
+  }), [T.textMuted]);
+
+  const secTitleStyle = useMemo(() => ({
+    display: 'flex', alignItems: 'center', gap: 8,
+    margin: '18px 0 10px', paddingBottom: 8, borderBottom: `1px solid ${T.cardBorder}`,
+  }), [T.cardBorder]);
+
+  const save = useCallback(async () => {
     if (newPwd && newPwd !== confirmPwd) {
       setMsg({ type: 'err', text: '❌ Les mots de passe ne correspondent pas' });
       return;
@@ -94,13 +85,8 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
       setMsg({ type: 'err', text: '❌ ' + (e.message || "Erreur lors de l'enregistrement") });
     }
     setSaving(false);
-  };
-
-  const inp = {
-    width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`,
-    borderRadius: 8, color: T.text, padding: '8px 10px', fontSize: 13,
-    outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newPwd, confirmPwd, profile, user?.id]);
 
   const initials = ([profile.prenom?.[0], profile.nom?.[0]].filter(Boolean).join('') || user?.email?.slice(0, 2) || '?').toUpperCase();
   const fullName = [profile.prenom, profile.nom].filter(Boolean).join(' ') || user?.email?.split('@')[0] || '';
@@ -113,6 +99,11 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
       </div>
     );
   }
+
+  // Styles for row/col layout — stable (depend only on T which doesn't change during typing)
+  const rowStyle = { display: 'flex', gap: 10, flexWrap: 'wrap' };
+  const halfStyle = { flex: '0 0 calc(50% - 5px)', marginBottom: 8 };
+  const fullStyle = { flex: '1 1 100%', marginBottom: 8 };
 
   return (
     <div>
@@ -140,93 +131,135 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
 
       <div style={{ padding: '0 2px' }}>
 
-        {/* IDENTITÉ */}
-        <SectionTitle T={T} icon="👤" label="Identité" />
-        <Row>
-          <Field T={T} label="Prénom" half>
+        {/* ── IDENTITÉ ── */}
+        <div style={secTitleStyle}>
+          <span style={{ fontSize: 13 }}>👤</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>Identité</span>
+        </div>
+
+        <div style={rowStyle}>
+          <div style={halfStyle}>
+            <div style={lbl}>Prénom</div>
             <input style={inp} value={profile.prenom} onChange={e => set('prenom', e.target.value)} placeholder="Jean" />
-          </Field>
-          <Field T={T} label="Nom" half>
+          </div>
+          <div style={halfStyle}>
+            <div style={lbl}>Nom</div>
             <input style={inp} value={profile.nom} onChange={e => set('nom', e.target.value)} placeholder="Dupont" />
-          </Field>
-        </Row>
-        <Row>
-          <Field T={T} label="Date de naissance" half>
+          </div>
+        </div>
+
+        <div style={rowStyle}>
+          <div style={halfStyle}>
+            <div style={lbl}>Date de naissance</div>
             <input style={inp} type="date" value={profile.dateNaissance} onChange={e => set('dateNaissance', e.target.value)} />
-          </Field>
-          <Field T={T} label="Nationalité" half>
+          </div>
+          <div style={halfStyle}>
+            <div style={lbl}>Nationalité</div>
             <input style={inp} value={profile.nationalite} onChange={e => set('nationalite', e.target.value)} placeholder="Française" />
-          </Field>
-        </Row>
-        <Row>
-          <Field T={T} label="Situation familiale" half>
+          </div>
+        </div>
+
+        <div style={rowStyle}>
+          <div style={halfStyle}>
+            <div style={lbl}>Situation familiale</div>
             <select style={inp} value={profile.situationFamiliale} onChange={e => set('situationFamiliale', e.target.value)}>
               <option value="">— Choisir —</option>
               {SITUATIONS_FAMILIALES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-          </Field>
-          <Field T={T} label="Nb. d'enfants" half>
+          </div>
+          <div style={halfStyle}>
+            <div style={lbl}>Nb. d'enfants</div>
             <input style={inp} type="number" min="0" max="20" value={profile.nbEnfants} onChange={e => set('nbEnfants', e.target.value)} placeholder="0" />
-          </Field>
-        </Row>
+          </div>
+        </div>
 
-        {/* COORDONNÉES */}
-        <SectionTitle T={T} icon="📍" label="Coordonnées" />
-        <Field T={T} label="Email">
+        {/* ── COORDONNÉES ── */}
+        <div style={secTitleStyle}>
+          <span style={{ fontSize: 13 }}>📍</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>Coordonnées</span>
+        </div>
+
+        <div style={fullStyle}>
+          <div style={lbl}>Email</div>
           <input style={{ ...inp, color: T.textFaint, cursor: 'not-allowed', opacity: 0.7 }} value={user?.email || ''} disabled />
-        </Field>
-        <Field T={T} label="Téléphone">
-          <input style={inp} type="tel" value={profile.telephone} onChange={e => set('telephone', e.target.value)} placeholder="+33 6 00 00 00 00" />
-        </Field>
-        <Field T={T} label="Adresse">
-          <input style={inp} value={profile.adresse} onChange={e => set('adresse', e.target.value)} placeholder="1 rue de la Paix" />
-        </Field>
-        <Row>
-          <Field T={T} label="Code postal" half>
-            <input style={inp} value={profile.codePostal} onChange={e => set('codePostal', e.target.value)} placeholder="75001" />
-          </Field>
-          <Field T={T} label="Ville" half>
-            <input style={inp} value={profile.ville} onChange={e => set('ville', e.target.value)} placeholder="Paris" />
-          </Field>
-        </Row>
-        <Field T={T} label="Pays">
-          <input style={inp} value={profile.pays} onChange={e => set('pays', e.target.value)} placeholder="France" />
-        </Field>
+        </div>
 
-        {/* SITUATION PROFESSIONNELLE */}
-        <SectionTitle T={T} icon="💼" label="Situation professionnelle" />
-        <Row>
-          <Field T={T} label="Statut" half>
+        <div style={fullStyle}>
+          <div style={lbl}>Téléphone</div>
+          <input style={inp} type="tel" value={profile.telephone} onChange={e => set('telephone', e.target.value)} placeholder="+33 6 00 00 00 00" />
+        </div>
+
+        <div style={fullStyle}>
+          <div style={lbl}>Adresse</div>
+          <input style={inp} value={profile.adresse} onChange={e => set('adresse', e.target.value)} placeholder="1 rue de la Paix" />
+        </div>
+
+        <div style={rowStyle}>
+          <div style={halfStyle}>
+            <div style={lbl}>Code postal</div>
+            <input style={inp} value={profile.codePostal} onChange={e => set('codePostal', e.target.value)} placeholder="75001" />
+          </div>
+          <div style={halfStyle}>
+            <div style={lbl}>Ville</div>
+            <input style={inp} value={profile.ville} onChange={e => set('ville', e.target.value)} placeholder="Paris" />
+          </div>
+        </div>
+
+        <div style={fullStyle}>
+          <div style={lbl}>Pays</div>
+          <input style={inp} value={profile.pays} onChange={e => set('pays', e.target.value)} placeholder="France" />
+        </div>
+
+        {/* ── SITUATION PROFESSIONNELLE ── */}
+        <div style={secTitleStyle}>
+          <span style={{ fontSize: 13 }}>💼</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>Situation professionnelle</span>
+        </div>
+
+        <div style={rowStyle}>
+          <div style={halfStyle}>
+            <div style={lbl}>Statut</div>
             <select style={inp} value={profile.statut} onChange={e => set('statut', e.target.value)}>
               <option value="">— Choisir —</option>
               {STATUTS_PRO.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-          </Field>
-          <Field T={T} label="Ancienneté (ans)" half>
+          </div>
+          <div style={halfStyle}>
+            <div style={lbl}>Ancienneté (ans)</div>
             <input style={inp} type="number" min="0" value={profile.anciennete} onChange={e => set('anciennete', e.target.value)} placeholder="0" />
-          </Field>
-        </Row>
-        <Row>
-          <Field T={T} label="Employeur" half>
-            <input style={inp} value={profile.employeur} onChange={e => set('employeur', e.target.value)} placeholder="Entreprise" />
-          </Field>
-          <Field T={T} label="Revenu mensuel net (€)" half>
-            <input style={inp} type="number" min="0" value={profile.revenuMensuel} onChange={e => set('revenuMensuel', e.target.value)} placeholder="2 500" />
-          </Field>
-        </Row>
+          </div>
+        </div>
 
-        {/* SÉCURITÉ */}
-        <SectionTitle T={T} icon="🔒" label="Sécurité" />
-        <Field T={T} label="Nouveau mot de passe">
+        <div style={rowStyle}>
+          <div style={halfStyle}>
+            <div style={lbl}>Employeur</div>
+            <input style={inp} value={profile.employeur} onChange={e => set('employeur', e.target.value)} placeholder="Entreprise" />
+          </div>
+          <div style={halfStyle}>
+            <div style={lbl}>Revenu mensuel net (€)</div>
+            <input style={inp} type="number" min="0" value={profile.revenuMensuel} onChange={e => set('revenuMensuel', e.target.value)} placeholder="2 500" />
+          </div>
+        </div>
+
+        {/* ── SÉCURITÉ ── */}
+        <div style={secTitleStyle}>
+          <span style={{ fontSize: 13 }}>🔒</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>Sécurité</span>
+        </div>
+
+        <div style={fullStyle}>
+          <div style={lbl}>Nouveau mot de passe</div>
           <input
             style={inp} type="password" value={newPwd}
             onChange={e => { setNewPwd(e.target.value); setMsg(null); }}
             placeholder="Laisser vide pour ne pas modifier"
             autoComplete="new-password"
           />
-        </Field>
+        </div>
+
         {newPwd && (
-          <Field T={T} label="Confirmer le mot de passe">
+          <div style={fullStyle}>
+            <div style={lbl}>Confirmer le mot de passe</div>
             <input
               style={{ ...inp, borderColor: confirmPwd && confirmPwd !== newPwd ? '#f87171' : T.inputBorder }}
               type="password" value={confirmPwd}
@@ -234,27 +267,34 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
               placeholder="Répéter le nouveau mot de passe"
               autoComplete="new-password"
             />
-          </Field>
+          </div>
         )}
 
-        {/* PRÉFÉRENCES */}
-        <SectionTitle T={T} icon="⚙️" label="Préférences" />
-        <Row>
-          <Field T={T} label="Devise" half>
+        {/* ── PRÉFÉRENCES ── */}
+        <div style={secTitleStyle}>
+          <span style={{ fontSize: 13 }}>⚙️</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>Préférences</span>
+        </div>
+
+        <div style={rowStyle}>
+          <div style={halfStyle}>
+            <div style={lbl}>Devise</div>
             <select style={inp} value={currency} onChange={e => setCurrency(e.target.value)}>
               {['EUR','USD','GBP','CHF','JPY','CAD','AUD'].map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-          </Field>
-          <Field T={T} label="Langue" half>
+          </div>
+          <div style={halfStyle}>
+            <div style={lbl}>Langue</div>
             <select style={inp} value={language} onChange={e => setLanguage(e.target.value)}>
               <option value="fr">Français</option>
               <option value="en">English</option>
             </select>
-          </Field>
-        </Row>
+          </div>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 10px' }}>
           <div>
-            <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Notifications</div>
+            <div style={lbl}>Notifications</div>
             <div style={{ fontSize: 11, color: T.textFaint }}>Alertes et rappels</div>
           </div>
           <button
