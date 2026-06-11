@@ -7,6 +7,7 @@ import { TT, makeS, fEur, fPct, fDate, MONTHS } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 
 const TF_DAYS = { '1J': 1, '7J': 7, '1M': 30, '3M': 90, '1AN': 365 };
+const PERF_TF_DAYS = { '1J': 1, '1S': 7, '1M': 30, '3M': 90, '1AN': 365, 'TOUT': null };
 
 const TYPE_ICON = {
   'PEA': '📈', 'CTO': '📊', 'Assurance Vie': '🛡️', 'AV': '🛡️',
@@ -83,13 +84,15 @@ export default function Accueil({ T, data, setTab }) {
   const S = makeS(T);
   const { t } = useTranslation();
   const [chartTf, setChartTf] = useState('1M');
+  const [perfTf, setPerfTf] = useState('1M');
 
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
-    invTotal, cashTotal, healthTotal,
+    invTotal, invInvested, cashTotal, healthTotal,
     income, balance, savingsRate, score, alerts,
     goals, healthCost,
     investments, invLiveValue, invLiveInvested,
+    soldHistory,
   } = data;
 
   // ── Patrimoine history ───────────────────────────────────────────────────
@@ -128,6 +131,45 @@ export default function Accueil({ T, data, setTab }) {
     { name: t('accueil_epargne_cash'), value: cashTotal, color: '#34d399' },
     { name: t('accueil_materiel'), value: healthTotal, color: '#60a5fa' },
   ].filter(d => d.value > 0), [invTotal, cashTotal, healthTotal, t]);
+
+  // ── Performance globale ──────────────────────────────────────────────────
+  const perfData = useMemo(() => {
+    // PV latente investissements — toujours le total actuel (pas d'historique des prix)
+    let invPV = 0;
+    (investments || []).forEach(inv => {
+      const val = invLiveValue ? invLiveValue(inv) : (parseFloat(inv.value) || 0);
+      const invested = invLiveInvested ? invLiveInvested(inv) : (parseFloat(inv.invested) || 0);
+      invPV += val - invested;
+    });
+    const invInvestedTotal = parseFloat(invInvested) || 0;
+    const invPVPct = invInvestedTotal > 0 ? (invPV / invInvestedTotal) * 100 : 0;
+
+    // Filtre par timeframe
+    const days = PERF_TF_DAYS[perfTf];
+    const cutoff = days ? new Date(Date.now() - days * 86400000) : null;
+    const inPeriod = dateStr => !cutoff || new Date(dateStr) >= cutoff;
+
+    // Revenus et dépenses filtrés
+    let revenues = 0;
+    let depenses = 0;
+    (transactions || []).forEach(tx => {
+      if (!inPeriod(tx.date)) return;
+      if (tx.amount > 0) revenues += tx.amount;
+      else depenses += tx.amount; // déjà négatif
+    });
+
+    // Ventes réalisées filtrées
+    let ventes = 0;
+    (soldHistory || []).forEach(item => {
+      if (!inPeriod(item.soldDate)) return;
+      ventes += parseFloat(item.profit) || 0;
+    });
+
+    const epargneNette = revenues + depenses; // depenses déjà négatif
+    const total = invPV + revenues + depenses + ventes;
+
+    return { total, invPV, invPVPct, invInvestedTotal, revenues, depenses, ventes, epargneNette };
+  }, [perfTf, investments, invLiveValue, invLiveInvested, invInvested, transactions, soldHistory]);
 
   // ── Asset cards ──────────────────────────────────────────────────────────
   const assetCards = useMemo(() => {
@@ -280,6 +322,89 @@ export default function Accueil({ T, data, setTab }) {
               <div style={{ width: `${score}%`, height: '100%', background: scoreColor, borderRadius: 4, transition: 'width .5s' }} />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ── Performance globale ────────────────────────────────────────── */}
+      <div style={{ ...card }}>
+        {/* Header + timeframes */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            ⚡ Performance globale
+          </div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {Object.keys(PERF_TF_DAYS).map(tf => (
+              <button key={tf} onClick={() => setPerfTf(tf)} style={{
+                background: perfTf === tf ? 'rgba(16,185,129,.15)' : 'transparent',
+                border: `1px solid ${perfTf === tf ? '#10b981' : T.cardBorder}`,
+                color: perfTf === tf ? '#10b981' : T.textMuted,
+                borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+              }}>
+                {tf}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Chiffre principal */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: '-.04em', lineHeight: 1, color: perfData.total >= 0 ? '#4ade80' : '#f87171' }}>
+            {perfData.total >= 0 ? '+' : ''}{fEur(perfData.total)}
+          </div>
+          {perfData.invInvestedTotal > 0 && (
+            <div style={{
+              fontSize: 15, fontWeight: 700,
+              color: perfData.invPV >= 0 ? '#4ade80' : '#f87171',
+              background: perfData.invPV >= 0 ? 'rgba(16,185,129,.1)' : 'rgba(248,113,113,.1)',
+              padding: '4px 12px', borderRadius: 20,
+            }}>
+              {perfData.invPVPct >= 0 ? '+' : ''}{perfData.invPVPct.toFixed(2)}%
+              <span style={{ fontSize: 11, fontWeight: 400, marginLeft: 4, opacity: 0.7 }}>invest.</span>
+            </div>
+          )}
+        </div>
+
+        {/* Breakdown par source */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[
+            { icon: '📈', label: 'Investissements', sublabel: 'PV latente totale', value: perfData.invPV },
+            { icon: '💰', label: 'Revenus cumulés', value: perfData.revenues },
+            { icon: '💸', label: 'Dépenses cumulées', value: perfData.depenses },
+            { icon: '🏷️', label: 'Ventes réalisées', value: perfData.ventes },
+            { icon: '🎯', label: 'Épargne nette', sublabel: 'revenus − dépenses', value: perfData.epargneNette },
+          ].map(({ icon, label, sublabel, value }) => {
+            const isZero = Math.abs(value) < 0.01;
+            const color = isZero ? T.textFaint : value >= 0 ? '#4ade80' : '#f87171';
+            const absTot = Math.abs(perfData.total);
+            const contribPct = absTot > 0 ? (Math.abs(value) / absTot) * 100 : 0;
+            return (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: T.bg2, borderRadius: 12 }}>
+                <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}>{icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>{label}</span>
+                      {sublabel && <span style={{ fontSize: 10, color: T.textFaint, marginLeft: 6 }}>{sublabel}</span>}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color, whiteSpace: 'nowrap', marginLeft: 8 }}>
+                      {!isZero && value > 0 ? '+' : ''}{isZero ? '—' : fEur(value, true)}
+                    </span>
+                  </div>
+                  {!isZero && absTot > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                      <div style={{ flex: 1, background: T.cardBorder, borderRadius: 3, height: 3, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(100, contribPct)}%`, height: '100%', background: color, borderRadius: 3, transition: 'width .4s' }} />
+                      </div>
+                      <span style={{ fontSize: 10, color: T.textFaint, whiteSpace: 'nowrap', minWidth: 30, textAlign: 'right' }}>
+                        {contribPct.toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
