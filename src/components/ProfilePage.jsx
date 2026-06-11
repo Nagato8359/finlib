@@ -10,6 +10,32 @@ const EMPTY_PROFILE = {
   statut: '', employeur: '', revenuMensuel: '', anciennete: '',
 };
 
+// ── Sous-composants au niveau module (jamais recréés à chaque render) ─────────
+
+function SectionTitle({ T, icon, label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px', paddingBottom: 8, borderBottom: `1px solid ${T.cardBorder}` }}>
+      <span style={{ fontSize: 13 }}>{icon}</span>
+      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>{label}</span>
+    </div>
+  );
+}
+
+function Field({ T, label, children, half }) {
+  return (
+    <div style={{ flex: half ? '0 0 calc(50% - 5px)' : '1 1 100%', marginBottom: 8 }}>
+      <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function Row({ children }) {
+  return <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>{children}</div>;
+}
+
+// ── Composant principal ───────────────────────────────────────────────────────
+
 export default function ProfilePage({ T, user, accent, onBack, currency, setCurrency, language, setLanguage, notifEnabled, handleNotif }) {
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [newPwd, setNewPwd] = useState('');
@@ -65,7 +91,7 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
       setMsg({ type: 'ok', text: '✅ Profil enregistré' });
       setTimeout(() => setMsg(null), 3000);
     } catch (e) {
-      setMsg({ type: 'err', text: '❌ ' + (e.message || 'Erreur lors de l\'enregistrement') });
+      setMsg({ type: 'err', text: '❌ ' + (e.message || "Erreur lors de l'enregistrement") });
     }
     setSaving(false);
   };
@@ -75,26 +101,6 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
     borderRadius: 8, color: T.text, padding: '8px 10px', fontSize: 13,
     outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
   };
-
-  const sel = { ...inp };
-
-  const SectionTitle = ({ icon, label }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px', paddingBottom: 8, borderBottom: `1px solid ${T.cardBorder}` }}>
-      <span style={{ fontSize: 13 }}>{icon}</span>
-      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>{label}</span>
-    </div>
-  );
-
-  const Field = ({ label, children, half }) => (
-    <div style={{ flex: half ? '0 0 calc(50% - 5px)' : '1 1 100%', marginBottom: 8 }}>
-      <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
-      {children}
-    </div>
-  );
-
-  const Row = ({ children }) => (
-    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>{children}</div>
-  );
 
   const initials = ([profile.prenom?.[0], profile.nom?.[0]].filter(Boolean).join('') || user?.email?.slice(0, 2) || '?').toUpperCase();
   const fullName = [profile.prenom, profile.nom].filter(Boolean).join(' ') || user?.email?.split('@')[0] || '';
@@ -110,7 +116,7 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
 
   return (
     <div>
-      {/* Back header */}
+      {/* Retour */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 10px', borderBottom: `1px solid ${T.cardBorder}`, marginBottom: 2 }}>
         <button
           onClick={onBack}
@@ -135,83 +141,83 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
       <div style={{ padding: '0 2px' }}>
 
         {/* IDENTITÉ */}
-        <SectionTitle icon="👤" label="Identité" />
+        <SectionTitle T={T} icon="👤" label="Identité" />
         <Row>
-          <Field label="Prénom" half>
+          <Field T={T} label="Prénom" half>
             <input style={inp} value={profile.prenom} onChange={e => set('prenom', e.target.value)} placeholder="Jean" />
           </Field>
-          <Field label="Nom" half>
+          <Field T={T} label="Nom" half>
             <input style={inp} value={profile.nom} onChange={e => set('nom', e.target.value)} placeholder="Dupont" />
           </Field>
         </Row>
         <Row>
-          <Field label="Date de naissance" half>
+          <Field T={T} label="Date de naissance" half>
             <input style={inp} type="date" value={profile.dateNaissance} onChange={e => set('dateNaissance', e.target.value)} />
           </Field>
-          <Field label="Nationalité" half>
+          <Field T={T} label="Nationalité" half>
             <input style={inp} value={profile.nationalite} onChange={e => set('nationalite', e.target.value)} placeholder="Française" />
           </Field>
         </Row>
         <Row>
-          <Field label="Situation familiale" half>
-            <select style={sel} value={profile.situationFamiliale} onChange={e => set('situationFamiliale', e.target.value)}>
+          <Field T={T} label="Situation familiale" half>
+            <select style={inp} value={profile.situationFamiliale} onChange={e => set('situationFamiliale', e.target.value)}>
               <option value="">— Choisir —</option>
               {SITUATIONS_FAMILIALES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Nb. d'enfants" half>
+          <Field T={T} label="Nb. d'enfants" half>
             <input style={inp} type="number" min="0" max="20" value={profile.nbEnfants} onChange={e => set('nbEnfants', e.target.value)} placeholder="0" />
           </Field>
         </Row>
 
         {/* COORDONNÉES */}
-        <SectionTitle icon="📍" label="Coordonnées" />
-        <Field label="Email">
+        <SectionTitle T={T} icon="📍" label="Coordonnées" />
+        <Field T={T} label="Email">
           <input style={{ ...inp, color: T.textFaint, cursor: 'not-allowed', opacity: 0.7 }} value={user?.email || ''} disabled />
         </Field>
-        <Field label="Téléphone">
+        <Field T={T} label="Téléphone">
           <input style={inp} type="tel" value={profile.telephone} onChange={e => set('telephone', e.target.value)} placeholder="+33 6 00 00 00 00" />
         </Field>
-        <Field label="Adresse">
+        <Field T={T} label="Adresse">
           <input style={inp} value={profile.adresse} onChange={e => set('adresse', e.target.value)} placeholder="1 rue de la Paix" />
         </Field>
         <Row>
-          <Field label="Code postal" half>
+          <Field T={T} label="Code postal" half>
             <input style={inp} value={profile.codePostal} onChange={e => set('codePostal', e.target.value)} placeholder="75001" />
           </Field>
-          <Field label="Ville" half>
+          <Field T={T} label="Ville" half>
             <input style={inp} value={profile.ville} onChange={e => set('ville', e.target.value)} placeholder="Paris" />
           </Field>
         </Row>
-        <Field label="Pays">
+        <Field T={T} label="Pays">
           <input style={inp} value={profile.pays} onChange={e => set('pays', e.target.value)} placeholder="France" />
         </Field>
 
         {/* SITUATION PROFESSIONNELLE */}
-        <SectionTitle icon="💼" label="Situation professionnelle" />
+        <SectionTitle T={T} icon="💼" label="Situation professionnelle" />
         <Row>
-          <Field label="Statut" half>
-            <select style={sel} value={profile.statut} onChange={e => set('statut', e.target.value)}>
+          <Field T={T} label="Statut" half>
+            <select style={inp} value={profile.statut} onChange={e => set('statut', e.target.value)}>
               <option value="">— Choisir —</option>
               {STATUTS_PRO.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Ancienneté (ans)" half>
+          <Field T={T} label="Ancienneté (ans)" half>
             <input style={inp} type="number" min="0" value={profile.anciennete} onChange={e => set('anciennete', e.target.value)} placeholder="0" />
           </Field>
         </Row>
         <Row>
-          <Field label="Employeur" half>
+          <Field T={T} label="Employeur" half>
             <input style={inp} value={profile.employeur} onChange={e => set('employeur', e.target.value)} placeholder="Entreprise" />
           </Field>
-          <Field label="Revenu mensuel net (€)" half>
+          <Field T={T} label="Revenu mensuel net (€)" half>
             <input style={inp} type="number" min="0" value={profile.revenuMensuel} onChange={e => set('revenuMensuel', e.target.value)} placeholder="2 500" />
           </Field>
         </Row>
 
         {/* SÉCURITÉ */}
-        <SectionTitle icon="🔒" label="Sécurité" />
-        <Field label="Nouveau mot de passe">
+        <SectionTitle T={T} icon="🔒" label="Sécurité" />
+        <Field T={T} label="Nouveau mot de passe">
           <input
             style={inp} type="password" value={newPwd}
             onChange={e => { setNewPwd(e.target.value); setMsg(null); }}
@@ -220,7 +226,7 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
           />
         </Field>
         {newPwd && (
-          <Field label="Confirmer le mot de passe">
+          <Field T={T} label="Confirmer le mot de passe">
             <input
               style={{ ...inp, borderColor: confirmPwd && confirmPwd !== newPwd ? '#f87171' : T.inputBorder }}
               type="password" value={confirmPwd}
@@ -232,15 +238,15 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
         )}
 
         {/* PRÉFÉRENCES */}
-        <SectionTitle icon="⚙️" label="Préférences" />
+        <SectionTitle T={T} icon="⚙️" label="Préférences" />
         <Row>
-          <Field label="Devise" half>
-            <select style={sel} value={currency} onChange={e => setCurrency(e.target.value)}>
+          <Field T={T} label="Devise" half>
+            <select style={inp} value={currency} onChange={e => setCurrency(e.target.value)}>
               {['EUR','USD','GBP','CHF','JPY','CAD','AUD'].map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
-          <Field label="Langue" half>
-            <select style={sel} value={language} onChange={e => setLanguage(e.target.value)}>
+          <Field T={T} label="Langue" half>
+            <select style={inp} value={language} onChange={e => setLanguage(e.target.value)}>
               <option value="fr">Français</option>
               <option value="en">English</option>
             </select>
@@ -266,7 +272,7 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
           </div>
         )}
 
-        {/* Save */}
+        {/* Bouton enregistrer */}
         <button
           onClick={save}
           disabled={saving}
