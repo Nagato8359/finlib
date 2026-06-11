@@ -26,12 +26,12 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
       zIndex: 40, overflowY: 'auto',
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 12px 18px', flexShrink: 0 }}>
+      <div style={{ padding: '20px 12px 8px', flexShrink: 0 }}>
         <img src={logo} alt="Capitaly" onClick={() => setTab('accueil')} style={{ width: 200, height: 'auto', display: 'block', cursor: 'pointer' }} />
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <nav style={{ flex: 1, padding: '0px 10px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {TABS.map(tb => {
           const active = tab === tb.id;
           return (
