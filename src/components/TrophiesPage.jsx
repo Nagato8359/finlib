@@ -4,7 +4,7 @@ import { computeTrophies, TROPHY_CATEGORIES } from '../utils/trophies';
 export default function TrophiesPage({ T, accent, onBack, data }) {
   const { trophies, totalPoints, status, nextStatus, progressPct, pointsToNext, unlockedCount, totalCount } =
     useMemo(() => computeTrophies(data), [ // eslint-disable-line react-hooks/exhaustive-deps
-      data.patrimoine, data.investments, data.invLiveValue, data.savingsRate,
+      data.patrimoine, data.investments, data.invLiveValue, data.income, data.savingsRate,
       data.transactions, data.budgets, data.goals, data.soldHistory,
       data.score, data.user,
     ]);

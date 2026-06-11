@@ -20,7 +20,7 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const { status, totalPoints, unlockedCount } = useMemo(() => computeTrophies(data), [
-    data.patrimoine, data.investments, data.invLiveValue, data.savingsRate,
+    data.patrimoine, data.investments, data.invLiveValue, data.income, data.savingsRate,
     data.transactions, data.budgets, data.goals, data.soldHistory,
     data.score, data.user,
   ]);

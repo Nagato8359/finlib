@@ -28,27 +28,40 @@ export const TROPHY_CATEGORIES = [
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Returns the list of YYYY-MM keys that have at least 1 transaction, sorted descending (most recent first).
+function activeMonths(transactions) {
+  return [...new Set(transactions.map(tx => tx.date.slice(0, 7)))]
+    .sort()
+    .reverse();
+}
+
+// Checks the last N *active* months (months with at least 1 transaction) all have a positive balance.
+// A calendar month with no transactions is skipped — not counted.
 function lastNMonthsPositiveSavings(transactions, n) {
-  const now = new Date();
+  const months = activeMonths(transactions);
+  if (months.length < n) return false;
   for (let i = 0; i < n; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const key = months[i];
     const bal = transactions.filter(tx => tx.date.startsWith(key)).reduce((s, tx) => s + tx.amount, 0);
     if (bal <= 0) return false;
   }
   return true;
 }
 
+// Checks the last N *active* months all had 0 budget categories exceeded.
+// Requires: at least 1 budget configured, at least N months with transactions.
 function lastNMonthsNoBudgetExceeded(transactions, budgets, n) {
   const cats = Object.keys(budgets).filter(c => budgets[c] > 0);
   if (cats.length === 0) return false;
-  const now = new Date();
+  const months = activeMonths(transactions);
+  if (months.length < n) return false;
   for (let i = 0; i < n; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const monthTx = transactions.filter(tx => tx.date.startsWith(key) && tx.amount < 0);
+    const key = months[i];
+    const monthExpenses = transactions.filter(tx => tx.date.startsWith(key) && tx.amount < 0);
+    // Month must have at least 1 expense transaction to count
+    if (monthExpenses.length === 0) return false;
     if (cats.some(cat => {
-      const spent = monthTx.filter(tx => tx.category === cat).reduce((s, tx) => s + Math.abs(tx.amount), 0);
+      const spent = monthExpenses.filter(tx => tx.category === cat).reduce((s, tx) => s + Math.abs(tx.amount), 0);
       return spent > budgets[cat];
     })) return false;
   }
@@ -109,10 +122,10 @@ export const TROPHIES = [
     check: ({investments, invLiveValue}) => typeTotal(investments, 'Crypto', invLiveValue) >= 100000 },
 
   // ── Épargne ──
-  { id: 'sav_1', cat: 'epargne', icon: '💰', name: 'Épargnant',   desc: "Taux d'épargne > 10%",                  pts: 15,  check: ({savingsRate}) => savingsRate >= 10 },
-  { id: 'sav_2', cat: 'epargne', icon: '💪', name: 'Discipliné',  desc: "Taux d'épargne > 20%",                  pts: 25,  check: ({savingsRate}) => savingsRate >= 20 },
-  { id: 'sav_3', cat: 'epargne', icon: '🎯', name: 'Excellent',   desc: "Taux d'épargne > 30%",                  pts: 40,  check: ({savingsRate}) => savingsRate >= 30 },
-  { id: 'sav_4', cat: 'epargne', icon: '🔥', name: 'Spartan',     desc: "Taux d'épargne > 50%",                  pts: 100, check: ({savingsRate}) => savingsRate >= 50 },
+  { id: 'sav_1', cat: 'epargne', icon: '💰', name: 'Épargnant',   desc: "Taux d'épargne > 10%",                  pts: 15,  check: ({income, savingsRate}) => income > 0 && savingsRate >= 10 },
+  { id: 'sav_2', cat: 'epargne', icon: '💪', name: 'Discipliné',  desc: "Taux d'épargne > 20%",                  pts: 25,  check: ({income, savingsRate}) => income > 0 && savingsRate >= 20 },
+  { id: 'sav_3', cat: 'epargne', icon: '🎯', name: 'Excellent',   desc: "Taux d'épargne > 30%",                  pts: 40,  check: ({income, savingsRate}) => income > 0 && savingsRate >= 30 },
+  { id: 'sav_4', cat: 'epargne', icon: '🔥', name: 'Spartan',     desc: "Taux d'épargne > 50%",                  pts: 100, check: ({income, savingsRate}) => income > 0 && savingsRate >= 50 },
   { id: 'sav_5', cat: 'epargne', icon: '📅', name: 'Régulier',    desc: 'Épargne positive 3 mois consécutifs',   pts: 30,  check: ({transactions}) => lastNMonthsPositiveSavings(transactions, 3) },
   { id: 'sav_6', cat: 'epargne', icon: '🏆', name: 'Constant',    desc: 'Épargne positive 6 mois consécutifs',   pts: 60,  check: ({transactions}) => lastNMonthsPositiveSavings(transactions, 6) },
   { id: 'sav_7', cat: 'epargne', icon: '👑', name: 'Imbattable',  desc: 'Épargne positive 12 mois consécutifs',  pts: 150, check: ({transactions}) => lastNMonthsPositiveSavings(transactions, 12) },
@@ -170,12 +183,16 @@ export const TROPHIES = [
 // ── Main computation ────────────────────────────────────────────────────────
 
 export function computeTrophies(data) {
+  const transactions = data.transactions || [];
+  const investments  = data.investments  || [];
+
   const ctx = {
     patrimoine:   data.patrimoine   || 0,
-    investments:  data.investments  || [],
+    investments,
     invLiveValue: data.invLiveValue,
+    income:       data.income       || 0,
     savingsRate:  data.savingsRate  || 0,
-    transactions: data.transactions || [],
+    transactions,
     budgets:      data.budgets      || {},
     goals:        data.goals        || [],
     soldHistory:  data.soldHistory  || [],
@@ -183,7 +200,12 @@ export function computeTrophies(data) {
     user:         data.user         || null,
   };
 
+  // Guard: no financial data at all → only "Nouveau membre" can unlock
+  const hasData = transactions.length > 0 || investments.length > 0 || (data.soldHistory || []).length > 0;
+
   const trophies = TROPHIES.map(t => {
+    // Without any data, nothing unlocks except the signup trophy
+    if (!hasData && t.id !== 'fid_0') return { ...t, unlocked: false };
     let unlocked = false;
     try { unlocked = !!t.check(ctx); } catch {}
     return { ...t, unlocked };
