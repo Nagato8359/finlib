@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
-import { TT, makeS, fEur, fPct, fDate, MONTHS } from '../utils/constants';
+import { TT, makeS, fEur, fPct, fDate, MONTHS, CAT_COLORS } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 import { computeTrophies } from '../utils/trophies';
 import Confetti from './Confetti';
@@ -85,9 +85,12 @@ function AssetCard({ T, name, type, value, pnlPct, seed, onClick }) {
 export default function Accueil({ T, data, setTab }) {
   const S = makeS(T);
   const { t } = useTranslation();
-  const [chartTf, setChartTf] = useState('1M');
-  const [perfTf, setPerfTf] = useState('1M');
+  const [chartTf, setChartTf]   = useState('1M');
+  const [perfTf, setPerfTf]     = useState('1M');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [openPerf, setOpenPerf]   = useState(null); // 'inv'|'revenus'|'depenses'|'ventes'|'epargne'
+  const [openInvId, setOpenInvId] = useState(null); // envelope sub-accordion
+  const [openCat, setOpenCat]     = useState(null); // dépenses category sub-accordion
 
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
@@ -173,6 +176,30 @@ export default function Accueil({ T, data, setTab }) {
 
     return { total, invPV, invPVPct, invInvestedTotal, revenues, depenses, ventes, epargneNette };
   }, [perfTf, investments, invLiveValue, invLiveInvested, invInvested, transactions, soldHistory]);
+
+  // ── Detail data for performance accordions ──────────────────────────────
+  const perfDetail = useMemo(() => {
+    const days = PERF_TF_DAYS[perfTf];
+    const cutoff = days ? new Date(Date.now() - days * 86400000) : null;
+    const inP = d => !cutoff || new Date(d) >= cutoff;
+    const revenusRows = (transactions || [])
+      .filter(tx => tx.amount > 0 && inP(tx.date))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const depensesRows = (transactions || [])
+      .filter(tx => tx.amount < 0 && inP(tx.date));
+    const ventesRows = (soldHistory || [])
+      .filter(i => inP(i.soldDate))
+      .sort((a, b) => (b.soldDate || '').localeCompare(a.soldDate || ''));
+    const depByCat = {};
+    depensesRows.forEach(tx => {
+      if (!depByCat[tx.category]) depByCat[tx.category] = [];
+      depByCat[tx.category].push(tx);
+    });
+    const depGroups = Object.entries(depByCat)
+      .map(([cat, txs]) => ({ cat, txs, total: txs.reduce((s, t) => s + Math.abs(t.amount), 0) }))
+      .sort((a, b) => b.total - a.total);
+    return { revenusRows, depGroups, ventesRows };
+  }, [perfTf, transactions, soldHistory]);
 
   // ── Trophées ─────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -390,42 +417,227 @@ export default function Accueil({ T, data, setTab }) {
           )}
         </div>
 
-        {/* Breakdown par source */}
+        {/* Breakdown par source — accordions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
-            { icon: '📈', label: 'Investissements', sublabel: 'PV latente totale', value: perfData.invPV },
-            { icon: '💰', label: 'Revenus cumulés', value: perfData.revenues },
-            { icon: '💸', label: 'Dépenses cumulées', value: perfData.depenses },
-            { icon: '🏷️', label: 'Ventes réalisées', value: perfData.ventes },
-            { icon: '🎯', label: 'Épargne nette', sublabel: 'revenus − dépenses', value: perfData.epargneNette },
-          ].map(({ icon, label, sublabel, value }) => {
+            {
+              key: 'inv', icon: '📈', label: 'Investissements', sublabel: 'PV latente totale', value: perfData.invPV,
+              detail: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {(investments || []).length === 0 && <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun investissement</div>}
+                  {(investments || []).map(inv => {
+                    const val = invLiveValue ? invLiveValue(inv) : (parseFloat(inv.value) || 0);
+                    const invested = invLiveInvested ? invLiveInvested(inv) : (parseFloat(inv.invested) || 0);
+                    const pv = val - invested; const pvPct = invested > 0 ? (pv / invested) * 100 : 0;
+                    const pvCol = pv >= 0 ? '#4ade80' : '#f87171';
+                    const isInvOpen = openInvId === inv.id;
+                    return (
+                      <div key={inv.id} style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${T.cardBorder}` }}>
+                        <div
+                          onClick={() => setOpenInvId(isInvOpen ? null : inv.id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', background: T.bg2, userSelect: 'none' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = T.cardBg; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = T.bg2; }}
+                        >
+                          <span style={{ display: 'inline-block', fontSize: 8, color: T.textFaint, flexShrink: 0, lineHeight: 1, transform: isInvOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .2s' }}>▶</span>
+                          <span style={{ fontSize: 14, lineHeight: 1 }}>{TYPE_ICON[inv.type] || '💼'}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.name}</div>
+                            <div style={{ fontSize: 10, color: T.textFaint }}>{inv.type}</div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{fEur(val, true)}</div>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: pvCol }}>{pv >= 0 ? '+' : ''}{fEur(pv, true)} ({pvPct >= 0 ? '+' : ''}{pvPct.toFixed(1)}%)</div>
+                          </div>
+                        </div>
+                        <div style={{ maxHeight: isInvOpen ? 1200 : 0, overflow: 'hidden', transition: 'max-height .28s ease' }}>
+                          <div style={{ background: T.bg3 || T.bg2 }}>
+                            {(inv.positions || []).length === 0 && <div style={{ padding: '8px 14px', fontSize: 11, color: T.textFaint }}>Aucune position renseignée</div>}
+                            {(inv.positions || []).map((p, pi) => {
+                              const liveKey = p.isin || p.ticker;
+                              const livePrice = (liveKey && data.prices?.[liveKey]) || p.currentPrice || 0;
+                              const posVal = (p.shares || 0) * livePrice;
+                              const posBuy = (p.shares || 0) * (p.buyPrice || 0);
+                              const posPV = posVal - posBuy; const posPVPct = posBuy > 0 ? (posPV / posBuy) * 100 : 0;
+                              const posName = p.name || p.ticker || p.isin || p.commodityType || `Position ${pi + 1}`;
+                              const posCol = posPV >= 0 ? '#4ade80' : '#f87171';
+                              return (
+                                <div key={p.id || pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderTop: `1px solid ${T.cardBorder}` }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{posName}</div>
+                                    <div style={{ fontSize: 10, color: T.textFaint }}>{p.shares} × {fEur(livePrice, true)}</div>
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{fEur(posVal, true)}</div>
+                                    {posBuy > 0 && <div style={{ fontSize: 10, color: posCol }}>{posPV >= 0 ? '+' : ''}{fEur(posPV, true)} ({posPVPct >= 0 ? '+' : ''}{posPVPct.toFixed(1)}%)</div>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ),
+            },
+            {
+              key: 'revenus', icon: '💰', label: 'Revenus cumulés', value: perfData.revenues,
+              detail: (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {perfDetail.revenusRows.length === 0 && <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun revenu sur la période</div>}
+                  {perfDetail.revenusRows.map(tx => (
+                    <div key={tx.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.label}</div>
+                        <div style={{ fontSize: 10, color: T.textFaint }}>{tx.category} · {fDate(tx.date)}</div>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#4ade80', flexShrink: 0 }}>+{fEur(tx.amount, true)}</span>
+                    </div>
+                  ))}
+                </div>
+              ),
+            },
+            {
+              key: 'depenses', icon: '💸', label: 'Dépenses cumulées', value: perfData.depenses,
+              detail: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {perfDetail.depGroups.length === 0 && <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucune dépense sur la période</div>}
+                  {perfDetail.depGroups.map(({ cat, txs, total }) => {
+                    const isCatOpen = openCat === cat;
+                    return (
+                      <div key={cat} style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${T.cardBorder}` }}>
+                        <div
+                          onClick={() => setOpenCat(isCatOpen ? null : cat)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', cursor: 'pointer', background: T.bg2, userSelect: 'none' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = T.cardBg; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = T.bg2; }}
+                        >
+                          <span style={{ display: 'inline-block', fontSize: 8, color: T.textFaint, flexShrink: 0, lineHeight: 1, transform: isCatOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .2s' }}>▶</span>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: CAT_COLORS[cat] || '#94a3b8', flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontSize: 12, color: T.text }}>{cat}</span>
+                          <span style={{ fontSize: 10, color: T.textFaint, marginRight: 6 }}>{txs.length} tx</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#f87171' }}>−{fEur(total, true)}</span>
+                        </div>
+                        <div style={{ maxHeight: isCatOpen ? 600 : 0, overflow: 'hidden', transition: 'max-height .22s ease' }}>
+                          <div style={{ background: T.bg3 || T.bg2 }}>
+                            {txs.map(tx => (
+                              <div key={tx.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderTop: `1px solid ${T.cardBorder}` }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 11, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.label}</div>
+                                  <div style={{ fontSize: 10, color: T.textFaint }}>{fDate(tx.date)}</div>
+                                </div>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#f87171', flexShrink: 0 }}>{fEur(tx.amount, true)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ),
+            },
+            {
+              key: 'ventes', icon: '🏷️', label: 'Ventes réalisées', value: perfData.ventes,
+              detail: (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {perfDetail.ventesRows.length === 0 && <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucune vente sur la période</div>}
+                  {perfDetail.ventesRows.map((item, i) => {
+                    const profit = parseFloat(item.profit) || 0;
+                    const profitCol = profit >= 0 ? '#4ade80' : '#f87171';
+                    return (
+                      <div key={item.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                          <div style={{ fontSize: 10, color: T.textFaint }}>
+                            {fDate(item.soldDate)} · {fEur(item.buyPrice, true)} → {fEur(item.sellPrice, true)}
+                            {item.fees > 0 ? ` · frais ${fEur(item.fees, true)}` : ''}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: profitCol, flexShrink: 0 }}>{profit >= 0 ? '+' : ''}{fEur(profit, true)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ),
+            },
+            {
+              key: 'epargne', icon: '🎯', label: 'Épargne nette', sublabel: 'revenus − dépenses', value: perfData.epargneNette,
+              detail: (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
+                    <span style={{ fontSize: 12, color: T.textMuted }}>💰 Revenus</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#4ade80' }}>+{fEur(perfData.revenues, true)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
+                    <span style={{ fontSize: 12, color: T.textMuted }}>💸 Dépenses</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#f87171' }}>{fEur(perfData.depenses, true)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 4px' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>= Épargne nette</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: perfData.epargneNette >= 0 ? '#4ade80' : '#f87171' }}>
+                      {perfData.epargneNette >= 0 ? '+' : ''}{fEur(perfData.epargneNette, true)}
+                    </span>
+                  </div>
+                  {perfData.revenues > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                      <div style={{ flex: 1, background: T.cardBorder, borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.max(0, Math.min(100, (perfData.epargneNette / perfData.revenues) * 100))}%`, height: '100%', background: perfData.epargneNette >= 0 ? '#10b981' : '#f87171', borderRadius: 4 }} />
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: perfData.epargneNette >= 0 ? '#4ade80' : '#f87171', flexShrink: 0 }}>
+                        {((perfData.epargneNette / perfData.revenues) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ),
+            },
+          ].map(({ key, icon, label, sublabel, value, detail }) => {
+            const isOpen = openPerf === key;
             const isZero = Math.abs(value) < 0.01;
             const color = isZero ? T.textFaint : value >= 0 ? '#4ade80' : '#f87171';
             const absTot = Math.abs(perfData.total);
             const contribPct = absTot > 0 ? (Math.abs(value) / absTot) * 100 : 0;
             return (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: T.bg2, borderRadius: 12 }}>
-                <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}>{icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>{label}</span>
-                      {sublabel && <span style={{ fontSize: 10, color: T.textFaint, marginLeft: 6 }}>{sublabel}</span>}
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color, whiteSpace: 'nowrap', marginLeft: 8 }}>
-                      {!isZero && value > 0 ? '+' : ''}{isZero ? '—' : fEur(value, true)}
-                    </span>
-                  </div>
-                  {!isZero && absTot > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                      <div style={{ flex: 1, background: T.cardBorder, borderRadius: 3, height: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.min(100, contribPct)}%`, height: '100%', background: color, borderRadius: 3, transition: 'width .4s' }} />
+              <div key={key} style={{ borderRadius: 12, overflow: 'hidden' }}>
+                {/* Clickable header */}
+                <div
+                  role="button" tabIndex={0}
+                  onClick={() => setOpenPerf(isOpen ? null : key)}
+                  onKeyDown={e => e.key === 'Enter' && setOpenPerf(isOpen ? null : key)}
+                  onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = T.cardBg; }}
+                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = T.bg2; }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: isOpen ? T.cardBg : T.bg2, cursor: 'pointer', userSelect: 'none', transition: 'background .15s' }}
+                >
+                  <span style={{ display: 'inline-block', fontSize: 8, color: T.textFaint, flexShrink: 0, lineHeight: 1, transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .22s ease' }}>▶</span>
+                  <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>{label}</span>
+                        {sublabel && <span style={{ fontSize: 10, color: T.textFaint, marginLeft: 6 }}>{sublabel}</span>}
                       </div>
-                      <span style={{ fontSize: 10, color: T.textFaint, whiteSpace: 'nowrap', minWidth: 30, textAlign: 'right' }}>
-                        {contribPct.toFixed(0)}%
+                      <span style={{ fontSize: 13, fontWeight: 700, color, whiteSpace: 'nowrap', marginLeft: 8 }}>
+                        {!isZero && value > 0 ? '+' : ''}{isZero ? '—' : fEur(value, true)}
                       </span>
                     </div>
-                  )}
+                    {!isZero && absTot > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                        <div style={{ flex: 1, background: T.cardBorder, borderRadius: 3, height: 3, overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, contribPct)}%`, height: '100%', background: color, borderRadius: 3, transition: 'width .4s' }} />
+                        </div>
+                        <span style={{ fontSize: 10, color: T.textFaint, whiteSpace: 'nowrap', minWidth: 30, textAlign: 'right' }}>{contribPct.toFixed(0)}%</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Collapsible detail */}
+                <div style={{ maxHeight: isOpen ? 2400 : 0, overflow: 'hidden', transition: 'max-height .32s ease' }}>
+                  <div style={{ padding: '10px 14px 14px', background: T.bg3 || T.bg2, borderTop: `1px solid ${T.cardBorder}` }}>
+                    {detail}
+                  </div>
                 </div>
               </div>
             );
