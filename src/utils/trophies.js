@@ -68,13 +68,17 @@ function lastNMonthsNoBudgetExceeded(transactions, budgets, n) {
   return true;
 }
 
+function hasType(inv, substr) {
+  return (inv.type || '').toLowerCase().includes(substr.toLowerCase());
+}
+
 function peaPositions(investments) {
-  return (investments || []).filter(i => ['PEA', 'CTO'].includes(i.type))
+  return (investments || []).filter(i => hasType(i, 'pea') || hasType(i, 'cto'))
     .reduce((s, i) => s + (i.positions || []).length, 0);
 }
 
 function cryptoPositions(investments) {
-  return (investments || []).filter(i => i.type === 'Crypto')
+  return (investments || []).filter(i => hasType(i, 'crypto'))
     .reduce((s, i) => s + (i.positions || []).length, 0);
 }
 
@@ -82,8 +86,31 @@ function liveVal(inv, invLiveValue) {
   return invLiveValue ? invLiveValue(inv) : (parseFloat(inv.value) || 0);
 }
 
-function typeTotal(investments, type, invLiveValue) {
-  return (investments || []).filter(i => i.type === type).reduce((s, i) => s + liveVal(i, invLiveValue), 0);
+function typeTotal(investments, typeSubstr, invLiveValue) {
+  return (investments || []).filter(i => hasType(i, typeSubstr))
+    .reduce((s, i) => s + liveVal(i, invLiveValue), 0);
+}
+
+// Or exact-match (French "or" = gold), also accepts "gold"
+const isGoldStr  = s => /^(or|gold)$/i.test((s || '').trim());
+const hasGoldStr = s => /\bor\b|gold/i.test(s || '');
+
+function hasGold(investments, healthAssets) {
+  // Commodity positions flagged as "Or"
+  const inCommodity = (investments || []).some(i =>
+    (i.positions || []).some(p => p.posType === 'commodity' && isGoldStr(p.commodityType))
+  );
+  // Positions inside "Matières premières" envelopes whose name/ticker/type evokes l'or
+  const inMatieres = (investments || [])
+    .filter(i => hasType(i, 'matières') || hasType(i, 'matieres') || hasType(i, 'or'))
+    .some(i => (i.positions || []).some(p =>
+      isGoldStr(p.commodityType) || hasGoldStr(p.name) || hasGoldStr(p.ticker)
+    ));
+  // Health assets (matériel) with an "Or" category
+  const inHealth = (healthAssets || []).some(a =>
+    isGoldStr(a.category) || isGoldStr(a.type) || hasGoldStr(a.name)
+  );
+  return inCommodity || inMatieres || inHealth;
 }
 
 // ── Trophy definitions ─────────────────────────────────────────────────────
@@ -143,18 +170,34 @@ export const TROPHIES = [
   { id: 'obj_4', cat: 'objectifs', icon: '👑', name: 'Champion',      desc: '5 objectifs atteints',   pts: 200, check: ({goals, patrimoine}) => (goals || []).filter(g => patrimoine >= g.target).length >= 5 },
 
   // ── Immobilier ──
-  { id: 'imm_1', cat: 'immobilier', icon: '🏠', name: 'Propriétaire',       desc: '1 bien immobilier',  pts: 50,  check: ({investments}) => (investments || []).filter(i => i.type === 'Immobilier').length >= 1 },
-  { id: 'imm_2', cat: 'immobilier', icon: '🏘️', name: 'Investisseur immo',  desc: '2 biens',            pts: 100, check: ({investments}) => (investments || []).filter(i => i.type === 'Immobilier').length >= 2 },
-  { id: 'imm_3', cat: 'immobilier', icon: '🏙️', name: 'Promoteur',          desc: '3 biens',            pts: 200, check: ({investments}) => (investments || []).filter(i => i.type === 'Immobilier').length >= 3 },
-  { id: 'imm_4', cat: 'immobilier', icon: '👑', name: 'Magnat',              desc: '5 biens',            pts: 400, check: ({investments}) => (investments || []).filter(i => i.type === 'Immobilier').length >= 5 },
+  { id: 'imm_1', cat: 'immobilier', icon: '🏠', name: 'Propriétaire',       desc: '1 bien immobilier',  pts: 50,  check: ({investments}) => (investments || []).filter(i => hasType(i, 'immobilier')).length >= 1 },
+  { id: 'imm_2', cat: 'immobilier', icon: '🏘️', name: 'Investisseur immo',  desc: '2 biens',            pts: 100, check: ({investments}) => (investments || []).filter(i => hasType(i, 'immobilier')).length >= 2 },
+  { id: 'imm_3', cat: 'immobilier', icon: '🏙️', name: 'Promoteur',          desc: '3 biens',            pts: 200, check: ({investments}) => (investments || []).filter(i => hasType(i, 'immobilier')).length >= 3 },
+  { id: 'imm_4', cat: 'immobilier', icon: '👑', name: 'Magnat',              desc: '5 biens',            pts: 400, check: ({investments}) => (investments || []).filter(i => hasType(i, 'immobilier')).length >= 5 },
 
   // ── Matières premières ──
   { id: 'mat_1', cat: 'matieres', icon: '🥇', name: "Or et richesse",  desc: "Posséder de l'or",                    pts: 25,
-    check: ({investments}) => (investments || []).some(i => (i.positions || []).some(p => p.posType === 'commodity' && p.commodityType === 'Or')) },
+    check: ({investments, healthAssets}) => hasGold(investments, healthAssets) },
   { id: 'mat_2', cat: 'matieres', icon: '⚗️', name: 'Alchimiste',     desc: '3 matières premières différentes',    pts: 50,
-    check: ({investments}) => new Set((investments || []).flatMap(i => (i.positions || []).filter(p => p.posType === 'commodity').map(p => p.commodityType))).size >= 3 },
+    check: ({investments}) => new Set((investments || []).flatMap(i => {
+      const isMat = hasType(i, 'matières') || hasType(i, 'matieres');
+      return (i.positions || [])
+        .filter(p => p.posType === 'commodity' || isMat)
+        .map(p => (p.commodityType || '').toLowerCase())
+        .filter(Boolean);
+    })).size >= 3 },
   { id: 'mat_3', cat: 'matieres', icon: '💰', name: 'Commodities',    desc: '> 5 000 € en matières premières',     pts: 100,
-    check: ({investments}) => (investments || []).flatMap(i => (i.positions || []).filter(p => p.posType === 'commodity')).reduce((s, p) => s + (p.shares || 0) * (p.currentPrice || p.buyPrice || 0), 0) >= 5000 },
+    check: ({investments}) => {
+      let total = 0;
+      (investments || []).forEach(inv => {
+        const isMat = hasType(inv, 'matières') || hasType(inv, 'matieres');
+        (inv.positions || []).forEach(p => {
+          if (p.posType === 'commodity' || isMat)
+            total += (p.shares || 0) * (p.currentPrice || p.buyPrice || 0);
+        });
+      });
+      return total >= 5000;
+    } },
 
   // ── Ventes ──
   { id: 'ven_1', cat: 'ventes', icon: '🛍️', name: 'Premier bénéfice', desc: '1 vente avec bénéfice',          pts: 15,  check: ({soldHistory}) => (soldHistory || []).some(i => (parseFloat(i.profit) || 0) > 0) },
@@ -198,6 +241,7 @@ export function computeTrophies(data) {
     soldHistory:  data.soldHistory  || [],
     score:        data.score        || 0,
     user:         data.user         || null,
+    healthAssets: data.health_assets || data.healthAssets || [],
   };
 
   // Guard: no financial data at all → only "Nouveau membre" can unlock
