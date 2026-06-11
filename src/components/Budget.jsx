@@ -53,9 +53,10 @@ export default function Budget({ T, data }) {
         </div>
       )}
 
-      <div className="g2">
+      <style>{`@media (max-width: 768px) { .budget-cols { flex-direction: column !important; } }`}</style>
+      <div className="budget-cols" style={{ display: 'flex', gap: 16 }}>
         {/* Budget mensuels */}
-        <div style={{ ...S.card }}>
+        <div style={{ ...S.card, flex: 1 }}>
           <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>{t('budget_monthly')}</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {Object.entries(budgets).map(([cat, limit]) => {
@@ -91,7 +92,7 @@ export default function Budget({ T, data }) {
         </div>
 
         {/* Objectifs financiers */}
-        <div style={{ ...S.card }}>
+        <div style={{ ...S.card, flex: 1 }}>
           <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>{t('budget_goals')}</h3>
           {goals.length === 0 ? (
             <div style={{ color: T.textFaint, fontSize: 13, textAlign: 'center', padding: '40px 0' }}>
