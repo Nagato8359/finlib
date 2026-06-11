@@ -27,7 +27,7 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
     }}>
       {/* Logo */}
       <div style={{ padding: '20px 20px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-        <img src={logo} alt="Capitaly" style={{ height: 80, width: 210, objectFit: 'contain', display: 'block' }} />
+        <img src={logo} alt="Capitaly" style={{ width: 200, height: 'auto', display: 'block' }} />
       </div>
 
       {/* Nav */}
