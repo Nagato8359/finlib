@@ -122,7 +122,24 @@ export default function Header({
 
   return (
     <>
-    <style>{`.header-logo { height: 44px; } @media (max-width: 768px) { .header-logo { height: 38px; } }`}</style>
+    <style>{`
+      .header-logo { height: 44px; }
+      @media (max-width: 768px) {
+        .header-logo { height: 38px; }
+        .hdr-menu-dropdown {
+          position: fixed !important;
+          top: 60px !important;
+          right: 8px !important;
+          left: 8px !important;
+          bottom: 80px !important;
+          max-height: calc(100vh - 120px) !important;
+          overflow-y: auto !important;
+          background: #111827 !important;
+          max-width: calc(100vw - 16px) !important;
+          min-width: unset !important;
+        }
+      }
+    `}</style>
     <header className="hdr" style={{ borderBottom: `1px solid ${T.cardBorder}`, position: 'sticky', top: 0, background: T.bg, zIndex: 50, transition: 'background .2s', paddingTop: 'env(safe-area-inset-top)' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr 48px', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
@@ -160,7 +177,7 @@ export default function Header({
 
           {/* ── Dropdown menu ─────────────────────────────────────────────── */}
           {menuOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
+            <div className="hdr-menu-dropdown" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
 
               {/* ── Overlay pages ─────────────────────────────────────── */}
               {profilePage ? (
@@ -395,14 +412,14 @@ export default function Header({
       return (
         <div
           onClick={e => { if (e.target === e.currentTarget) setLegalModal(null); }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
-          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 480, width: '100%', maxHeight: '80dvh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,.6)' }}>
+          <div style={{ background: '#111827', border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 480, width: '100%', maxHeight: '80dvh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,.6)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: T.text }}>{TITLES[legalModal]}</h2>
               <button
                 onClick={() => setLegalModal(null)}
-                style={{ background: T.bg2, border: 'none', borderRadius: 8, color: T.text, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontFamily: 'inherit' }}
+                style={{ background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 8, color: '#e5e7eb', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontFamily: 'inherit' }}
               >✕</button>
             </div>
             {content[legalModal]}
