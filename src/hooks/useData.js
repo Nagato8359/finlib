@@ -9,6 +9,14 @@ import { notifyOnce, clearSentNotifications, checkAndSendDailyNotif, checkRemind
 
 const API_BASE = '';
 
+const COMMODITY_TICKER_MAP = {
+  'Or': 'GC=F', 'Argent': 'SI=F', 'Platine': 'PL=F',
+  'Palladium': 'PA=F', 'Pétrole': 'CL=F', 'Cuivre': 'HG=F',
+};
+const UNIT_FROM_OZ = {
+  'grammes': 1 / 31.1035, 'onces troy': 1, 'kilogrammes': 32.1507,
+};
+
 const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false, accountId: '', destAccountId: '', loanId: '' });
 const mkInv     = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
 const mkPortfolio = () => ({
@@ -336,10 +344,16 @@ export function useData() {
   useEffect(() => { invRef.current = investments; }, [investments]);
 
   const fetchPrices = useCallback(async () => {
-    // Use ISIN when available, fall back to ticker
-    const keys = [...new Set(invRef.current.flatMap(inv =>
-      (inv.positions || []).map(p => (p.isin || p.ticker)).filter(Boolean)
-    ))];
+    const stockKeys = invRef.current.flatMap(inv =>
+      (inv.positions || []).map(p => p.isin || p.ticker).filter(Boolean)
+    );
+    const commodityKeys = invRef.current.flatMap(inv =>
+      (inv.positions || [])
+        .filter(p => p.posType === 'commodity')
+        .map(p => COMMODITY_TICKER_MAP[p.commodityType])
+        .filter(Boolean)
+    );
+    const keys = [...new Set([...stockKeys, ...commodityKeys])];
     if (!keys.length) return;
     setPriceStatus('loading');
     try {
@@ -372,7 +386,17 @@ export function useData() {
   const invLiveValue = inv => {
     const cash = parseFloat(inv.cash) || 0;
     if (inv.type === 'Immobilier' || !inv.positions?.length) return (parseFloat(inv.value) || 0) + cash;
-    const v = inv.positions.reduce((s, p) => s + p.shares * (prices[p.isin || p.ticker] ?? p.currentPrice), 0);
+    const v = inv.positions.reduce((s, p) => {
+      if (p.posType === 'commodity') {
+        const ticker = COMMODITY_TICKER_MAP[p.commodityType];
+        const ozPrice = ticker ? prices[ticker] : null;
+        if (ozPrice != null) {
+          const factor = UNIT_FROM_OZ[p.unit] ?? UNIT_FROM_OZ.grammes;
+          return s + p.shares * ozPrice * factor;
+        }
+      }
+      return s + p.shares * (prices[p.isin || p.ticker] ?? p.currentPrice);
+    }, 0);
     return (v > 0 ? Math.round(v) : (parseFloat(inv.value) || 0)) + cash;
   };
 

@@ -13,6 +13,13 @@ const META_STYLE = {
 };
 const COMMODITY_TYPES = ['Or', 'Argent', 'Platine', 'Palladium', 'Pétrole', 'Cuivre', 'Autre'];
 const COMMODITY_UNITS = ['grammes', 'onces troy', 'kilogrammes'];
+const COMMODITY_TICKER_MAP = {
+  'Or': 'GC=F', 'Argent': 'SI=F', 'Platine': 'PL=F',
+  'Palladium': 'PA=F', 'Pétrole': 'CL=F', 'Cuivre': 'HG=F',
+};
+const UNIT_FROM_OZ = {
+  'grammes': 1 / 31.1035, 'onces troy': 1, 'kilogrammes': 32.1507,
+};
 const CRYPTO_PLATFORMS = ['Binance', 'Coinbase', 'Kraken', 'Bybit', 'Ledger (HW)', 'Trezor (HW)', 'MetaMask', 'Autre'];
 const AV_INSURERS = ['AXA', 'Generali', 'Spirica', 'Apicil', 'Suravenir', 'Predica (CA)', 'Autre'];
 
@@ -58,8 +65,10 @@ export default function PositionFormModal({ T, data }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showSug, setShowSug] = useState(false);
   const [autoFilled, setAutoFilled] = useState(new Set());
+  const [fetchingCommodity, setFetchingCommodity] = useState(false);
   const debounceRef = useRef(null);
   const sugRef = useRef(null);
+  const commodityOzRef = useRef(null);
 
   // Close suggestions on outside click
   useEffect(() => {
@@ -74,7 +83,35 @@ export default function PositionFormModal({ T, data }) {
       setAutoFilled(new Set());
       setSuggestions([]);
       setShowSug(false);
+      commodityOzRef.current = null;
     }
+  }, [modal]);
+
+  const fetchCommodityPrice = async (commodityType, unit) => {
+    const ticker = COMMODITY_TICKER_MAP[commodityType];
+    if (!ticker) return;
+    setFetchingCommodity(true);
+    try {
+      const res = await fetch(`/api/price/${encodeURIComponent(ticker)}`);
+      const json = await res.json();
+      if (json.price != null) {
+        commodityOzRef.current = json.price;
+        const factor = UNIT_FROM_OZ[unit] ?? UNIT_FROM_OZ.grammes;
+        const unitPrice = +(json.price * factor).toFixed(4);
+        setPosForm(p => ({ ...p, currentPrice: String(unitPrice) }));
+        setAutoFilled(prev => new Set([...prev, 'currentPrice']));
+      }
+    } catch {}
+    setFetchingCommodity(false);
+  };
+
+  // Auto-fetch commodity price when form opens
+  useEffect(() => {
+    if (modal !== 'drill') return;
+    const ft = posForm.posType || getInvFormType(drillInv);
+    if (ft !== 'commodity') return;
+    fetchCommodityPrice(posForm.commodityType || 'Or', posForm.unit || 'grammes');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modal]);
 
   if (modal !== 'drill' || !drillInv) return null;
@@ -585,7 +622,11 @@ export default function PositionFormModal({ T, data }) {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                 <FF label={t('pos_commodity_type')}>
-                  <select style={inp} value={posForm.commodityType || 'Or'} onChange={e => setPosForm(p => ({ ...p, commodityType: e.target.value, name: p.name || e.target.value }))}>
+                  <select style={inp} value={posForm.commodityType || 'Or'} onChange={e => {
+                    const newType = e.target.value;
+                    setPosForm(p => ({ ...p, commodityType: newType, name: p.name || newType }));
+                    fetchCommodityPrice(newType, posForm.unit || 'grammes');
+                  }}>
                     {COMMODITY_TYPES.map(ct => <option key={ct}>{ct}</option>)}
                   </select>
                 </FF>
@@ -598,7 +639,16 @@ export default function PositionFormModal({ T, data }) {
                   <input type="number" placeholder="0" min="0" step="any" style={inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} />
                 </FF>
                 <FF label={t('pos_unit')}>
-                  <select style={inp} value={posForm.unit || 'grammes'} onChange={e => setPosForm(p => ({ ...p, unit: e.target.value }))}>
+                  <select style={inp} value={posForm.unit || 'grammes'} onChange={e => {
+                    const newUnit = e.target.value;
+                    setPosForm(p => ({ ...p, unit: newUnit }));
+                    if (commodityOzRef.current != null) {
+                      const factor = UNIT_FROM_OZ[newUnit] ?? UNIT_FROM_OZ.grammes;
+                      const unitPrice = +(commodityOzRef.current * factor).toFixed(4);
+                      setPosForm(p => ({ ...p, unit: newUnit, currentPrice: String(unitPrice) }));
+                      setAutoFilled(prev => new Set([...prev, 'currentPrice']));
+                    }
+                  }}>
                     {COMMODITY_UNITS.map(u => <option key={u}>{u}</option>)}
                   </select>
                 </FF>
@@ -607,8 +657,20 @@ export default function PositionFormModal({ T, data }) {
                 </FF>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-                <FF label={t('pos_unit_price_curr')}>
-                  <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
+                <FF label={fetchingCommodity ? t('pos_fetching') : isAuto('currentPrice') ? t('pos_live_price') : t('pos_unit_price_curr')} auto={isAuto('currentPrice')}>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    min="0"
+                    step="any"
+                    style={{ ...(isAuto('currentPrice') ? inpAuto : inp), opacity: fetchingCommodity ? 0.5 : 1 }}
+                    value={posForm.currentPrice}
+                    onChange={e => {
+                      commodityOzRef.current = null;
+                      setAutoFilled(prev => { const n = new Set(prev); n.delete('currentPrice'); return n; });
+                      setPosForm(p => ({ ...p, currentPrice: e.target.value }));
+                    }}
+                  />
                 </FF>
                 <FF label={t('pos_storage')}>
                   <input type="text" placeholder="Coffre bancaire, Domicile…" style={inp} value={posForm.storageLocation || ''} onChange={e => setPosForm(p => ({ ...p, storageLocation: e.target.value }))} />
