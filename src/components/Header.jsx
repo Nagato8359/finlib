@@ -55,6 +55,11 @@ export default function Header({
     return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
   }, [menuOpen]);
 
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
+
   const closeMenu = () => { setMenuOpen(false); setProfilePage(false); setTrophiesPage(false); setDeleteConfirm(false); setImportFeedback(''); };
 
   const handleNotif = async () => {
@@ -131,8 +136,8 @@ export default function Header({
           top: 60px !important;
           right: 8px !important;
           left: 8px !important;
-          bottom: 80px !important;
-          max-height: calc(100vh - 120px) !important;
+          bottom: 70px !important;
+          max-height: calc(100dvh - 140px) !important;
           overflow-y: auto !important;
           background: #111827 !important;
           max-width: calc(100vw - 16px) !important;
@@ -365,6 +370,9 @@ export default function Header({
         </div>
       </div>
     </header>
+    {menuOpen && (
+      <div onClick={closeMenu} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
+    )}
     {legalModal && (() => {
       const TITLES = {
         mentions: 'Mentions légales',
