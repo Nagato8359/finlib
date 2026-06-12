@@ -199,11 +199,13 @@ Analyse les postes de dépenses les plus importants et propose 2-3 optimisations
 🔮 **PROJECTION ET RECOMMANDATIONS**
 3 actions prioritaires à réaliser dans les 3 prochains mois, avec impact financier estimé pour chacune.`;
 
-const SUGGESTION_KEYS = [
-  'ia_suggestion_1',
-  'ia_suggestion_2',
-  'ia_suggestion_3',
-  'ia_suggestion_4',
+const SUGGESTIONS = [
+  "Comment améliorer mon taux d'épargne ?",
+  "Où placer mon épargne disponible ?",
+  "Mon niveau d'endettement est-il raisonnable ?",
+  "Analyse mes dépenses par catégorie",
+  "Comment optimiser mon PEA ?",
+  "Quelle est ma progression vers l'indépendance financière ?",
 ];
 
 export default function IATab({ T, data }) {
@@ -309,12 +311,12 @@ export default function IATab({ T, data }) {
 
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {SUGGESTION_KEYS.map(key => (
-              <button key={key} onClick={() => setInput(t(key))}
+            {SUGGESTIONS.map(s => (
+              <button key={s} onClick={() => setInput(s)}
                 style={{ background: 'transparent', border: `1px solid ${T.cardBorder}`, borderRadius: 20, color: T.textMuted, padding: '6px 13px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#10b981'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = T.cardBorder}>
-                {t(key)}
+                {s}
               </button>
             ))}
           </div>
