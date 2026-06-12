@@ -154,7 +154,7 @@ export default function Header({
     <>
     <style>{`
       .header-logo { height: 44px; }
-      .hdr-profile-info { display: flex; flex-direction: column; }
+      .hdr-profile-info { display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
       @media (max-width: 768px) {
         .header-logo { height: 38px; }
         .hdr-profile-info { display: none !important; }
