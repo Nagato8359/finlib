@@ -117,7 +117,7 @@ function SplashScreen({ onDone }) {
       <img
         src={logo}
         alt="Capitaly"
-        style={{ height: 80, objectFit: 'contain', animation: anim }}
+        style={{ maxWidth: 'min(280px, 70vw)', height: 'auto', padding: '0 20px', objectFit: 'contain', animation: anim }}
       />
     </div>
   );

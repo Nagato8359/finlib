@@ -304,15 +304,16 @@ export default function Accueil({ T, data, setTab }) {
   ]);
 
   useEffect(() => {
-    const notified = JSON.parse(localStorage.getItem('ct_notified_trophies') || '[]');
+    const saved = new Set(JSON.parse(localStorage.getItem('capitaly_achievements') || '[]'));
     const currentlyUnlocked = trophyResult.trophies.filter(t => t.unlocked).map(t => t.id);
 
-    // Trophies newly unlocked (not yet notified) → confetti
-    const newOnes = currentlyUnlocked.filter(id => !notified.includes(id));
-    if (newOnes.length > 0) setShowConfetti(true);
-
-    // Always sync: keep only IDs that are currently unlocked — removes wrongly-granted ones
-    localStorage.setItem('ct_notified_trophies', JSON.stringify(currentlyUnlocked));
+    // Fire confetti only for IDs not yet in the persistent set
+    const newOnes = currentlyUnlocked.filter(id => !saved.has(id));
+    if (newOnes.length > 0) {
+      setShowConfetti(true);
+      // Accumulate — the set never shrinks so already-celebrated trophies never re-trigger
+      localStorage.setItem('capitaly_achievements', JSON.stringify([...saved, ...newOnes]));
+    }
   }, [trophyResult]);
 
   const handleConfettiDone = useCallback(() => setShowConfetti(false), []);
