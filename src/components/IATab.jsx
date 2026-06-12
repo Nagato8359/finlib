@@ -113,6 +113,34 @@ function buildContext(data) {
     echeance:       g.deadline || null,
   }));
 
+  // ── Matériel / Actifs physiques ──────────────────────────────────────────────
+  const materiel = (data.healthAssets || []).map(h => ({
+    nom:             h.name,
+    categorie:       h.category,
+    prix_achat:      r(h.buyPrice),
+    valeur_actuelle: r(h.currentValue),
+    pv:              r(h.currentValue - h.buyPrice),
+    pv_pct:          h.buyPrice > 0 ? p1((h.currentValue - h.buyPrice) / h.buyPrice * 100) : 0,
+    etat:            h.condition,
+  }));
+
+  // ── Ventes en cours ──────────────────────────────────────────────────────────
+  const ventes_en_cours = (data.listings || []).map(l => ({
+    nom:                 l.name,
+    prix_achat:          r(l.buyPrice),
+    prix_vente_souhaite: r(l.sellPrice),
+    frais:               r(l.fees),
+    benefice_potentiel:  r(l.sellPrice - l.buyPrice - l.fees),
+    plateforme:          l.platform,
+    jours_en_vente:      Math.floor((new Date() - new Date(l.listedDate)) / 86400000),
+  }));
+
+  // ── Ventes réalisées ─────────────────────────────────────────────────────────
+  const ventes_realisees = (data.soldHistory || []).map(s => ({
+    nom:          s.name,
+    benefice_net: r(s.salePrice - s.buyPrice - s.fees),
+  }));
+
   // ── Contexte final ────────────────────────────────────────────────────────────
   const ctx = {
     patrimoine: {
@@ -127,6 +155,9 @@ function buildContext(data) {
     ...(Object.keys(budgets).length ? { budgets } : {}),
     ...(dettes.length ? { dettes } : {}),
     ...(objectifs.length ? { objectifs } : {}),
+    ...(materiel.length ? { materiel } : {}),
+    ...(ventes_en_cours.length ? { ventes_en_cours } : {}),
+    ...(ventes_realisees.length ? { ventes_realisees } : {}),
     score_sante:      data.score || 0,
     taux_endettement: p1(data.endettementRate),
   };
