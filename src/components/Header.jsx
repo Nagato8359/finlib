@@ -171,7 +171,7 @@ export default function Header({
       {menuOpen && (
         <div onClick={closeMenu} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
       )}
-      <div style={{ maxWidth: 1280, margin: '0 auto', width: '100%', boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
+      <div style={{ width: '100%', boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
         {/* Left — placeholder (mirrors profile block to keep nav centered) */}
         <div style={{ width: 48, flexShrink: 0 }} />
