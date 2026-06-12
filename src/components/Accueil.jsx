@@ -208,7 +208,7 @@ export default function Accueil({ T, data, setTab }) {
     { name: t('accueil_investissements'), value: invTotal, color: T.accent },
     { name: t('accueil_epargne_cash'), value: cashTotal, color: '#34d399' },
     { name: t('accueil_materiel'), value: healthTotal, color: '#60a5fa' },
-  ].filter(d => d.value > 0), [invTotal, cashTotal, healthTotal, t]);
+  ].filter(d => d.value > 0), [invTotal, cashTotal, healthTotal, t, T.accent]);
 
   // ── Performance globale ──────────────────────────────────────────────────
   const perfData = useMemo(() => {
