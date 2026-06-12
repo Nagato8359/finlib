@@ -12,8 +12,6 @@ const DATE_FORMATS = [
   { key: 'mm/dd/yyyy', label: 'MM/DD/YYYY' },
   { key: 'yyyy-mm-dd', label: 'YYYY-MM-DD' },
 ];
-const APP_VERSION = '1.0.0';
-
 const getInitials = (name, email) => {
   if (name) {
     const parts = name.trim().split(' ').filter(Boolean);
@@ -42,6 +40,7 @@ export default function Header({
   const [importFeedback, setImportFeedback] = useState('');
   const [displayName, setDisplayName]     = useState(() => localStorage.getItem('ct_displayname') || '');
   const [notifEnabled, setNotifEnabled]   = useState(() => localStorage.getItem('ct_notif') !== '0');
+  const [legalModal, setLegalModal]       = useState(null); // 'mentions' | 'privacy' | 'cgu'
 
   const menuRef     = useRef(null);
   const fileInputRef = useRef(null);
@@ -316,30 +315,12 @@ export default function Header({
 
               {/* ── 5. À PROPOS ────────────────────────────────────── */}
               <SLabel>{t('menu_about')}</SLabel>
-
-              <div style={{ padding: '4px 14px 6px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
-                  <span style={{ fontSize: 13, color: T.text, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>🚀</span>
-                    {t('menu_version')}
-                  </span>
-                  <span style={{ fontSize: 12, color: accent, fontWeight: 700, background: accent + '18', padding: '2px 8px', borderRadius: 6 }}>{APP_VERSION}</span>
-                </div>
-                {[
-                  { icon: '📜', label: t('menu_legal') },
-                  { icon: '🔒', label: t('menu_privacy') },
-                ].map(({ icon, label }) => (
-                  <button key={label} style={{ width: '100%', background: 'transparent', border: 'none', color: T.textMuted, padding: '7px 0', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', borderRadius: 6, transition: 'color .1s' }}
-                    onMouseEnter={e => e.currentTarget.style.color = T.text}
-                    onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
-                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{icon}</span>
-                    {label}
-                  </button>
-                ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
-                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>✉️</span>
-                  <span style={{ fontSize: 12, color: accent, fontFamily: 'inherit' }}>contact@capitaly.fr</span>
-                </div>
+              <MBtn icon="📜" label="Mentions légales"            onClick={() => setLegalModal('mentions')} />
+              <MBtn icon="🔒" label="Politique de confidentialité" onClick={() => setLegalModal('privacy')} />
+              <MBtn icon="📋" label="CGU"                          onClick={() => setLegalModal('cgu')} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px' }}>
+                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>✉️</span>
+                <span style={{ fontSize: 12, color: accent }}>contact@capitaly.fr</span>
               </div>
 
               <Divider />
@@ -366,6 +347,69 @@ export default function Header({
         </div>
       </div>
     </header>
+    {legalModal && (() => {
+      const TITLES = {
+        mentions: 'Mentions légales',
+        privacy:  'Politique de confidentialité',
+        cgu:      'Conditions Générales d\'Utilisation',
+      };
+      const Row = ({ label, value }) => (
+        <div style={{ padding: '10px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
+          <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 3 }}>{label}</div>
+          <div style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>{value}</div>
+        </div>
+      );
+      const Note = ({ children }) => (
+        <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6, padding: '10px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
+          {children}
+        </div>
+      );
+      const content = {
+        mentions: (
+          <>
+            <Row label="Éditeur" value="Alexandre Bourguignon" />
+            <Row label="Application" value="Capitaly" />
+            <Row label="Hébergement" value="Vercel Inc." />
+            <Row label="Contact" value="contact@capitaly.fr" />
+            <Note>Capitaly est un outil de suivi personnel, pas un conseiller financier agréé.</Note>
+          </>
+        ),
+        privacy: (
+          <>
+            <Row label="Données collectées" value="Email, données financières saisies manuellement" />
+            <Row label="Stockage" value="Supabase (chiffré, serveurs EU)" />
+            <Row label="Vente de données" value="Aucune vente à des tiers" />
+            <Row label="Droits (accès, rectification, suppression)" value="contact@capitaly.fr" />
+            <Note>Capitaly est conforme au Règlement Général sur la Protection des Données (RGPD).</Note>
+          </>
+        ),
+        cgu: (
+          <>
+            <Note>Capitaly est un outil d'aide à la gestion personnelle des finances.</Note>
+            <Note>Les informations fournies ne constituent pas des conseils en investissement.</Note>
+            <Note>L'utilisateur est seul responsable de ses décisions financières.</Note>
+            <Note>L'utilisation de Capitaly est réservée aux personnes majeures.</Note>
+          </>
+        ),
+      };
+      return (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setLegalModal(null); }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 480, width: '100%', maxHeight: '80dvh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,.6)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: T.text }}>{TITLES[legalModal]}</h2>
+              <button
+                onClick={() => setLegalModal(null)}
+                style={{ background: T.bg2, border: 'none', borderRadius: 8, color: T.text, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontFamily: 'inherit' }}
+              >✕</button>
+            </div>
+            {content[legalModal]}
+          </div>
+        </div>
+      );
+    })()}
     </>
   );
 }
