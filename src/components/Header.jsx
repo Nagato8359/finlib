@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import logo from '../logo.png';
 import { ACCENT_OPTIONS } from '../hooks/useTheme';
+import { computeTrophies } from '../utils/trophies';
 import { requestNotifPermission } from '../utils/notifications';
 import { useTranslation } from '../hooks/useTranslation';
 import ProfilePage from './ProfilePage';
@@ -34,7 +35,6 @@ export default function Header({
   const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
 
   const [menuOpen, setMenuOpen]           = useState(false);
-  const [avatarHovered, setAvatarHovered] = useState(false);
   const [profilePage, setProfilePage]     = useState(false);
   const [trophiesPage, setTrophiesPage]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -87,6 +87,12 @@ export default function Header({
   const accent   = T.accent || '#10b981';
   const email    = user?.email || '';
   const initials = getInitials(displayName, email);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const { status, totalPoints, unlockedCount } = useMemo(() => computeTrophies(data), [
+    data.patrimoine, data.investments, data.invLiveValue, data.income, data.savingsRate,
+    data.transactions, data.budgets, data.goals, data.soldHistory,
+    data.score, data.user,
+  ]);
 
   // ── Shared sub-components ──────────────────────────────────────────────────
   const Divider = () => <div style={{ height: 1, background: T.cardBorder, margin: '4px 8px' }} />;
@@ -130,10 +136,10 @@ export default function Header({
     <>
     <style>{`
       .header-logo { height: 44px; }
-      .avatar-tooltip { display: block; }
+      .hdr-profile-info { display: flex; flex-direction: column; }
       @media (max-width: 768px) {
         .header-logo { height: 38px; }
-        .avatar-tooltip { display: none !important; }
+        .hdr-profile-info { display: none !important; }
         .hdr-menu-dropdown {
           position: fixed !important;
           top: 60px !important;
@@ -153,7 +159,7 @@ export default function Header({
       {menuOpen && (
         <div onClick={closeMenu} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
       )}
-      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr 48px', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr auto', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
         {/* Left — placeholder */}
         <div />
@@ -171,32 +177,34 @@ export default function Header({
           </nav>
         </div>
 
-        {/* Right — avatar */}
+        {/* Right — profile block */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }} ref={menuRef}>
-          <div
-            style={{ position: 'relative', display: 'inline-flex' }}
-            onMouseEnter={() => setAvatarHovered(true)}
-            onMouseLeave={() => setAvatarHovered(false)}
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label="Menu"
+            style={{ background: menuOpen ? T.cardBg : 'transparent', border: `1px solid ${menuOpen ? T.cardBorder : 'transparent'}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 4px 4px', transition: 'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = T.cardBg; e.currentTarget.style.borderColor = T.cardBorder; }}
+            onMouseLeave={e => { if (!menuOpen) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; } }}
           >
-            <button
-              onClick={() => setMenuOpen(o => !o)}
-              aria-label="Menu"
-              style={{ background: accent + '28', border: `2px solid ${menuOpen ? accent : accent + '55'}`, borderRadius: '50%', color: accent, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'border-color .15s', flexShrink: 0, padding: 0 }}
-            >
-              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1 }}>
-                {demoMode ? 'D' : initials}
-              </span>
-            </button>
-            {avatarHovered && !menuOpen && (
-              <div
-                className="avatar-tooltip"
-                style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 8, padding: '6px 10px', fontSize: 12, color: T.text, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,.35)' }}
-              >
-                <div style={{ fontWeight: 600 }}>{displayName || (demoMode ? 'Mode démo' : email ? email.split('@')[0] : '—')}</div>
-                {!displayName && !demoMode && email && <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>{email}</div>}
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: accent + '28', border: `2px solid ${menuOpen ? accent : accent + '55'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0, letterSpacing: '-.02em', lineHeight: 1 }}>
+              {demoMode ? 'D' : initials}
+            </div>
+            <div className="hdr-profile-info">
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                {displayName || (demoMode ? 'Mode démo' : email ? email.split('@')[0] : '—')}
               </div>
-            )}
-          </div>
+              {!demoMode && email && (
+                <div style={{ fontSize: 10, color: T.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                  {email}
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                <span style={{ fontSize: 11, lineHeight: 1 }}>{status.icon}</span>
+                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>{status.label}</span>
+                <span style={{ fontSize: 9, color: T.textFaint }}>· {totalPoints} pts · {unlockedCount} 🏆</span>
+              </div>
+            </div>
+          </button>
 
           {/* ── Dropdown menu ─────────────────────────────────────────────── */}
           {menuOpen && (

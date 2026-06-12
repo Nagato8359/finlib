@@ -1,30 +1,6 @@
-import { useMemo } from 'react';
 import logo from '../logo.png';
-import { computeTrophies } from '../utils/trophies';
 
-
-function getInitials(email, displayName) {
-  if (displayName) {
-    const parts = displayName.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return displayName.slice(0, 2).toUpperCase();
-  }
-  if (email) return email.slice(0, 2).toUpperCase();
-  return '?';
-}
-
-export default function Sidebar({ T, tab, setTab, TABS, data }) {
-  const email = data.user?.email || '';
-  const displayName = typeof window !== 'undefined' ? (localStorage.getItem('ct_displayname') || '') : '';
-  const initials = getInitials(email, displayName);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const { status, totalPoints, unlockedCount } = useMemo(() => computeTrophies(data), [
-    data.patrimoine, data.investments, data.invLiveValue, data.income, data.savingsRate,
-    data.transactions, data.budgets, data.goals, data.soldHistory,
-    data.score, data.user,
-  ]);
-
+export default function Sidebar({ T, tab, setTab, TABS }) {
   return (
     <aside className="sidebar" style={{
       width: 220, flexShrink: 0,
@@ -69,37 +45,6 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
         })}
       </nav>
 
-      {/* User */}
-      <div style={{
-        padding: '14px 14px',
-        display: 'flex', alignItems: 'center', gap: 10,
-        flexShrink: 0,
-      }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: '50%',
-          background: T.accent + '26', border: `1px solid ${T.accent}4d`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 700, color: T.accent, flexShrink: 0,
-        }}>
-          {initials}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          {displayName && (
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {displayName}
-            </div>
-          )}
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {email || (data.demoMode ? 'Mode démo' : '')}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
-            <span style={{ fontSize: 12, lineHeight: 1 }}>{status.icon}</span>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>{status.label}</span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>·</span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{totalPoints} pts · {unlockedCount} 🏆</span>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }
