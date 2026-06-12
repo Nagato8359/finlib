@@ -93,6 +93,8 @@ export default function Accueil({ T, data, setTab }) {
   const [openCat, setOpenCat]     = useState(null); // dépenses category sub-accordion
   const perfPricesCache = useRef({}); // { 'KEY__TF': { changePct, loading, error } }
   const [perfPrices, setPerfPrices] = useState({});
+  const [intradayHistory, setIntradayHistory] = useState([]);
+  const [intradayLoading, setIntradayLoading] = useState(false);
 
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
@@ -140,6 +142,35 @@ export default function Accueil({ T, data, setTab }) {
     ).then(() => setPerfPrices({ ...perfPricesCache.current }));
   }, [perfTf, investments]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Intraday 1J — fetch temps réel via YF/CoinGecko ─────────────────────
+  useEffect(() => {
+    if (chartTf !== '1J') return;
+
+    const positions = [];
+    (investments || []).forEach(inv => {
+      (inv.positions || []).forEach(p => {
+        const key = (p.isin || p.ticker || '').toUpperCase();
+        if (key && (p.shares || 0) > 0) positions.push({ key, shares: p.shares });
+      });
+    });
+    const baseValue = (cashTotal || 0) + (healthTotal || 0);
+
+    setIntradayLoading(true);
+    const ctrl = new AbortController();
+
+    fetch('/api/intraday', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positions, baseValue }),
+      signal: ctrl.signal,
+    })
+      .then(r => r.json())
+      .then(result => { setIntradayHistory(result.points || []); setIntradayLoading(false); })
+      .catch(err => { if (err.name !== 'AbortError') setIntradayLoading(false); });
+
+    return () => ctrl.abort();
+  }, [chartTf, investments, cashTotal, healthTotal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Patrimoine history ───────────────────────────────────────────────────
   const patrimoineHistory = useMemo(() => {
     const days = TF_DAYS[chartTf] || 30;
@@ -165,9 +196,11 @@ export default function Accueil({ T, data, setTab }) {
   }, [chartTf, transactions, patrimoine, patrimoineNet, t]);
 
   const displayPatrimoine = patrimoineNet ?? patrimoine;
-  const change = patrimoineHistory.length > 1 ? displayPatrimoine - patrimoineHistory[0].Patrimoine : 0;
-  const changePct = patrimoineHistory.length > 1 && patrimoineHistory[0].Patrimoine > 0
-    ? (change / patrimoineHistory[0].Patrimoine) * 100 : 0;
+  const histOpen = chartTf === '1J' && intradayHistory.length > 0
+    ? intradayHistory[0].Patrimoine
+    : (patrimoineHistory.length > 1 ? patrimoineHistory[0].Patrimoine : displayPatrimoine);
+  const change = displayPatrimoine - histOpen;
+  const changePct = histOpen > 0 && histOpen !== displayPatrimoine ? (change / histOpen) * 100 : 0;
   const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#fb923c' : '#f87171';
 
   // ── Allocation donut ─────────────────────────────────────────────────────
@@ -211,12 +244,32 @@ export default function Accueil({ T, data, setTab }) {
     });
 
     const epargneNette = revenues + depenses; // depenses déjà négatif
-    // invPV n'a pas d'historique de prix → inclus dans total uniquement sur TOUT
     const totalPeriod = revenues + depenses + ventes;
-    const total = perfTf === 'TOUT' ? invPV + totalPeriod : totalPeriod;
 
-    return { total, totalPeriod, invPV, invPVPct, invInvestedTotal, revenues, depenses, ventes, epargneNette };
-  }, [perfTf, investments, invLiveValue, invLiveInvested, invInvested, transactions, soldHistory]);
+    // Variation intraday pour 1J (depuis perfPrices qui fetche /api/performance?tf=1J)
+    let invDailyPnl = null;
+    if (perfTf === '1J') {
+      invDailyPnl = 0;
+      (investments || []).forEach(inv => {
+        (inv.positions || []).forEach(p => {
+          const key = (p.isin || p.ticker || '').toUpperCase();
+          if (!key) return;
+          const livePrice = (data.prices?.[key]) || p.currentPrice || 0;
+          const posVal = (p.shares || 0) * livePrice;
+          const entry = perfPrices[`${key}__1J`];
+          if (entry?.changePct != null) invDailyPnl += posVal * entry.changePct / 100;
+        });
+      });
+    }
+
+    const total = perfTf === 'TOUT'
+      ? invPV + totalPeriod
+      : perfTf === '1J'
+        ? (invDailyPnl !== null ? invDailyPnl : 0) + totalPeriod
+        : totalPeriod;
+
+    return { total, totalPeriod, invPV, invPVPct, invInvestedTotal, revenues, depenses, ventes, epargneNette, invDailyPnl };
+  }, [perfTf, investments, invLiveValue, invLiveInvested, invInvested, transactions, soldHistory, perfPrices]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Detail data for performance accordions ──────────────────────────────
   const perfDetail = useMemo(() => {
@@ -263,6 +316,25 @@ export default function Accueil({ T, data, setTab }) {
   }, [trophyResult]);
 
   const handleConfettiDone = useCallback(() => setShowConfetti(false), []);
+
+  const intradayTooltip = useCallback(({ active, payload, label }) => {
+    if (!active || !payload?.[0]) return null;
+    const val = payload[0].value;
+    const openVal = payload[0].payload?.open || 0;
+    const diff = val - openVal;
+    const pct = openVal > 0 ? (diff / openVal) * 100 : 0;
+    const col = diff >= 0 ? '#4ade80' : '#f87171';
+    return (
+      <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,.3)' }}>
+        <div style={{ color: T.textMuted, marginBottom: 5, fontWeight: 600, fontSize: 11 }}>{label}</div>
+        <div style={{ color: T.text, fontWeight: 700, fontSize: 14 }}>{fEur(val)}</div>
+        <div style={{ color: col, fontWeight: 600, marginTop: 3 }}>
+          {diff >= 0 ? '+' : ''}{fEur(diff, true)} ({diff >= 0 ? '+' : ''}{pct.toFixed(2)}%)
+        </div>
+        <div style={{ color: T.textFaint, fontSize: 10, marginTop: 4 }}>depuis l'ouverture</div>
+      </div>
+    );
+  }, [T]);
 
   // ── Asset cards ──────────────────────────────────────────────────────────
   const assetCards = useMemo(() => {
@@ -329,8 +401,14 @@ export default function Accueil({ T, data, setTab }) {
           </div>
 
           {/* Chart */}
+          {chartTf === '1J' && intradayLoading && intradayHistory.length === 0 && (
+            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textFaint, fontSize: 12 }}>
+              Chargement des données temps réel…
+            </div>
+          )}
+          {!(chartTf === '1J' && intradayLoading && intradayHistory.length === 0) && (
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={patrimoineHistory} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+            <AreaChart data={chartTf === '1J' && intradayHistory.length > 0 ? intradayHistory : patrimoineHistory} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="patG" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
@@ -340,10 +418,11 @@ export default function Accueil({ T, data, setTab }) {
               <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
               <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={58} />
-              <Tooltip content={<TT />} />
+              <Tooltip content={chartTf === '1J' ? intradayTooltip : <TT />} />
               <Area type="monotone" dataKey="Patrimoine" stroke="#10b981" fill="url(#patG)" strokeWidth={2.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         {/* RIGHT — donut + KPIs */}
@@ -457,14 +536,19 @@ export default function Accueil({ T, data, setTab }) {
           {[
             {
               key: 'inv', icon: '📈', label: 'Investissements',
-              sublabel: perfTf === 'TOUT' ? 'PV latente totale' : 'PV depuis achat · non filtré',
-              value: perfData.invPV,
-              nonPeriodic: perfTf !== 'TOUT',
+              sublabel: perfTf === 'TOUT' ? 'PV latente totale' : perfTf === '1J' ? 'Variation du jour' : 'PV depuis achat · non filtré',
+              value: perfTf === '1J' ? (perfData.invDailyPnl ?? 0) : perfData.invPV,
+              nonPeriodic: perfTf !== 'TOUT' && perfTf !== '1J',
               detail: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {perfTf !== 'TOUT' && (
+                  {perfTf !== 'TOUT' && perfTf !== '1J' && (
                     <div style={{ fontSize: 11, color: T.textFaint, padding: '6px 10px', background: T.bg2, borderRadius: 7, marginBottom: 4 }}>
                       ℹ Pas d'historique de prix disponible — PV affichée depuis la date d'achat, indépendante de la période sélectionnée.
+                    </div>
+                  )}
+                  {perfTf === '1J' && (
+                    <div style={{ fontSize: 11, color: T.textFaint, padding: '6px 10px', background: T.bg2, borderRadius: 7, marginBottom: 4 }}>
+                      ⚡ Variation intraday calculée via prix temps réel (cours actuels × variation % du jour).
                     </div>
                   )}
                   {(investments || []).length === 0 && <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun investissement</div>}
