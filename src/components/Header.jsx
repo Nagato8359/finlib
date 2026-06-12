@@ -171,10 +171,10 @@ export default function Header({
       {menuOpen && (
         <div onClick={closeMenu} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
       )}
-      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr auto', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', width: '100%', boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
-        {/* Left — placeholder */}
-        <div />
+        {/* Left — placeholder (mirrors profile block to keep nav centered) */}
+        <div style={{ width: 48, flexShrink: 0 }} />
 
         {/* Center — title + desktop nav */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
@@ -190,7 +190,7 @@ export default function Header({
         </div>
 
         {/* Right — profile block */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }} ref={menuRef}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginLeft: 'auto' }} ref={menuRef}>
           <button
             onClick={() => setMenuOpen(o => !o)}
             aria-label="Menu"
