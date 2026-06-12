@@ -286,7 +286,10 @@ export default function Modals({ T, data }) {
             <FField style={f} label={t('portfolio_invested')}><input type="number" placeholder="0" style={S.inp} value={portfolioForm.invested} onChange={e => setPortfolioForm(p => ({ ...p, invested: e.target.value }))} /></FField>
           </FRow>
         )}
-        <FRow cols={1}>
+        <FRow cols={2}>
+          <FField style={f} label="Liquidités disponibles (€)">
+            <input type="number" placeholder="0" min="0" step="any" style={S.inp} value={portfolioForm.cash} onChange={e => setPortfolioForm(p => ({ ...p, cash: e.target.value }))} />
+          </FField>
           <FField style={f} label={t('portfolio_notes')}><input type="text" placeholder="Remarques…" style={S.inp} value={portfolioForm.notes} onChange={e => setPortfolioForm(p => ({ ...p, notes: e.target.value }))} /></FField>
         </FRow>
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

@@ -80,9 +80,11 @@ export default function Patrimoine({ T, data }) {
     // ── Vue détail (drill-down) ───────────────────────────────────────────────
     if (drillInv) {
       const cur = investments.find(i => i.id === drillInv.id) || drillInv;
-      const lv = invLiveValue(cur);
+      const curCash = parseFloat(cur.cash) || 0;
+      const lv = invLiveValue(cur);        // total : positions + liquidités
+      const posLv = lv - curCash;         // valeur positions seules
       const li = invLiveInvested(cur);
-      const pnl = lv - li;
+      const pnl = posLv - li;             // PnL sur positions uniquement
       const pct = li > 0 ? (pnl / li) * 100 : 0;
       const type = cur.type || 'Autre';
       const typeIcon = PORTFOLIO_TYPE_ICON[type] || '📦';
@@ -113,6 +115,28 @@ export default function Patrimoine({ T, data }) {
             <KPI T={T} label={t('inv_pnl')} value={fEur(pnl, true)} accent={pnl >= 0 ? '#4ade80' : '#f87171'} icon="📊" />
             <KPI T={T} label={t('inv_perf')} value={fPct(pct)} accent={pnl >= 0 ? '#10b981' : '#f87171'} icon="⚡" />
           </div>
+
+          {/* Breakdown liquidités + positions */}
+          {curCash > 0 && (
+            <div style={{ ...S.card, padding: '14px 20px' }}>
+              <div style={{ display: 'flex', gap: 0, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'center', padding: '0 18px' }}>
+                  <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>💶 Liquidités</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#4ade80' }}>{fEur(curCash)}</div>
+                </div>
+                <div style={{ color: T.cardBorder, fontSize: 22, padding: '0 4px', fontWeight: 200 }}>+</div>
+                <div style={{ textAlign: 'center', padding: '0 18px' }}>
+                  <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>📈 Positions</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>{fEur(posLv)}</div>
+                </div>
+                <div style={{ color: T.cardBorder, fontSize: 22, padding: '0 4px', fontWeight: 200 }}>=</div>
+                <div style={{ textAlign: 'center', padding: '0 18px' }}>
+                  <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>🏛️ Total enveloppe</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: typeColor }}>{fEur(lv)}</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Infos type-spécifiques */}
           <div style={{ ...S.card }}>
@@ -354,9 +378,10 @@ export default function Patrimoine({ T, data }) {
               <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: T.text }}>{t('inv_envelopes')}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {investments.map(inv => {
+                  const invCash = parseFloat(inv.cash) || 0;
                   const lv = invLiveValue(inv);
                   const li = invLiveInvested(inv);
-                  const pnl = lv - li;
+                  const pnl = (lv - invCash) - li;
                   const pct = li > 0 ? (pnl / li) * 100 : 0;
                   const type = inv.type || 'Autre';
                   const typeColor = PORTFOLIO_TYPE_COLOR[type] || inv.color;
@@ -374,6 +399,7 @@ export default function Patrimoine({ T, data }) {
                           </div>
                           <div style={{ fontSize: 11, color: T.textFaint }}>
                             {(inv.positions || []).length} position{(inv.positions || []).length !== 1 ? 's' : ''}
+                            {invCash > 0 && <span style={{ color: '#4ade80', marginLeft: 6 }}>· 💶 {fEur(invCash)}</span>}
                             {invDivTotal > 0 && <span style={{ color: '#4ade80', marginLeft: 6 }}>· div. {fEur(invDivTotal, true)}</span>}
                           </div>
                         </div>

@@ -16,7 +16,7 @@ const mkPortfolio = () => ({
   assureur: '', avType: 'Fonds euros', platform: '', walletType: 'CEX',
   immoBien: 'Locatif', adresse: '', acquisitionDate: '', loanId: '', loyerMensuel: '', chargesMensuelles: '',
   employeur: '', peType: 'PEE', disponibiliteDate: '',
-  value: '', invested: '', notes: '',
+  value: '', invested: '', cash: '', notes: '',
 });
 const mkHealth  = () => ({ name: '', category: '', buyPrice: '', currentValue: '', date: today(), notes: '', condition: 'Bon état', storageLocation: '' });
 const mkPos     = () => ({
@@ -311,9 +311,10 @@ export function useData() {
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const invLiveValue = inv => {
-    if (inv.type === 'Immobilier' || !inv.positions?.length) return parseFloat(inv.value) || 0;
+    const cash = parseFloat(inv.cash) || 0;
+    if (inv.type === 'Immobilier' || !inv.positions?.length) return (parseFloat(inv.value) || 0) + cash;
     const v = inv.positions.reduce((s, p) => s + p.shares * (prices[p.isin || p.ticker] ?? p.currentPrice), 0);
-    return v > 0 ? Math.round(v) : parseFloat(inv.value) || 0;
+    return (v > 0 ? Math.round(v) : (parseFloat(inv.value) || 0)) + cash;
   };
 
   const invLiveInvested = inv => {
@@ -559,6 +560,7 @@ export function useData() {
       color,
       value: parseFloat(portfolioForm.value) || 0,
       invested: parseFloat(portfolioForm.invested) || 0,
+      cash: parseFloat(portfolioForm.cash) || 0,
       loyerMensuel: parseFloat(portfolioForm.loyerMensuel) || 0,
       chargesMensuelles: parseFloat(portfolioForm.chargesMensuelles) || 0,
       positions: editItem?.positions || [],
@@ -579,7 +581,7 @@ export function useData() {
       loyerMensuel: inv.loyerMensuel || '', chargesMensuelles: inv.chargesMensuelles || '',
       employeur: inv.employeur || '', peType: inv.peType || 'PEE',
       disponibiliteDate: inv.disponibiliteDate || '',
-      value: inv.value || '', invested: inv.invested || '', notes: inv.notes || '',
+      value: inv.value || '', invested: inv.invested || '', cash: inv.cash || '', notes: inv.notes || '',
     });
     setModal('portfolio');
   };
