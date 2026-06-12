@@ -188,8 +188,9 @@ export function useData() {
   const loadUserData = useCallback(async (userId, profileId = null) => {
     try {
       let q = supabase.from('user_data').select('*').eq('user_id', userId);
-      if (profileId) q = q.eq('profile_id', profileId);
-      else q = q.is('profile_id', null);
+      if (profileId != null) q = q.eq('profile_id', profileId);
+      // When profileId is null, query without profile_id filter so it works
+      // both before the migration (column absent) and after (column IS NULL).
       const { data } = await q.single();
       if (data) {
         let txs = data.transactions?.length ? data.transactions : [];
@@ -291,7 +292,7 @@ export function useData() {
         proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
         updated_at: new Date().toISOString(),
       };
-      if (profileId) {
+      if (profileId != null) {
         const { data: existing } = await supabase.from('user_data').select('user_id').eq('user_id', userRef.current.id).eq('profile_id', profileId).maybeSingle();
         if (existing) {
           await supabase.from('user_data').update(payload).eq('user_id', userRef.current.id).eq('profile_id', profileId);
@@ -299,6 +300,7 @@ export function useData() {
           await supabase.from('user_data').insert({ ...payload, profile_id: profileId });
         }
       } else {
+        // Principal profile: keep existing upsert, never write profile_id
         await supabase.from('user_data').upsert(payload);
       }
     }, 1500);
