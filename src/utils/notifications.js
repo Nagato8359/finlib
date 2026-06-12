@@ -39,3 +39,65 @@ export const notify = async (title, body) => {
 
 // Call on logout so the next session (or a different user) starts clean.
 export const clearSentNotifications = () => localStorage.removeItem(SENT_KEY);
+
+// ── iOS detection ──────────────────────────────────────────────────────────────
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+// ── Daily 20h notification ────────────────────────────────────────────────────
+const DAILY_KEY = 'capitaly_daily_notif_date';
+const todayStr  = () => new Date().toISOString().slice(0, 10);
+
+export const checkAndSendDailyNotif = async ({ transactions = [], invTotal = 0 } = {}, iosFallback = null) => {
+  if (!isNotifEnabled()) return;
+  const today = todayStr();
+  if (localStorage.getItem(DAILY_KEY) === today) return;
+
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  if (h !== 20 || m > 30) return;
+
+  const todayTx = transactions.filter(t => t.date === today);
+  const todayBalance = todayTx.reduce((s, t) => s + (t.amount || 0), 0);
+
+  let body;
+  if (todayBalance > 50)       body = `Votre patrimoine a progressé de +${Math.round(todayBalance)}€ aujourd'hui 🚀`;
+  else if (todayBalance < -50) body = `Recul de ${Math.round(todayBalance)}€ aujourd'hui 📉`;
+  else                         body = `Journée neutre. Patrimoine total : ${Math.round(invTotal).toLocaleString('fr-FR')}€ 📊`;
+
+  localStorage.setItem(DAILY_KEY, today);
+
+  if (isIOS() && iosFallback) { iosFallback('📊 Capitaly — Performance du jour\n' + body); return; }
+  await notify('📊 Capitaly — Performance du jour', body);
+};
+
+// ── Reminder notification if no data entered for N days ──────────────────────
+const REMINDER_KEY    = 'capitaly_last_reminder';
+const MSGS_3 = [
+  "📝 Hé ! Vous n'avez rien saisi depuis 3 jours. Gardez votre tableau de bord à jour !",
+  "💡 Quelques dépenses à enregistrer ? Restez focus sur vos finances !",
+  "📊 Votre patrimoine vous attend. Ajoutez vos dernières transactions !",
+];
+const MSGS_7 = [
+  "⚠️ 7 jours sans mise à jour ! Votre suivi financier en souffre. Revenez sur Capitaly !",
+  "🎯 L'indépendance financière se construit au quotidien. Reprenez le contrôle !",
+  "💪 Ne lâchez pas ! Mettez à jour Capitaly et restez sur la bonne voie.",
+];
+
+export const checkReminderNotif = async (transactions = [], iosFallback = null) => {
+  if (!isNotifEnabled() || !transactions.length) return;
+  const today = todayStr();
+  if (localStorage.getItem(REMINDER_KEY) === today) return;
+
+  const lastDate   = [...transactions].map(t => t.date).sort().reverse()[0];
+  const daysSince  = Math.floor((new Date(today) - new Date(lastDate)) / 86400000);
+  if (daysSince < 3) return;
+
+  const pool = daysSince >= 7 ? MSGS_7 : MSGS_3;
+  const msg  = pool[Math.floor(Math.random() * pool.length)];
+  const title = daysSince >= 7 ? '⚠️ Capitaly — Rappel urgent' : '📝 Capitaly — Rappel';
+
+  localStorage.setItem(REMINDER_KEY, today);
+
+  if (isIOS() && iosFallback) { iosFallback(title + '\n' + msg); return; }
+  await notify(title, msg);
+};

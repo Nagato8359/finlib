@@ -5,7 +5,7 @@ import {
   SEED_TX, SEED_INV, SEED_HEALTH, SEED_BUDGETS, SEED_GOALS, SEED_CASH, SEED_LISTINGS,
   calcScore, fEur, PORTFOLIO_TYPE_COLOR, CAT_TO_PORTFOLIO_TYPE,
 } from '../utils/constants';
-import { notifyOnce, clearSentNotifications } from '../utils/notifications';
+import { notifyOnce, clearSentNotifications, checkAndSendDailyNotif, checkReminderNotif } from '../utils/notifications';
 
 const API_BASE = '';
 
@@ -141,6 +141,7 @@ export function useData() {
   const [investments, setInvestments] = useState([]);
   const [healthAssets, setHealthAssets] = useState([]);
   const [budgets, setBudgets] = useState(SEED_BUDGETS);
+  const [ioBannerMsg, setIoBannerMsg] = useState(null);
   const [customBudgets, setCustomBudgets] = useState([]);
   const [customBudgetForm, setCustomBudgetForm] = useState(mkCustomBudget());
   const [goals, setGoals] = useState([]);
@@ -463,6 +464,28 @@ export function useData() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, budgets]);
+
+  // ── Reminder: no data entered for 3+ days ────────────────────────────────
+  const reminderChecked = useRef(false);
+  useEffect(() => {
+    if (!transactions.length || reminderChecked.current) return;
+    reminderChecked.current = true;
+    checkReminderNotif(transactions, setIoBannerMsg);
+  }, [transactions]);
+
+  // ── Daily 20h performance notification (checks every 30 min) ─────────────
+  const dailyCtxRef = useRef({});
+  dailyCtxRef.current = { transactions, invTotal };
+  useEffect(() => {
+    const run = () => {
+      if (!dataLoaded.current) return;
+      checkAndSendDailyNotif(dailyCtxRef.current, setIoBannerMsg);
+    };
+    run();
+    const id = setInterval(run, 30 * 60 * 1000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!dataLoaded.current) return;
@@ -805,5 +828,6 @@ export function useData() {
     allDividends, divThisYear, divByMonth,
     exportCSV, exportDataJSON, importJSON, deleteAccount,
     loadedPreferences, savePreferences,
+    ioBannerMsg, setIoBannerMsg,
   };
 }
