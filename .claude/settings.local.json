@@ -33,7 +33,11 @@
       "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\alexa\\\\finlib\\\\src\\\\i18n\")",
       "Bash(Out-Null)",
       "Bash(git checkout *)",
-      "Bash(git merge *)"
+      "Bash(git merge *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(vercel --version)",
+      "Bash(dir C:\\\\Users\\\\alexa\\\\finlib /B)",
+      "Bash(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\alexa\\\\finlib\\\\supabase\\\\migrations\")"
     ]
   }
 }

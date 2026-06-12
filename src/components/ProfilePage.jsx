@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient'; // kept for password change only
 
 const SITUATIONS_FAMILIALES = ['Célibataire', 'En couple', 'Marié(e)', 'Pacsé(e)', 'Divorcé(e)', 'Veuf/Veuve'];
 const STATUTS_PRO = ["Salarié(e)", "Fonctionnaire", "Indépendant(e)", "Chef d'entreprise", "Étudiant(e)", "Retraité(e)", "Sans emploi", "Autre"];
@@ -19,18 +19,12 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
-    async function load() {
-      if (!user?.id) { setLoading(false); return; }
-      try {
-        const { data } = await supabase.from('user_data').select('profile').eq('user_id', user.id).single();
-        if (data?.profile && typeof data.profile === 'object') {
-          setProfile(prev => ({ ...prev, ...data.profile }));
-        }
-      } catch {}
-      setLoading(false);
-    }
-    load();
-  }, [user?.id]);
+    try {
+      const saved = localStorage.getItem('ct_profile');
+      if (saved) setProfile(prev => ({ ...prev, ...JSON.parse(saved) }));
+    } catch {}
+    setLoading(false);
+  }, []);
 
   // Stable references — never recreated during typing
   const set = useCallback((key, val) => setProfile(prev => ({ ...prev, [key]: val })), []);
@@ -63,13 +57,7 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
     setSaving(true);
     setMsg(null);
     try {
-      const { error: profileError } = await supabase.from('user_data').upsert({
-        user_id: user.id,
-        profile,
-        updated_at: new Date().toISOString(),
-      });
-      if (profileError) throw profileError;
-
+      localStorage.setItem('ct_profile', JSON.stringify(profile));
       const displayName = [profile.prenom, profile.nom].filter(Boolean).join(' ');
       if (displayName) localStorage.setItem('ct_displayname', displayName);
 
