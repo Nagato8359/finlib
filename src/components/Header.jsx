@@ -137,8 +137,8 @@ export default function Header({
           right: 8px !important;
           left: 8px !important;
           bottom: 70px !important;
-          max-height: calc(100dvh - 140px) !important;
-          overflow-y: auto !important;
+          max-height: calc(100dvh - 130px) !important;
+          overflow-y: scroll !important;
           background: #111827 !important;
           max-width: calc(100vw - 16px) !important;
           min-width: unset !important;
@@ -146,6 +146,9 @@ export default function Header({
       }
     `}</style>
     <header className="hdr" style={{ borderBottom: `1px solid ${T.cardBorder}`, position: 'sticky', top: 0, background: T.bg, zIndex: 50, transition: 'background .2s', paddingTop: 'env(safe-area-inset-top)' }}>
+      {menuOpen && (
+        <div onClick={closeMenu} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
+      )}
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '48px 1fr 48px', alignItems: 'center', height: 56, paddingLeft: 16, paddingRight: 16 }}>
 
         {/* Left — placeholder */}
@@ -182,7 +185,7 @@ export default function Header({
 
           {/* ── Dropdown menu ─────────────────────────────────────────────── */}
           {menuOpen && (
-            <div className="hdr-menu-dropdown" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
+            <div className="hdr-menu-dropdown" onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
 
               {/* ── Overlay pages ─────────────────────────────────────── */}
               {profilePage ? (
@@ -370,9 +373,6 @@ export default function Header({
         </div>
       </div>
     </header>
-    {menuOpen && (
-      <div onClick={closeMenu} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-    )}
     {legalModal && (() => {
       const TITLES = {
         mentions: 'Mentions légales',
