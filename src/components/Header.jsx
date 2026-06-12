@@ -88,10 +88,10 @@ export default function Header({
   const initials = getInitials(displayName, email);
 
   // ── Shared sub-components ──────────────────────────────────────────────────
-  const Divider = () => <div style={{ height: 1, background: T.cardBorder, margin: '6px 8px' }} />;
+  const Divider = () => <div style={{ height: 1, background: T.cardBorder, margin: '4px 8px' }} />;
 
   const SLabel = ({ children }) => (
-    <div style={{ padding: '10px 14px 3px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>
+    <div style={{ padding: '7px 12px 2px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: T.textFaint }}>
       {children}
     </div>
   );
@@ -99,7 +99,7 @@ export default function Header({
   const MBtn = ({ icon, label, onClick, danger, right, muted }) => (
     <button
       onClick={onClick}
-      style={{ width: '100%', background: 'transparent', border: 'none', color: danger ? '#f87171' : muted ? T.textMuted : T.text, padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s', textAlign: 'left' }}
+      style={{ width: '100%', background: 'transparent', border: 'none', color: danger ? '#f87171' : muted ? T.textMuted : T.text, padding: '8px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s', textAlign: 'left' }}
       onMouseEnter={e => e.currentTarget.style.background = danger ? 'rgba(248,113,113,.08)' : T.cardBg}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >
@@ -110,7 +110,7 @@ export default function Header({
   );
 
   const MSelect = ({ icon, label, value, options, onChange }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', borderRadius: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', borderRadius: 8 }}>
       <span style={{ fontSize: 14, flexShrink: 0, width: 18, textAlign: 'center' }}>{icon}</span>
       <span style={{ flex: 1, fontSize: 13, color: T.text }}>{label}</span>
       <select
@@ -137,8 +137,9 @@ export default function Header({
           right: 8px !important;
           left: 8px !important;
           bottom: 70px !important;
-          max-height: calc(100dvh - 130px) !important;
-          overflow-y: scroll !important;
+          max-height: calc(100dvh - 160px) !important;
+          overflow-y: auto !important;
+          -webkit-overflow-scrolling: touch !important;
           background: #111827 !important;
           max-width: calc(100vw - 16px) !important;
           min-width: unset !important;
@@ -186,6 +187,15 @@ export default function Header({
           {/* ── Dropdown menu ─────────────────────────────────────────────── */}
           {menuOpen && (
             <div className="hdr-menu-dropdown" onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 16, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 18, padding: '8px', minWidth: 288, maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)', zIndex: 200, maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', animation: 'slideUp .18s ease' }}>
+
+              {/* ── Bouton fermeture ──────────────────────────────────── */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
+                <button
+                  onClick={closeMenu}
+                  aria-label="Fermer le menu"
+                  style={{ background: 'rgba(255,255,255,.06)', border: 'none', borderRadius: 8, color: T.textMuted, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                >✕</button>
+              </div>
 
               {/* ── Overlay pages ─────────────────────────────────────── */}
               {profilePage ? (
