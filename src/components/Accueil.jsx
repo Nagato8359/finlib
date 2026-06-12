@@ -298,7 +298,7 @@ export default function Accueil({ T, data, setTab }) {
   // ── Trophées ─────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const trophyResult = useMemo(() => computeTrophies(data), [
-    data.patrimoine, data.investments, data.invLiveValue, data.income, data.savingsRate,
+    data.patrimoine, data.investments, data.invTotal, data.income, data.savingsRate,
     data.transactions, data.budgets, data.goals, data.soldHistory,
     data.score, data.user,
   ]);
