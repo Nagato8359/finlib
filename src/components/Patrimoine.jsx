@@ -66,7 +66,7 @@ export default function Patrimoine({ T, data }) {
     <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
       {SECTIONS.map(s => (
         <button key={s.id} onClick={() => setSection(s.id)}
-          style={{ background: section === s.id ? 'rgba(16,185,129,.12)' : T.cardBg, border: `1px solid ${section === s.id ? '#10b981' : T.cardBorder}`, color: section === s.id ? '#10b981' : T.textMuted, borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: section === s.id ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all .15s' }}>
+          style={{ background: section === s.id ? T.accent + '1e' : T.cardBg, border: `1px solid ${section === s.id ? T.accent : T.cardBorder}`, color: section === s.id ? T.accent : T.textMuted, borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: section === s.id ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all .15s' }}>
           {s.label}
         </button>
       ))}
@@ -113,7 +113,7 @@ export default function Patrimoine({ T, data }) {
             <KPI T={T} label={t('inv_current_value')} value={fEur(lv, true)} accent={typeColor} icon={typeIcon} />
             <KPI T={T} label={t('inv_capital')} value={fEur(li, true)} icon="💸" />
             <KPI T={T} label={t('inv_pnl')} value={fEur(pnl, true)} accent={pnl >= 0 ? '#4ade80' : '#f87171'} icon="📊" />
-            <KPI T={T} label={t('inv_perf')} value={fPct(pct)} accent={pnl >= 0 ? '#10b981' : '#f87171'} icon="⚡" />
+            <KPI T={T} label={t('inv_perf')} value={fPct(pct)} accent={pnl >= 0 ? T.accent : '#f87171'} icon="⚡" />
           </div>
 
           {/* Breakdown liquidités + positions */}
@@ -249,7 +249,7 @@ export default function Patrimoine({ T, data }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
                               <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{pos.ticker}</span>
                               <span style={{ color: T.textMuted, fontSize: 12 }}>{pos.name}</span>
-                              {data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: 'rgba(16,185,129,.2)', color: '#10b981', padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
+                              {data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: T.accent + '33', color: T.accent, padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
                             </div>
                             <div style={{ fontSize: 11, color: T.textFaint }}>
                               {isCryptoType ? `Qté ${pos.shares}` : `${pos.shares} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
@@ -333,7 +333,7 @@ export default function Patrimoine({ T, data }) {
           <KPI T={T} label={t('inv_actifs_fin')} value={fEur(invTotal, true)} icon="🏛️" />
           <KPI T={T} label={t('inv_capital')} value={fEur(invInvested, true)} icon="💸" />
           <KPI T={T} label={t('inv_plus_values')} value={fEur(invTotal - invInvested, true)} accent={(invTotal - invInvested) >= 0 ? '#4ade80' : '#f87171'} icon="📊" />
-          <KPI T={T} label={t('inv_perf')} value={fPct(invInvested > 0 ? ((invTotal - invInvested) / invInvested) * 100 : 0)} accent={invTotal >= invInvested ? '#10b981' : '#f87171'} icon="⚡" />
+          <KPI T={T} label={t('inv_perf')} value={fPct(invInvested > 0 ? ((invTotal - invInvested) / invInvested) * 100 : 0)} accent={invTotal >= invInvested ? T.accent : '#f87171'} icon="⚡" />
         </div>
 
         {investments.length === 0 ? (
@@ -558,10 +558,10 @@ export default function Patrimoine({ T, data }) {
               <div style={{ fontSize: 20, fontWeight: 700, color: soldProfitThisYear >= 0 ? '#4ade80' : '#f87171' }}>{soldProfitThisYear >= 0 ? '+' : ''}{fEur(soldProfitThisYear)}</div>
               <div style={{ fontSize: 11, color: '#4ade8099', marginTop: 2 }}>{soldHistory.filter(x => x.soldDate?.startsWith(String(new Date().getFullYear()))).length} vente{soldHistory.filter(x => x.soldDate?.startsWith(String(new Date().getFullYear()))).length !== 1 ? 's' : ''} cette année</div>
             </div>
-            <div style={{ background: 'rgba(16,185,129,.06)', border: '1px solid rgba(16,185,129,.15)', borderRadius: 12, padding: '12px 16px' }}>
-              <div style={{ fontSize: 10, color: '#10b981', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>{t('mat_gains_total')}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: soldProfit >= 0 ? '#10b981' : '#f87171' }}>{soldProfit >= 0 ? '+' : ''}{fEur(soldProfit)}</div>
-              <div style={{ fontSize: 11, color: '#10b98199', marginTop: 2 }}>{soldHistory.length} objet{soldHistory.length !== 1 ? 's' : ''} vendu{soldHistory.length !== 1 ? 's' : ''} au total</div>
+            <div style={{ background: T.accent + '0f', border: `1px solid ${T.accent}26`, borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ fontSize: 10, color: T.accent, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>{t('mat_gains_total')}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: soldProfit >= 0 ? T.accent : '#f87171' }}>{soldProfit >= 0 ? '+' : ''}{fEur(soldProfit)}</div>
+              <div style={{ fontSize: 11, color: T.accent + '99', marginTop: 2 }}>{soldHistory.length} objet{soldHistory.length !== 1 ? 's' : ''} vendu{soldHistory.length !== 1 ? 's' : ''} au total</div>
             </div>
           </div>
         )}
@@ -894,7 +894,7 @@ export default function Patrimoine({ T, data }) {
               <div key={label}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 12, color: T.textMuted }}>{label}</span>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>
                     {typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(1) : val}{unit}
                   </span>
                 </div>
@@ -909,7 +909,7 @@ export default function Patrimoine({ T, data }) {
 
         <div className="g4">
           <KPI T={T} label={t('proj_start')} value={fEur(patrimoine, true)} icon="💰" />
-          <KPI T={T} label={t('proj_in_n_years', projYears)} value={fEur(fin.Projection, true)} accent="#10b981" icon="🚀" />
+          <KPI T={T} label={t('proj_in_n_years', projYears)} value={fEur(fin.Projection, true)} accent={T.accent} icon="🚀" />
           <KPI T={T} label={t('proj_total_payments')} value={fEur(projMonthly * 12 * projYears, true)} icon="📅" />
           <KPI T={T} label={t('proj_interests')} value={fEur(interests, true)} accent="#4ade80" icon="✨" />
         </div>
@@ -920,7 +920,7 @@ export default function Patrimoine({ T, data }) {
             <AreaChart data={projData}>
               <defs>
                 <linearGradient id="pG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  <stop offset="5%" stopColor={T.accent} stopOpacity={0.2} /><stop offset="95%" stopColor={T.accent} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="bG" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.1} /><stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
@@ -931,7 +931,7 @@ export default function Patrimoine({ T, data }) {
               <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={55} />
               <Tooltip content={<TT />} />
               <Area type="monotone" dataKey="Base" name={t('proj_no_return')} stroke="#60a5fa" fill="url(#bG)" strokeWidth={1.5} strokeDasharray="4 3" />
-              <Area type="monotone" dataKey="Projection" name={t('proj_with_return')} stroke="#10b981" fill="url(#pG)" strokeWidth={2.5} />
+              <Area type="monotone" dataKey="Projection" name={t('proj_with_return')} stroke={T.accent} fill="url(#pG)" strokeWidth={2.5} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -942,7 +942,7 @@ export default function Patrimoine({ T, data }) {
             {[1, 2, 5, 10, 20, 30].filter(y => y <= projYears && projData[y]).map(y => (
               <div key={y} style={{ padding: 14, background: T.bg2, borderRadius: 12, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>{t('proj_in')} {y} {t('proj_years')}{y > 1 ? '' : ''}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>{fEur(projData[y].Projection, true)}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fEur(projData[y].Projection, true)}</div>
                 <div style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>×{(projData[y].Projection / Math.max(1, patrimoine)).toFixed(1)}</div>
               </div>
             ))}
@@ -960,12 +960,12 @@ export default function Patrimoine({ T, data }) {
           <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>
             {linkedLoanDebt > 0 ? (
               <>
-                {t('gross')} : <strong style={{ color: '#10b981' }}>{fEur(patrimoine)}</strong>
+                {t('gross')} : <strong style={{ color: T.accent }}>{fEur(patrimoine)}</strong>
                 {' · '}{t('net')} : <strong style={{ color: '#4ade80' }}>{fEur(patrimoine - linkedLoanDebt)}</strong>
                 <span style={{ fontSize: 11, color: T.textFaint }}> {t('pat_after_immo')}</span>
               </>
             ) : (
-              <>{t('pat_total_label')} : <strong style={{ color: '#10b981' }}>{fEur(patrimoine)}</strong></>
+              <>{t('pat_total_label')} : <strong style={{ color: T.accent }}>{fEur(patrimoine)}</strong></>
             )}
           </p>
         </div>

@@ -53,9 +53,9 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
                 display: 'flex', alignItems: 'center', gap: 11,
                 padding: '9px 12px', borderRadius: 10,
                 border: 'none',
-                borderLeft: active ? '3px solid #10b981' : '3px solid transparent',
-                background: active ? 'rgba(16,185,129,0.12)' : 'transparent',
-                color: active ? '#10b981' : 'rgba(255,255,255,0.5)',
+                borderLeft: active ? `3px solid ${T.accent}` : '3px solid transparent',
+                background: active ? T.accent + '1e' : 'transparent',
+                color: active ? T.accent : 'rgba(255,255,255,0.5)',
                 cursor: 'pointer', fontFamily: 'inherit',
                 fontSize: 13, fontWeight: active ? 600 : 400,
                 textAlign: 'left', width: '100%',
@@ -77,9 +77,9 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
       }}>
         <div style={{
           width: 34, height: 34, borderRadius: '50%',
-          background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)',
+          background: T.accent + '26', border: `1px solid ${T.accent}4d`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 700, color: '#10b981', flexShrink: 0,
+          fontSize: 12, fontWeight: 700, color: T.accent, flexShrink: 0,
         }}>
           {initials}
         </div>

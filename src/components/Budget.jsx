@@ -51,7 +51,7 @@ export default function Budget({ T, data }) {
             </div>
           </div>
           <div style={{ background: 'rgba(255,255,255,.1)', borderRadius: 6, height: 8, overflow: 'hidden' }}>
-            <div style={{ width: `${Math.min(100, endettementRate)}%`, height: '100%', background: endettementRate > 33 ? '#f87171' : '#10b981', borderRadius: 6, transition: 'width .4s' }} />
+            <div style={{ width: `${Math.min(100, endettementRate)}%`, height: '100%', background: endettementRate > 33 ? '#f87171' : T.accent, borderRadius: 6, transition: 'width .4s' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
             <span style={{ fontSize: 10, color: endettementRate > 33 ? '#f87171' : T.textMuted }}>{t('budget_legal_limit')}</span>
@@ -67,7 +67,7 @@ export default function Budget({ T, data }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {Object.entries(budgets).map(([cat, limit]) => {
               const { spent, pct } = budgetProgress[cat] || { spent: 0, pct: 0 };
-              const barColor = pct >= 100 ? '#f87171' : pct >= 80 ? '#fb923c' : '#10b981';
+              const barColor = pct >= 100 ? '#f87171' : pct >= 80 ? '#fb923c' : T.accent;
               return (
                 <div key={cat}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

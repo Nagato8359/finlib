@@ -30,7 +30,7 @@ function genSparkline(pnlPct, seed = 0) {
 }
 
 function MiniSparkline({ pnlPct, seed }) {
-  const color = pnlPct >= 0 ? '#10b981' : '#f87171';
+  const color = pnlPct >= 0 ? 'var(--color-accent)' : '#f87171';
   const data = useMemo(() => genSparkline(pnlPct, seed), [pnlPct, seed]);
   return (
     <LineChart width={72} height={34} data={data} style={{ flexShrink: 0 }}>
@@ -40,7 +40,7 @@ function MiniSparkline({ pnlPct, seed }) {
 }
 
 function AssetCard({ T, name, type, value, pnlPct, seed, onClick }) {
-  const color = pnlPct >= 0 ? '#10b981' : '#f87171';
+  const color = pnlPct >= 0 ? T.accent : '#f87171';
   const icon = TYPE_ICON[type] || '💼';
   return (
     <div
@@ -205,7 +205,7 @@ export default function Accueil({ T, data, setTab }) {
 
   // ── Allocation donut ─────────────────────────────────────────────────────
   const allocData = useMemo(() => [
-    { name: t('accueil_investissements'), value: invTotal, color: '#10b981' },
+    { name: t('accueil_investissements'), value: invTotal, color: T.accent },
     { name: t('accueil_epargne_cash'), value: cashTotal, color: '#34d399' },
     { name: t('accueil_materiel'), value: healthTotal, color: '#60a5fa' },
   ].filter(d => d.value > 0), [invTotal, cashTotal, healthTotal, t]);
@@ -389,9 +389,9 @@ export default function Accueil({ T, data, setTab }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
               {Object.keys(TF_DAYS).map(tf => (
                 <button key={tf} onClick={() => setChartTf(tf)} style={{
-                  background: chartTf === tf ? 'rgba(16,185,129,.15)' : 'transparent',
-                  border: `1px solid ${chartTf === tf ? '#10b981' : T.cardBorder}`,
-                  color: chartTf === tf ? '#10b981' : T.textMuted,
+                  background: chartTf === tf ? T.accent + '26' : 'transparent',
+                  border: `1px solid ${chartTf === tf ? T.accent : T.cardBorder}`,
+                  color: chartTf === tf ? T.accent : T.textMuted,
                   borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
                 }}>
@@ -412,15 +412,15 @@ export default function Accueil({ T, data, setTab }) {
             <AreaChart data={chartTf === '1J' && intradayHistory.length > 0 ? intradayHistory : patrimoineHistory} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="patG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  <stop offset="5%" stopColor={T.accent} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={T.accent} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
               <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={58} />
               <Tooltip content={chartTf === '1J' ? intradayTooltip : <TT />} />
-              <Area type="monotone" dataKey="Patrimoine" stroke="#10b981" fill="url(#patG)" strokeWidth={2.5} dot={false} />
+              <Area type="monotone" dataKey="Patrimoine" stroke={T.accent} fill="url(#patG)" strokeWidth={2.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
           )}
@@ -472,7 +472,7 @@ export default function Accueil({ T, data, setTab }) {
           {/* KPI: Taux épargne */}
           <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em' }}>🎯 {t('accueil_epargne_rate')}</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: balance >= 0 ? '#10b981' : '#f87171', letterSpacing: '-.03em' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: balance >= 0 ? T.accent : '#f87171', letterSpacing: '-.03em' }}>
               {Math.round(savingsRate)}%
             </div>
             <div style={{ fontSize: 11, color: T.textMuted }}>{fEur(balance)} {t('accueil_saved')}</div>
@@ -502,9 +502,9 @@ export default function Accueil({ T, data, setTab }) {
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {Object.keys(PERF_TF_DAYS).map(tf => (
               <button key={tf} onClick={() => setPerfTf(tf)} style={{
-                background: perfTf === tf ? 'rgba(16,185,129,.15)' : 'transparent',
-                border: `1px solid ${perfTf === tf ? '#10b981' : T.cardBorder}`,
-                color: perfTf === tf ? '#10b981' : T.textMuted,
+                background: perfTf === tf ? T.accent + '26' : 'transparent',
+                border: `1px solid ${perfTf === tf ? T.accent : T.cardBorder}`,
+                color: perfTf === tf ? T.accent : T.textMuted,
                 borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600,
                 cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
               }}>
@@ -731,7 +731,7 @@ export default function Accueil({ T, data, setTab }) {
                   {perfData.revenues > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
                       <div style={{ flex: 1, background: T.cardBorder, borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.max(0, Math.min(100, (perfData.epargneNette / perfData.revenues) * 100))}%`, height: '100%', background: perfData.epargneNette >= 0 ? '#10b981' : '#f87171', borderRadius: 4 }} />
+                        <div style={{ width: `${Math.max(0, Math.min(100, (perfData.epargneNette / perfData.revenues) * 100))}%`, height: '100%', background: perfData.epargneNette >= 0 ? T.accent : '#f87171', borderRadius: 4 }} />
                       </div>
                       <span style={{ fontSize: 12, fontWeight: 700, color: perfData.epargneNette >= 0 ? '#4ade80' : '#f87171', flexShrink: 0 }}>
                         {((perfData.epargneNette / perfData.revenues) * 100).toFixed(1)}%

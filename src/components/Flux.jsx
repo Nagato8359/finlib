@@ -185,8 +185,8 @@ export default function Flux({ T, data }) {
       <div className="g4">
         <KPI T={T} label={t('flux_kpi_income')} value={fEur(income, true)} accent="#4ade80" icon="↓" />
         <KPI T={T} label={t('flux_kpi_expense')} value={fEur(expense, true)} accent="#f87171" icon="↑" />
-        <KPI T={T} label={t('flux_kpi_balance')} value={fEur(balance, true)} accent={balance >= 0 ? '#10b981' : '#f87171'} icon="⚖" />
-        <KPI T={T} label={t('flux_kpi_rate')} value={Math.round(savingsRate) + '%'} accent="#10b981" icon="🎯" />
+        <KPI T={T} label={t('flux_kpi_balance')} value={fEur(balance, true)} accent={balance >= 0 ? T.accent : '#f87171'} icon="⚖" />
+        <KPI T={T} label={t('flux_kpi_rate')} value={Math.round(savingsRate) + '%'} accent={T.accent} icon="🎯" />
       </div>
 
       {/* Analyse toggle */}
@@ -309,7 +309,7 @@ export default function Flux({ T, data }) {
             <XAxis dataKey="month" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={50} />
             <Tooltip content={<TT />} />
-            <Bar dataKey="Revenus" fill="#10b981" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Revenus" fill={T.accent} radius={[4, 4, 0, 0]} />
             <Bar dataKey="Dépenses" fill="#f87171" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

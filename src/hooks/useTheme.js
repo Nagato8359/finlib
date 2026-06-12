@@ -18,7 +18,13 @@ export function useTheme() {
 
   const setDarkMode = v => { setDM(v); localStorage.setItem('ct_dark', v ? '1' : '0'); };
 
-  const setAccent = key => { setAccentKey(key); localStorage.setItem('ct_accent', key); };
+  const setAccent = key => {
+    setAccentKey(key);
+    localStorage.setItem('ct_accent', key);
+    const opt = ACCENT_OPTIONS.find(a => a.key === key) || ACCENT_OPTIONS[0];
+    document.documentElement.style.setProperty('--color-accent', opt.main);
+    document.documentElement.style.setProperty('--color-accent-dark', opt.dark);
+  };
 
   const setCurrency = v => {
     setCurrencyState(v);
@@ -39,6 +45,8 @@ export function useTheme() {
   };
 
   const accentOpt = ACCENT_OPTIONS.find(a => a.key === accentKey) || ACCENT_OPTIONS[0];
+  document.documentElement.style.setProperty('--color-accent', accentOpt.main);
+  document.documentElement.style.setProperty('--color-accent-dark', accentOpt.dark);
   const base = darkMode ? DK : LK;
   const T = { ...base, accent: accentOpt.main, accentDark: accentOpt.dark };
 

@@ -190,7 +190,7 @@ function MdText({ text, T }) {
           const html = boldToHtml(escHtml(line.replace(/^[-•*]\s/, '')));
           return (
             <div key={i} style={{ paddingLeft: 14, marginBottom: 4, display: 'flex', gap: 7 }}>
-              <span style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }}>•</span>
+              <span style={{ color: T.accent, flexShrink: 0, marginTop: 1 }}>•</span>
               <span dangerouslySetInnerHTML={{ __html: html }} />
             </div>
           );
@@ -310,7 +310,7 @@ export default function IATab({ T, data }) {
           <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{t('ia_analysis_title')}</span>
           {analysisState === 'done' && (
             <button onClick={runAnalysis}
-              style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 8, color: '#10b981', padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ background: T.accent + '1a', border: `1px solid ${T.accent}40`, borderRadius: 8, color: T.accent, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               {t('ia_refresh')}
             </button>
           )}
@@ -318,7 +318,7 @@ export default function IATab({ T, data }) {
 
         {analysisState === 'loading' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 16 }}>
-            <div style={{ width: 36, height: 36, border: `3px solid ${T.cardBorder}`, borderTopColor: '#10b981', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
+            <div style={{ width: 36, height: 36, border: `3px solid ${T.cardBorder}`, borderTopColor: T.accent, borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
             <div style={{ fontSize: 14, color: T.textMuted }}>{t('ia_loading')}</div>
           </div>
         )}
@@ -345,7 +345,7 @@ export default function IATab({ T, data }) {
             {SUGGESTIONS.map(s => (
               <button key={s} onClick={() => setInput(s)}
                 style={{ background: 'transparent', border: `1px solid ${T.cardBorder}`, borderRadius: 20, color: T.textMuted, padding: '6px 13px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = '#10b981'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
                 onMouseLeave={e => e.currentTarget.style.borderColor = T.cardBorder}>
                 {s}
               </button>
@@ -359,7 +359,7 @@ export default function IATab({ T, data }) {
               <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
                   maxWidth: '85%',
-                  background: m.role === 'user' ? 'linear-gradient(135deg,#10b981,#059669)' : T.bg,
+                  background: m.role === 'user' ? `linear-gradient(135deg,${T.accent},${T.accentDark})` : T.bg,
                   border: m.role === 'user' ? 'none' : `1px solid ${T.cardBorder}`,
                   borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   padding: '10px 14px', fontSize: 14,
@@ -374,7 +374,7 @@ export default function IATab({ T, data }) {
               <div style={{ display: 'flex' }}>
                 <div style={{ background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: '16px 16px 16px 4px', padding: '12px 16px', display: 'flex', gap: 5, alignItems: 'center' }}>
                   {[0, 1, 2].map(i => (
-                    <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                    <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: T.accent, animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
                   ))}
                 </div>
               </div>
@@ -390,7 +390,7 @@ export default function IATab({ T, data }) {
             style={{ flex: 1, background: T.bg, border: `1px solid ${T.cardBorder}`, borderRadius: 12, color: T.text, padding: '10px 14px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
           />
           <button type="submit" disabled={!input.trim() || chatLoading}
-            style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', borderRadius: 12, color: '#fff', padding: '10px 20px', fontSize: 16, cursor: (!input.trim() || chatLoading) ? 'not-allowed' : 'pointer', opacity: (!input.trim() || chatLoading) ? 0.5 : 1, fontFamily: 'inherit', transition: 'opacity .15s' }}>
+            style={{ background: `linear-gradient(135deg,${T.accent},${T.accentDark})`, border: 'none', borderRadius: 12, color: '#fff', padding: '10px 20px', fontSize: 16, cursor: (!input.trim() || chatLoading) ? 'not-allowed' : 'pointer', opacity: (!input.trim() || chatLoading) ? 0.5 : 1, fontFamily: 'inherit', transition: 'opacity .15s' }}>
             ↗
           </button>
         </form>

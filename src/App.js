@@ -19,8 +19,9 @@ import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
 import Tutorial from './components/Tutorial';
 
-const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted, accent = '#10b981' }) => (
+const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted, accent = '#10b981', accentDark = '#059669' }) => (
   <style>{`
+    :root { --color-accent: ${accent}; --color-accent-dark: ${accentDark}; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
     body {
@@ -64,7 +65,7 @@ const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorde
     /* ── Sidebar layout ─────────────────────────────────────────────────── */
     .sidebar { display: flex !important; }
     .app-main { padding-left: 220px; width: 100%; min-height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
-    .sb-item:not(.sb-active):hover { color: #10b981 !important; background: rgba(16,185,129,0.06) !important; }
+    .sb-item:not(.sb-active):hover { color: var(--color-accent) !important; background: color-mix(in srgb, var(--color-accent) 8%, transparent) !important; }
     /* On desktop with sidebar: hide header logo + top-nav */
     .app-main .hdr-logo  { display: none !important; }
     .app-main .top-nav   { display: none !important; }
