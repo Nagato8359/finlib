@@ -12,10 +12,6 @@ async function callGemini(contents, isAutoAnalysis = false) {
   return json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 }
 
-function fmtEur(n) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n || 0);
-}
-
 function buildContext(data) {
   const r   = n => Math.round(+(n) || 0);
   const p1  = n => parseFloat((+(n) || 0).toFixed(1));
