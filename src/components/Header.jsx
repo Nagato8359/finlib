@@ -60,6 +60,12 @@ export default function Header({
   }, [menuOpen]);
 
   useEffect(() => {
+    const handler = () => setDisplayName(localStorage.getItem('ct_displayname') || '');
+    window.addEventListener('profileUpdated', handler);
+    return () => window.removeEventListener('profileUpdated', handler);
+  }, []);
+
+  useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [menuOpen]);

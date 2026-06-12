@@ -60,6 +60,7 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
       localStorage.setItem('ct_profile', JSON.stringify(profile));
       const displayName = [profile.prenom, profile.nom].filter(Boolean).join(' ');
       if (displayName) localStorage.setItem('ct_displayname', displayName);
+      window.dispatchEvent(new Event('profileUpdated'));
 
       if (newPwd) {
         const { error: pwdError } = await supabase.auth.updateUser({ password: newPwd });
