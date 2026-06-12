@@ -17,6 +17,7 @@ export default function Budget({ T, data }) {
     setModal, setEditItem, setGoalForm, delGoal, mkGoal,
     debts, totalConsumerDebt, endettementRate, monthlyDebtPayments, income,
     openEditDebt, delDebt,
+    customBudgets, delCustomBudget, openEditCustomBudget, mkCustomBudget, setCustomBudgetForm,
   } = data;
 
   return (
@@ -26,9 +27,14 @@ export default function Budget({ T, data }) {
           <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>{t('budget_title')}</h1>
           <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>{t('budget_subtitle')}</p>
         </div>
-        <button onClick={() => { setEditItem(null); setGoalForm(mkGoal()); setModal('goal'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>
-          {t('budget_add_goal')}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => { setEditItem(null); setCustomBudgetForm(mkCustomBudget()); setModal('customBudget'); }} style={{ ...S.btnS, fontSize: 12, padding: '7px 16px' }}>
+            + Nouveau budget
+          </button>
+          <button onClick={() => { setEditItem(null); setGoalForm(mkGoal()); setModal('goal'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>
+            {t('budget_add_goal')}
+          </button>
+        </div>
       </div>
 
       {/* Taux d'endettement */}
@@ -88,6 +94,39 @@ export default function Budget({ T, data }) {
                 </div>
               );
             })}
+
+            {customBudgets.length > 0 && (
+              <>
+                <div style={{ height: 1, background: T.cardBorder, margin: '2px 0' }} />
+                {customBudgets.map(cb => {
+                  const prog = budgetProgress[cb.name] || { spent: 0, pct: 0 };
+                  const barColor = prog.pct >= 100 ? '#f87171' : prog.pct >= 80 ? '#fb923c' : cb.color;
+                  return (
+                    <div key={cb.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                          <span style={{ fontSize: 14, lineHeight: 1 }}>{cb.icon}</span>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{cb.name}</span>
+                          {prog.pct >= 100 && <span style={{ fontSize: 10, background: 'rgba(248,113,113,.15)', color: '#f87171', padding: '1px 6px', borderRadius: 20, fontWeight: 600 }}>{t('budget_exceeded_badge')}</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 12, color: T.textMuted }}>{fEur(prog.spent)} / {fEur(parseFloat(cb.limit) || 0)}</span>
+                          <button onClick={() => openEditCustomBudget(cb)} style={{ ...S.btnS, padding: '2px 7px', fontSize: 10 }}>✎</button>
+                          <button onClick={() => delCustomBudget(cb.id)} style={{ ...S.btnD, padding: '2px 7px', fontSize: 10 }}>✕</button>
+                        </div>
+                      </div>
+                      <div style={{ background: T.cardBorder, borderRadius: 6, height: 6, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(100, prog.pct)}%`, height: '100%', background: barColor, borderRadius: 6, transition: 'width .4s' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 11 }}>
+                        <span style={{ color: barColor, fontWeight: 600 }}>{Math.round(prog.pct)}%</span>
+                        <span style={{ color: T.textFaint }}>{t('budget_remaining', fEur(Math.max(0, (parseFloat(cb.limit) || 0) - prog.spent)))}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         </div>
 

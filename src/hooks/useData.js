@@ -40,7 +40,8 @@ const mkGoal    = () => ({ name: '', target: '', deadline: '', color: '#10b981' 
 const mkCash    = () => ({ name: '', type: 'Livret A', balance: '', rate: '' });
 const mkListing = () => ({ name: '', category: '', platform: '', buyPrice: '', sellPrice: '', fees: '', listedDate: today(), notes: '', condition: 'Bon état', storageLocation: '' });
 const mkLoan    = () => ({ name: '', lender: '', capitalBorrowed: '', capitalRemaining: '', monthlyPayment: '', rate: '', insuranceAmount: '', insuranceOrganisme: '', insuranceRate: '', startDate: today(), endDate: '' });
-const mkDebt    = () => ({ name: '', lender: '', capitalRemaining: '', monthlyPayment: '', rate: '', endDate: '' });
+const mkDebt         = () => ({ name: '', lender: '', capitalRemaining: '', monthlyPayment: '', rate: '', endDate: '' });
+const mkCustomBudget = () => ({ name: '', icon: '📦', limit: '', color: '#10b981' });
 
 // ── Recurring tx generator (pure) ────────────────────────────────────────────
 const applyRecurrences = (txs) => {
@@ -140,6 +141,8 @@ export function useData() {
   const [investments, setInvestments] = useState([]);
   const [healthAssets, setHealthAssets] = useState([]);
   const [budgets, setBudgets] = useState(SEED_BUDGETS);
+  const [customBudgets, setCustomBudgets] = useState([]);
+  const [customBudgetForm, setCustomBudgetForm] = useState(mkCustomBudget());
   const [goals, setGoals] = useState([]);
   const [savings, setSavings] = useState([]);
   const [listings, setListings] = useState([]);
@@ -202,6 +205,7 @@ export function useData() {
         if (data.investments?.length) setInvestments(data.investments);
         if (data.health_assets?.length) setHealthAssets(data.health_assets);
         if (data.budgets && Object.keys(data.budgets).length) setBudgets(data.budgets);
+        if (data.custom_budgets?.length) setCustomBudgets(data.custom_budgets);
         if (data.goals?.length) setGoals(data.goals);
         if (data.savings?.length) setSavings(data.savings);
         if (data.listings?.length) setListings(data.listings);
@@ -241,13 +245,13 @@ export function useData() {
       await supabase.from('user_data').upsert({
         user_id: userRef.current.id,
         transactions, investments, health_assets: healthAssets,
-        budgets, goals, savings, listings, sold_history: soldHistory,
+        budgets, custom_budgets: customBudgets, goals, savings, listings, sold_history: soldHistory,
         loans, debts,
         proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
         updated_at: new Date().toISOString(),
       });
     }, 1500);
-  }, [transactions, investments, healthAssets, budgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly]);
+  }, [transactions, investments, healthAssets, budgets, customBudgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly]);
 
   const handleLogout = async () => {
     dataLoaded.current = false;
@@ -255,14 +259,14 @@ export function useData() {
     clearSentNotifications();
     await supabase.auth.signOut();
     setTransactions([]); setInvestments([]); setHealthAssets([]);
-    setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]);
+    setBudgets(SEED_BUDGETS); setCustomBudgets([]); setGoals([]); setSavings([]);
     setListings([]); setSoldHistory([]);
     setLoans([]); setDebts([]);
   };
 
   const activateDemo = () => {
     setTransactions(SEED_TX); setInvestments(SEED_INV); setHealthAssets(SEED_HEALTH);
-    setBudgets(SEED_BUDGETS); setGoals(SEED_GOALS); setSavings(SEED_CASH);
+    setBudgets(SEED_BUDGETS); setCustomBudgets([]); setGoals(SEED_GOALS); setSavings(SEED_CASH);
     setListings(SEED_LISTINGS); setSoldHistory([]);
     setLoans([]); setDebts([]);
     setDemoMode(true);
@@ -395,6 +399,11 @@ export function useData() {
   Object.keys(budgets).forEach(cat => {
     const spent = Math.abs(monthTx.filter(t => t.category === cat && t.type === 'expense').reduce((s, t) => s + t.amount, 0));
     budgetProgress[cat] = { spent, limit: budgets[cat], pct: budgets[cat] > 0 ? (spent / budgets[cat]) * 100 : 0 };
+  });
+  customBudgets.forEach(cb => {
+    const limit = parseFloat(cb.limit) || 0;
+    const spent = Math.abs(monthTx.filter(t => t.category === cb.name && t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+    budgetProgress[cb.name] = { spent, limit, pct: limit > 0 ? (spent / limit) * 100 : 0, custom: true, icon: cb.icon, color: cb.color };
   });
 
   const monthlyData = Array.from({ length: 6 }, (_, i) => {
@@ -644,6 +653,15 @@ export function useData() {
   };
   const delGoal = id => setGoals(p => p.filter(g => g.id !== id));
 
+  const saveCustomBudget = () => {
+    if (!customBudgetForm.name.trim()) return;
+    const item = { ...customBudgetForm, id: editItem?.id || uid(), limit: parseFloat(customBudgetForm.limit) || 0 };
+    setCustomBudgets(p => editItem ? p.map(cb => cb.id === editItem.id ? item : cb) : [...p, item]);
+    setCustomBudgetForm(mkCustomBudget()); setEditItem(null); setModal(null);
+  };
+  const delCustomBudget = id => setCustomBudgets(p => p.filter(cb => cb.id !== id));
+  const openEditCustomBudget = cb => { setEditItem(cb); setCustomBudgetForm(cb); setModal('customBudget'); };
+
   const saveLoan = () => {
     if (!loanForm.name || !loanForm.capitalRemaining) return;
     const item = {
@@ -740,7 +758,7 @@ export function useData() {
     await supabase.auth.signOut();
     dataLoaded.current = false;
     setTransactions([]); setInvestments([]); setHealthAssets([]);
-    setBudgets(SEED_BUDGETS); setGoals([]); setSavings([]);
+    setBudgets(SEED_BUDGETS); setCustomBudgets([]); setGoals([]); setSavings([]);
     setListings([]); setSoldHistory([]);
     setLoans([]); setDebts([]);
     setUser(null);
@@ -778,6 +796,8 @@ export function useData() {
     saveListing, delListing, openEditListing, markSold,
     saveCash, delCash, openEditCash,
     saveGoal, delGoal,
+    customBudgets, customBudgetForm, setCustomBudgetForm, mkCustomBudget,
+    saveCustomBudget, delCustomBudget, openEditCustomBudget,
     saveLoan, delLoan, openEditLoan,
     saveDebt, delDebt, openEditDebt,
     divForm, setDivForm, divInvId, setDivInvId,

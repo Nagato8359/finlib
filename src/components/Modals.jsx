@@ -75,7 +75,11 @@ export default function Modals({ T, data }) {
     allAccounts, computedLoans,
     listings, soldHistory,
     divForm, setDivForm, divInvId, addDividend,
+    customBudgets, customBudgetForm, setCustomBudgetForm, saveCustomBudget, mkCustomBudget,
   } = data;
+
+  const BUDGET_ICONS   = ['🛒','🍔','🚗','🏠','💊','🎮','✈️','👔','📚','🎵','💆','🐾','🏋️','🍷','☕','🎁','📱','💻','🔧','🌿','🛍️','🎬','⚽','🎨','🎂'];
+  const BUDGET_COLORS  = ['#10b981','#f87171','#fb923c','#fbbf24','#a78bfa','#60a5fa','#34d399','#f472b6','#94a3b8','#f59e0b','#06b6d4','#84cc16'];
 
   if (!modal) return null;
   const close = reset => { setModal(null); setEditItem(null); reset && reset(); };
@@ -111,6 +115,8 @@ export default function Modals({ T, data }) {
             <FField style={f} label={t('f_category')}>
               <select style={S.inp} value={txForm.category} onChange={e => setTxForm(p => ({ ...p, category: e.target.value }))}>
                 {Object.keys(CAT_COLORS).map(c2 => <option key={c2}>{c2}</option>)}
+                {customBudgets.length > 0 && <option disabled>──────────</option>}
+                {customBudgets.map(cb => <option key={cb.id} value={cb.name}>{cb.icon} {cb.name}</option>)}
               </select>
             </FField>
             <FField style={f} label={t('tx_recurrent')}>
@@ -608,6 +614,51 @@ export default function Modals({ T, data }) {
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <CBtn color={c} onClick={saveDebt}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
           <button onClick={() => close(() => setDebtForm(mkDebt()))} style={S.btnS}>{t('btn_cancel')}</button>
+        </div>
+      </CMShell>
+    );
+  }
+
+  // ── Budget personnalisé ──────────────────────────────────────────────────────
+  if (modal === 'customBudget') {
+    const c = customBudgetForm.color || '#10b981';
+    const f = fa(c);
+    return (
+      <CMShell T={T} title={editItem ? 'Modifier le budget' : 'Nouveau budget'} icon={customBudgetForm.icon || '📦'} color={c} onClose={() => close(() => setCustomBudgetForm(mkCustomBudget()))}>
+        <FRow cols={2}>
+          <FField style={f} label="Nom du budget">
+            <input type="text" placeholder="Ex : Sorties, Vêtements…" style={S.inp} value={customBudgetForm.name} onChange={e => setCustomBudgetForm(p => ({ ...p, name: e.target.value }))} />
+          </FField>
+          <FField style={f} label="Plafond mensuel (€)">
+            <input type="number" placeholder="0" min="0" step="1" style={S.inp} value={customBudgetForm.limit} onChange={e => setCustomBudgetForm(p => ({ ...p, limit: e.target.value }))} />
+          </FField>
+        </FRow>
+        <FRow cols={1}>
+          <FField style={f} label="Icône">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              {BUDGET_ICONS.map(ic => (
+                <button key={ic} onClick={() => setCustomBudgetForm(p => ({ ...p, icon: ic }))}
+                  style={{ width: 36, height: 36, fontSize: 18, borderRadius: 8, border: `2px solid ${customBudgetForm.icon === ic ? c : 'transparent'}`, background: customBudgetForm.icon === ic ? c + '22' : T.bg2, cursor: 'pointer' }}>
+                  {ic}
+                </button>
+              ))}
+            </div>
+          </FField>
+        </FRow>
+        <FRow cols={1}>
+          <FField style={f} label="Couleur">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+              {BUDGET_COLORS.map(col => (
+                <button key={col} onClick={() => setCustomBudgetForm(p => ({ ...p, color: col }))}
+                  style={{ width: 26, height: 26, borderRadius: '50%', background: col, border: customBudgetForm.color === col ? `3px solid ${T.text}` : '2px solid transparent', cursor: 'pointer', padding: 0, boxShadow: customBudgetForm.color === col ? `0 0 0 1px ${col}` : 'none', transition: 'transform .1s', transform: customBudgetForm.color === col ? 'scale(1.2)' : 'scale(1)' }}
+                />
+              ))}
+            </div>
+          </FField>
+        </FRow>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <CBtn color={c} onClick={saveCustomBudget}>{editItem ? 'Enregistrer' : 'Créer le budget'}</CBtn>
+          <button onClick={() => close(() => setCustomBudgetForm(mkCustomBudget()))} style={S.btnS}>Annuler</button>
         </div>
       </CMShell>
     );
