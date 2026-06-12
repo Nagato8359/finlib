@@ -34,6 +34,7 @@ export default function Header({
   const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
 
   const [menuOpen, setMenuOpen]           = useState(false);
+  const [avatarHovered, setAvatarHovered] = useState(false);
   const [profilePage, setProfilePage]     = useState(false);
   const [trophiesPage, setTrophiesPage]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -129,8 +130,10 @@ export default function Header({
     <>
     <style>{`
       .header-logo { height: 44px; }
+      .avatar-tooltip { display: block; }
       @media (max-width: 768px) {
         .header-logo { height: 38px; }
+        .avatar-tooltip { display: none !important; }
         .hdr-menu-dropdown {
           position: fixed !important;
           top: 60px !important;
@@ -168,21 +171,32 @@ export default function Header({
           </nav>
         </div>
 
-        {/* Right — avatar / hamburger */}
+        {/* Right — avatar */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }} ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(o => !o)}
-            aria-label="Menu"
-            style={{ background: menuOpen ? T.cardBg : 'transparent', border: `1px solid ${menuOpen ? T.cardBorder : 'transparent'}`, borderRadius: 12, color: T.text, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0, padding: 0 }}
+          <div
+            style={{ position: 'relative', display: 'inline-flex' }}
+            onMouseEnter={() => setAvatarHovered(true)}
+            onMouseLeave={() => setAvatarHovered(false)}
           >
-            {(user && !demoMode) ? (
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: accent + '28', border: `2px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, letterSpacing: '-.02em' }}>
-                {initials}
+            <button
+              onClick={() => setMenuOpen(o => !o)}
+              aria-label="Menu"
+              style={{ background: accent + '28', border: `2px solid ${menuOpen ? accent : accent + '55'}`, borderRadius: '50%', color: accent, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'border-color .15s', flexShrink: 0, padding: 0 }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1 }}>
+                {demoMode ? 'D' : initials}
+              </span>
+            </button>
+            {avatarHovered && !menuOpen && (
+              <div
+                className="avatar-tooltip"
+                style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 8, padding: '6px 10px', fontSize: 12, color: T.text, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,.35)' }}
+              >
+                <div style={{ fontWeight: 600 }}>{displayName || (demoMode ? 'Mode démo' : email ? email.split('@')[0] : '—')}</div>
+                {!displayName && !demoMode && email && <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>{email}</div>}
               </div>
-            ) : (
-              <span style={{ fontSize: menuOpen ? 16 : 20 }}>{menuOpen ? '✕' : '≡'}</span>
             )}
-          </button>
+          </div>
 
           {/* ── Dropdown menu ─────────────────────────────────────────────── */}
           {menuOpen && (
