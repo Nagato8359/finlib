@@ -17,125 +17,125 @@ function fmtEur(n) {
 }
 
 function buildContext(data) {
-  const pct = n => `${(+(n || 0)).toFixed(1)}%`;
-  const sign = n => (n >= 0 ? '+' : '') + fmtEur(n);
-  let c = '';
-
-  // Patrimoine global avec répartition en %
+  const r   = n => Math.round(+(n) || 0);
+  const p1  = n => parseFloat((+(n) || 0).toFixed(1));
   const total = data.patrimoine || 0;
-  const invPct  = total > 0 ? ((data.invTotal   / total) * 100).toFixed(0) : 0;
-  const cashPct = total > 0 ? ((data.cashTotal  / total) * 100).toFixed(0) : 0;
-  const matPct  = total > 0 ? ((data.healthTotal / total) * 100).toFixed(0) : 0;
-  c += `═══ PATRIMOINE TOTAL : ${fmtEur(total)} ═══\n`;
-  c += `  • Investissements financiers : ${fmtEur(data.invTotal)} (${invPct}%)\n`;
-  c += `  • Épargne & liquidités       : ${fmtEur(data.cashTotal)} (${cashPct}%)\n`;
-  c += `  • Patrimoine matériel        : ${fmtEur(data.healthTotal)} (${matPct}%)\n`;
-  c += `  • Plus-value latente totale  : ${sign(data.pnlTotal || 0)}\n\n`;
 
-  // Investissements — détail par enveloppe
-  if (data.investments?.length) {
-    c += `INVESTISSEMENTS — ${data.investments.length} enveloppe(s) :\n`;
-    c += `  Investi : ${fmtEur(data.invInvested)} | Valeur actuelle : ${fmtEur(data.invTotal)} | PnL : ${sign(data.pnlTotal || 0)}\n`;
-    data.investments.forEach(inv => {
-      const val      = inv.currentValue ?? inv.value ?? 0;
-      const invested = inv.invested ?? inv.cost ?? inv.buyPrice ?? null;
-      const pnlInv   = invested != null ? val - invested : null;
-      let line = `  - ${inv.name} (${inv.type ?? 'N/A'}) : ${fmtEur(val)}`;
-      if (invested != null) line += ` | investi : ${fmtEur(invested)} | PnL : ${sign(pnlInv)}`;
-      c += line + '\n';
+  // ── Investissements ─────────────────────────────────────────────────────────
+  const investissements = (data.investments || []).map(inv => {
+    const lv = data.invLiveValue ? data.invLiveValue(inv) : (parseFloat(inv.value) || 0);
+    const li = data.invLiveInvested ? data.invLiveInvested(inv) : (parseFloat(inv.invested) || 0);
+    const pv = lv - li;
+    const positions = (inv.positions || []).map(p => {
+      const prix = (data.prices?.[p.isin || p.ticker]) ?? p.currentPrice ?? 0;
+      const pru  = parseFloat(p.buyPrice) || 0;
+      return {
+        nom:      p.name || p.ticker || p.isin || '',
+        ticker:   p.ticker || p.isin || '',
+        quantite: +(p.shares) || 0,
+        pru,
+        prix:     +parseFloat(prix).toFixed(2),
+        valeur:   r((p.shares || 0) * prix),
+        pv_pct:   pru > 0 ? p1(((prix - pru) / pru) * 100) : 0,
+      };
     });
-    c += '\n';
-  }
+    const obj = {
+      nom:     inv.name,
+      type:    inv.type || 'Autre',
+      valeur:  r(lv),
+      investi: r(li),
+      pv:      r(pv),
+      pv_pct:  li > 0 ? p1((pv / li) * 100) : 0,
+    };
+    if (positions.length) obj.positions = positions;
+    return obj;
+  });
 
-  // Épargne — détail par compte
-  if (data.savings?.length) {
-    c += `COMPTES ÉPARGNE — ${data.savings.length} compte(s) :\n`;
-    data.savings.forEach(s => {
-      const bal = s.balance ?? s.amount ?? 0;
-      const annual = bal * ((s.rate || 0) / 100);
-      c += `  - ${s.name} : ${fmtEur(bal)} à ${s.rate}%/an (≈ ${fmtEur(annual)} d'intérêts/an)\n`;
-    });
-    c += `  Total épargne : ${fmtEur(data.cashTotal)}\n\n`;
-  }
+  // ── Épargne ─────────────────────────────────────────────────────────────────
+  const savingsArr = data.savings || data.computedSavings || [];
+  const epargne = savingsArr.map(s => {
+    const solde = parseFloat(s.balance ?? s.amount) || 0;
+    const taux  = parseFloat(s.rate) || 0;
+    return {
+      nom:              s.name,
+      type:             s.type || '',
+      solde:            r(solde),
+      taux,
+      interets_annuels: r(solde * taux / 100),
+    };
+  });
 
-  // Actifs matériels — détail
-  if (data.healthAssets?.length) {
-    c += `ACTIFS MATÉRIELS — ${data.healthAssets.length} actif(s) :\n`;
-    data.healthAssets.forEach(a => {
-      const val  = a.value ?? a.estimatedValue ?? 0;
-      const cost = a.cost ?? a.purchasePrice ?? 0;
-      c += `  - ${a.name} (${a.type ?? 'N/A'}) : valeur ${fmtEur(val)} | acheté ${fmtEur(cost)} | ${sign(val - cost)}\n`;
-    });
-    c += '\n';
-  }
+  // ── Flux du mois ─────────────────────────────────────────────────────────────
+  const revenus  = r(data.income);
+  const depenses = r(data.expense);
+  const catMap   = {};
+  (data.catData || [])
+    .sort((a, b) => b.value - a.value)
+    .forEach(c => { catMap[c.name] = r(c.value); });
+  const flux_mois = {
+    revenus,
+    depenses,
+    epargne_nette: revenus - depenses,
+    taux_epargne:  p1(data.savingsRate),
+    par_categorie: catMap,
+  };
 
-  // Revenus & dépenses du mois
-  c += `FINANCES DU MOIS EN COURS :\n`;
-  c += `  • Revenus   : ${fmtEur(data.income)}\n`;
-  c += `  • Dépenses  : ${fmtEur(data.expense)}\n`;
-  c += `  • Solde     : ${fmtEur(data.balance)}\n`;
-  c += `  • Taux d'épargne         : ${pct(data.savingsRate)}\n`;
-  c += `  • Score santé financière : ${data.score}/100\n\n`;
+  // ── Budgets (seulement si dépassements ou données non vides) ─────────────────
+  const budgets = {};
+  Object.entries(data.budgetProgress || {}).forEach(([cat, p]) => {
+    budgets[cat] = {
+      depense: r(p.spent),
+      limite:  r(p.limit),
+      pct:     p.limit > 0 ? r((p.spent / p.limit) * 100) : null,
+      depasse: !!(p.limit > 0 && p.spent > p.limit),
+    };
+  });
 
-  // Dépenses par catégorie triées par montant
-  if (data.catData?.length) {
-    c += `DÉPENSES PAR CATÉGORIE :\n`;
-    [...data.catData].sort((a, b) => b.value - a.value).forEach(cat => {
-      const share = data.expense > 0 ? ((cat.value / data.expense) * 100).toFixed(0) : 0;
-      c += `  - ${cat.name} : ${fmtEur(cat.value)} (${share}% des dépenses)\n`;
-    });
-    c += '\n';
-  }
+  // ── Dettes ───────────────────────────────────────────────────────────────────
+  const loans = data.computedLoans || data.loans || [];
+  const debts = data.debts || [];
+  const dettes = [
+    ...loans.map(l => ({
+      nom:              l.name || l.label || 'Crédit',
+      capital_restant:  r(l.computedRemaining ?? l.capitalRemaining ?? l.remaining ?? 0),
+      mensualite:       r((parseFloat(l.monthlyPayment) || 0) + (parseFloat(l.insuranceAmount) || 0)),
+      taux:             parseFloat(l.rate) || 0,
+    })),
+    ...debts.map(d => ({
+      nom:             d.name || d.label || 'Dette',
+      capital_restant: r(parseFloat(d.capitalRemaining) || 0),
+      mensualite:      r(parseFloat(d.monthlyPayment) || 0),
+      taux:            parseFloat(d.rate) || 0,
+    })),
+  ];
 
-  // Budget mensuel avec alertes dépassement
-  if (data.budgetProgress && Object.keys(data.budgetProgress).length) {
-    c += `BUDGET MENSUEL :\n`;
-    Object.entries(data.budgetProgress).forEach(([cat, p]) => {
-      const used   = p.limit > 0 ? ((p.spent / p.limit) * 100).toFixed(0) : '?';
-      const alert  = p.limit > 0 && p.spent > p.limit ? ' ⚠ DÉPASSÉ' : '';
-      c += `  - ${cat} : ${fmtEur(p.spent)} / ${fmtEur(p.limit)} (${used}%)${alert}\n`;
-    });
-    c += '\n';
-  }
+  // ── Objectifs ────────────────────────────────────────────────────────────────
+  const objectifs = (data.goals || []).map(g => ({
+    nom:            g.name,
+    cible:          r(g.target),
+    progression_pct: g.target > 0 ? r((total / g.target) * 100) : 0,
+    echeance:       g.deadline || null,
+  }));
 
-  // Dettes & crédits — détail
-  if (data.totalDebt > 0) {
-    c += `DETTES ET CRÉDITS :\n`;
-    c += `  Total dû : ${fmtEur(data.totalDebt)} | Mensualités : ${fmtEur(data.monthlyDebtPayments)} | Taux d'endettement : ${pct(data.endettementRate)}\n`;
-    data.loans?.forEach(l => {
-      const remaining = l.remaining ?? l.capital ?? l.amount ?? 0;
-      const monthly   = l.monthly ?? l.monthlyPayment ?? 0;
-      c += `  - Prêt "${l.name ?? l.label ?? 'N/A'}" : capital restant ${fmtEur(remaining)}, mensualité ${fmtEur(monthly)}${l.rate ? `, taux ${l.rate}%` : ''}\n`;
-    });
-    data.debts?.forEach(d => {
-      c += `  - Dette "${d.name ?? d.label ?? 'N/A'}" : ${fmtEur(d.amount ?? d.balance ?? 0)}${d.rate ? ` à ${d.rate}%` : ''}\n`;
-    });
-    c += '\n';
-  }
+  // ── Contexte final ────────────────────────────────────────────────────────────
+  const ctx = {
+    patrimoine: {
+      total:           r(total),
+      investissements: r(data.invTotal),
+      epargne:         r(data.cashTotal),
+      materiel:        r(data.healthTotal),
+    },
+    investissements,
+    epargne,
+    flux_mois,
+    ...(Object.keys(budgets).length ? { budgets } : {}),
+    ...(dettes.length ? { dettes } : {}),
+    ...(objectifs.length ? { objectifs } : {}),
+    score_sante:      data.score || 0,
+    taux_endettement: p1(data.endettementRate),
+  };
 
-  // Objectifs financiers
-  if (data.goals?.length) {
-    c += `OBJECTIFS FINANCIERS :\n`;
-    data.goals.forEach(g => {
-      const progress  = g.target > 0 ? ((g.current / g.target) * 100).toFixed(1) : 0;
-      const remaining = (g.target ?? 0) - (g.current ?? 0);
-      c += `  - ${g.name} : ${fmtEur(g.current)} / ${fmtEur(g.target)} (${progress}% — reste ${fmtEur(remaining)})\n`;
-    });
-    c += '\n';
-  }
-
-  // Ventes en cours
-  const activeListings = data.listings?.filter(l => !l.sold) ?? [];
-  if (activeListings.length) {
-    c += `VENTES EN COURS :\n`;
-    activeListings.forEach(l => {
-      const profit = (l.sellPrice ?? 0) - (l.buyPrice ?? 0);
-      c += `  - ${l.name} : demandé ${fmtEur(l.sellPrice)}, acheté ${fmtEur(l.buyPrice)}, bénéfice potentiel ${sign(profit)}\n`;
-    });
-    c += '\n';
-  }
-
-  return c;
+  return JSON.stringify(ctx);
 }
 
 function escHtml(s) {
