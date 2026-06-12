@@ -12,14 +12,37 @@ const META_STYLE = {
   other:      { icon: '📦', color: '#94a3b8', grad: 'linear-gradient(135deg,#0f172a,#1e293b)' },
 };
 const COMMODITY_TYPES = ['Or', 'Argent', 'Platine', 'Palladium', 'Pétrole', 'Cuivre', 'Autre'];
-const COMMODITY_UNITS = ['grammes', 'onces troy', 'kilogrammes'];
 const COMMODITY_TICKER_MAP = {
   'Or': 'GC=F', 'Argent': 'SI=F', 'Platine': 'PL=F',
   'Palladium': 'PA=F', 'Pétrole': 'CL=F', 'Cuivre': 'HG=F',
 };
-const UNIT_FROM_OZ = {
-  'grammes': 1 / 31.1035, 'onces troy': 1, 'kilogrammes': 32.1507,
+// Units offered per commodity type
+const COMMODITY_UNITS_MAP = {
+  'Or':        ['grammes', 'onces troy', 'kilogrammes'],
+  'Argent':    ['grammes', 'onces troy', 'kilogrammes'],
+  'Platine':   ['grammes', 'onces troy', 'kilogrammes'],
+  'Palladium': ['grammes', 'onces troy', 'kilogrammes'],
+  'Pétrole':   ['barils'],
+  'Cuivre':    ['kilogrammes', 'tonnes'],
+  'Autre':     ['unités'],
 };
+const COMMODITY_DEFAULT_UNIT = {
+  'Or': 'grammes', 'Argent': 'grammes', 'Platine': 'grammes', 'Palladium': 'grammes',
+  'Pétrole': 'barils', 'Cuivre': 'kilogrammes', 'Autre': 'unités',
+};
+// Convert raw Yahoo price (EUR/troy oz for metals, EUR/barrel for oil, EUR/lb for copper) → EUR/unit
+function commodityUnitFactor(type, unit) {
+  if (type === 'Pétrole') return 1;                               // EUR/barrel → EUR/barrel
+  if (type === 'Cuivre') {
+    if (unit === 'kilogrammes') return 2.20462;                   // 1 kg = 2.20462 lb
+    if (unit === 'tonnes')      return 2204.62;                   // 1 tonne = 2204.62 lb
+    return 1;
+  }
+  // Precious metals: EUR/troy oz
+  if (unit === 'onces troy')  return 1;
+  if (unit === 'kilogrammes') return 32.1507;
+  return 1 / 31.1035;                                             // grammes (default)
+}
 const CRYPTO_PLATFORMS = ['Binance', 'Coinbase', 'Kraken', 'Bybit', 'Ledger (HW)', 'Trezor (HW)', 'MetaMask', 'Autre'];
 const AV_INSURERS = ['AXA', 'Generali', 'Spirica', 'Apicil', 'Suravenir', 'Predica (CA)', 'Autre'];
 
@@ -96,8 +119,7 @@ export default function PositionFormModal({ T, data }) {
       const json = await res.json();
       if (json.price != null) {
         commodityOzRef.current = json.price;
-        const factor = UNIT_FROM_OZ[unit] ?? UNIT_FROM_OZ.grammes;
-        const unitPrice = +(json.price * factor).toFixed(4);
+        const unitPrice = +(json.price * commodityUnitFactor(commodityType, unit)).toFixed(4);
         setPosForm(p => ({ ...p, currentPrice: String(unitPrice) }));
         setAutoFilled(prev => new Set([...prev, 'currentPrice']));
       }
@@ -110,7 +132,8 @@ export default function PositionFormModal({ T, data }) {
     if (modal !== 'drill') return;
     const ft = posForm.posType || getInvFormType(drillInv);
     if (ft !== 'commodity') return;
-    fetchCommodityPrice(posForm.commodityType || 'Or', posForm.unit || 'grammes');
+    const ct = posForm.commodityType || 'Or';
+    fetchCommodityPrice(ct, posForm.unit || COMMODITY_DEFAULT_UNIT[ct] || 'grammes');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modal]);
 
@@ -624,8 +647,11 @@ export default function PositionFormModal({ T, data }) {
                 <FF label={t('pos_commodity_type')}>
                   <select style={inp} value={posForm.commodityType || 'Or'} onChange={e => {
                     const newType = e.target.value;
-                    setPosForm(p => ({ ...p, commodityType: newType, name: p.name || newType }));
-                    fetchCommodityPrice(newType, posForm.unit || 'grammes');
+                    const newUnit = COMMODITY_DEFAULT_UNIT[newType] || 'grammes';
+                    commodityOzRef.current = null;
+                    setAutoFilled(prev => { const n = new Set(prev); n.delete('currentPrice'); return n; });
+                    setPosForm(p => ({ ...p, commodityType: newType, unit: newUnit, name: p.name || newType, currentPrice: '' }));
+                    fetchCommodityPrice(newType, newUnit);
                   }}>
                     {COMMODITY_TYPES.map(ct => <option key={ct}>{ct}</option>)}
                   </select>
@@ -639,17 +665,18 @@ export default function PositionFormModal({ T, data }) {
                   <input type="number" placeholder="0" min="0" step="any" style={inp} value={posForm.shares} onChange={e => setPosForm(p => ({ ...p, shares: e.target.value }))} />
                 </FF>
                 <FF label={t('pos_unit')}>
-                  <select style={inp} value={posForm.unit || 'grammes'} onChange={e => {
+                  <select style={inp} value={posForm.unit || COMMODITY_DEFAULT_UNIT[posForm.commodityType || 'Or']} onChange={e => {
                     const newUnit = e.target.value;
-                    setPosForm(p => ({ ...p, unit: newUnit }));
+                    const ct = posForm.commodityType || 'Or';
                     if (commodityOzRef.current != null) {
-                      const factor = UNIT_FROM_OZ[newUnit] ?? UNIT_FROM_OZ.grammes;
-                      const unitPrice = +(commodityOzRef.current * factor).toFixed(4);
+                      const unitPrice = +(commodityOzRef.current * commodityUnitFactor(ct, newUnit)).toFixed(4);
                       setPosForm(p => ({ ...p, unit: newUnit, currentPrice: String(unitPrice) }));
                       setAutoFilled(prev => new Set([...prev, 'currentPrice']));
+                    } else {
+                      setPosForm(p => ({ ...p, unit: newUnit }));
                     }
                   }}>
-                    {COMMODITY_UNITS.map(u => <option key={u}>{u}</option>)}
+                    {(COMMODITY_UNITS_MAP[posForm.commodityType || 'Or'] || ['grammes']).map(u => <option key={u}>{u}</option>)}
                   </select>
                 </FF>
                 <FF label={t('pos_unit_price_buy')}>

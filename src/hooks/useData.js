@@ -13,9 +13,18 @@ const COMMODITY_TICKER_MAP = {
   'Or': 'GC=F', 'Argent': 'SI=F', 'Platine': 'PL=F',
   'Palladium': 'PA=F', 'Pétrole': 'CL=F', 'Cuivre': 'HG=F',
 };
-const UNIT_FROM_OZ = {
-  'grammes': 1 / 31.1035, 'onces troy': 1, 'kilogrammes': 32.1507,
-};
+// EUR/troy oz for metals, EUR/barrel for oil, EUR/lb for copper → EUR/unit
+function commodityUnitFactor(type, unit) {
+  if (type === 'Pétrole') return 1;
+  if (type === 'Cuivre') {
+    if (unit === 'kilogrammes') return 2.20462;
+    if (unit === 'tonnes')      return 2204.62;
+    return 1;
+  }
+  if (unit === 'onces troy')  return 1;
+  if (unit === 'kilogrammes') return 32.1507;
+  return 1 / 31.1035;  // grammes (default for metals)
+}
 
 const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false, accountId: '', destAccountId: '', loanId: '' });
 const mkInv     = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
@@ -389,10 +398,9 @@ export function useData() {
     const v = inv.positions.reduce((s, p) => {
       if (p.posType === 'commodity') {
         const ticker = COMMODITY_TICKER_MAP[p.commodityType];
-        const ozPrice = ticker ? prices[ticker] : null;
-        if (ozPrice != null) {
-          const factor = UNIT_FROM_OZ[p.unit] ?? UNIT_FROM_OZ.grammes;
-          return s + p.shares * ozPrice * factor;
+        const rawPrice = ticker ? prices[ticker] : null;
+        if (rawPrice != null) {
+          return s + p.shares * rawPrice * commodityUnitFactor(p.commodityType, p.unit);
         }
       }
       return s + p.shares * (prices[p.isin || p.ticker] ?? p.currentPrice);
