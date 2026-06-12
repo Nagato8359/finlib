@@ -32,7 +32,7 @@ export default function Header({
   tab, setTab, TABS, data, onStartTutorial,
 }) {
   const { t } = useTranslation();
-  const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
+  const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount, profiles, activeProfileId, switchProfile, addProfile } = data;
 
   const [menuOpen, setMenuOpen]           = useState(false);
   const [profilePage, setProfilePage]     = useState(false);
@@ -42,6 +42,9 @@ export default function Header({
   const [displayName, setDisplayName]     = useState(() => localStorage.getItem('ct_displayname') || '');
   const [notifEnabled, setNotifEnabled]   = useState(() => localStorage.getItem('ct_notif') !== '0');
   const [legalModal, setLegalModal]       = useState(null); // 'mentions' | 'privacy' | 'cgu'
+  const [addProfileModal, setAddProfileModal] = useState(false);
+  const [addProfileLabel, setAddProfileLabel] = useState('');
+  const [addProfileLoading, setAddProfileLoading] = useState(false);
 
   const menuRef     = useRef(null);
   const fileInputRef = useRef(null);
@@ -82,6 +85,15 @@ export default function Header({
       setTimeout(() => setImportFeedback(''), 3000);
     }
     e.target.value = '';
+  };
+
+  const handleAddProfile = async () => {
+    if (!addProfileLabel.trim() || addProfileLoading) return;
+    setAddProfileLoading(true);
+    await addProfile(addProfileLabel.trim());
+    setAddProfileLoading(false);
+    setAddProfileLabel('');
+    setAddProfileModal(false);
   };
 
   const accent   = T.accent || '#10b981';
@@ -242,6 +254,44 @@ export default function Header({
                 />
               ) : (
               <>
+
+              {/* ── 0. CHANGER DE PROFIL ───────────────────────────── */}
+              {user && !demoMode && (
+                <>
+                  <SLabel>Changer de profil</SLabel>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, margin: '2px 0' }}>
+                    <button
+                      onClick={() => switchProfile(null)}
+                      style={{ width: '100%', background: activeProfileId === null ? accent + '18' : 'transparent', border: `1px solid ${activeProfileId === null ? accent + '44' : 'transparent'}`, borderRadius: 10, color: T.text, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
+                      onMouseEnter={e => { if (activeProfileId !== null) e.currentTarget.style.background = T.cardBg; }}
+                      onMouseLeave={e => { if (activeProfileId !== null) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: accent + '28', border: `1px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, flexShrink: 0 }}>
+                        {initials}
+                      </div>
+                      <span style={{ flex: 1, fontSize: 13, textAlign: 'left', fontWeight: activeProfileId === null ? 600 : 400 }}>Principal</span>
+                      {activeProfileId === null && <span style={{ fontSize: 13, color: accent }}>✓</span>}
+                    </button>
+                    {(profiles || []).map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => switchProfile(p.id)}
+                        style={{ width: '100%', background: activeProfileId === p.id ? accent + '18' : 'transparent', border: `1px solid ${activeProfileId === p.id ? accent + '44' : 'transparent'}`, borderRadius: 10, color: T.text, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
+                        onMouseEnter={e => { if (activeProfileId !== p.id) e.currentTarget.style.background = T.cardBg; }}
+                        onMouseLeave={e => { if (activeProfileId !== p.id) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: accent + '28', border: `1px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, flexShrink: 0 }}>
+                          {p.label.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span style={{ flex: 1, fontSize: 13, textAlign: 'left', fontWeight: activeProfileId === p.id ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span>
+                        {activeProfileId === p.id && <span style={{ fontSize: 13, color: accent }}>✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <MBtn icon="＋" label="Ajouter un profil" onClick={() => setAddProfileModal(true)} muted />
+                  <Divider />
+                </>
+              )}
 
               {/* ── 1. PROFIL ──────────────────────────────────────── */}
               {(user || demoMode) && (
@@ -405,6 +455,38 @@ export default function Header({
         </div>
       </div>
     </header>
+    {addProfileModal && (
+      <div
+        onClick={e => { if (e.target === e.currentTarget) { setAddProfileModal(false); setAddProfileLabel(''); } }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      >
+        <div style={{ background: '#111827', border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, maxWidth: 360, width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,.6)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T.text }}>Ajouter un profil</h2>
+            <button
+              onClick={() => { setAddProfileModal(false); setAddProfileLabel(''); }}
+              style={{ background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 8, color: '#e5e7eb', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontFamily: 'inherit' }}
+            >✕</button>
+          </div>
+          <input
+            autoFocus
+            type="text"
+            placeholder="Prénom ou label (ex: Madame, Investissements…)"
+            value={addProfileLabel}
+            onChange={e => setAddProfileLabel(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAddProfile(); }}
+            style={{ width: '100%', padding: '10px 14px', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 10, color: T.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
+          />
+          <button
+            onClick={handleAddProfile}
+            disabled={addProfileLoading || !addProfileLabel.trim()}
+            style={{ width: '100%', background: accent, border: 'none', borderRadius: 10, color: '#fff', padding: '10px', fontSize: 14, fontWeight: 600, cursor: addProfileLoading || !addProfileLabel.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addProfileLoading || !addProfileLabel.trim() ? 0.6 : 1, transition: 'opacity .15s' }}
+          >
+            {addProfileLoading ? 'Création…' : 'Créer le profil'}
+          </button>
+        </div>
+      </div>
+    )}
     {legalModal && (() => {
       const TITLES = {
         mentions: 'Mentions légales',

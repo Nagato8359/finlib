@@ -176,14 +176,21 @@ export function useData() {
   const [authLoading, setAuthLoading] = useState(true);
   const [demoMode, setDemoMode] = useState(false);
   const [loadedPreferences, setLoadedPreferences] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+  const [activeProfileId, setActiveProfileId] = useState(null);
+  const activeProfileIdRef = useRef(null);
+  useEffect(() => { activeProfileIdRef.current = activeProfileId; }, [activeProfileId]);
   const dataLoaded = useRef(false);
   const saveTimer = useRef(null);
   const userRef = useRef(null);
   useEffect(() => { userRef.current = user; }, [user]);
 
-  const loadUserData = useCallback(async (userId) => {
+  const loadUserData = useCallback(async (userId, profileId = null) => {
     try {
-      const { data } = await supabase.from('user_data').select('*').eq('user_id', userId).single();
+      let q = supabase.from('user_data').select('*').eq('user_id', userId);
+      if (profileId) q = q.eq('profile_id', profileId);
+      else q = q.is('profile_id', null);
+      const { data } = await q.single();
       if (data) {
         let txs = data.transactions?.length ? data.transactions : [];
 
@@ -223,40 +230,85 @@ export function useData() {
     setAuthLoading(false);
   }, []);
 
+  const loadProfiles = useCallback(async (userId) => {
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('user_id', userId).order('created_at');
+      setProfiles(data || []);
+    } catch {}
+  }, []);
+
+  const switchProfile = useCallback(async (profileId) => {
+    setTransactions([]); setInvestments([]); setHealthAssets([]);
+    setBudgets(SEED_BUDGETS); setCustomBudgets([]); setGoals([]); setSavings([]);
+    setListings([]); setSoldHistory([]);
+    setLoans([]); setDebts([]);
+    setActiveProfileId(profileId);
+    activeProfileIdRef.current = profileId;
+    dataLoaded.current = false;
+    if (userRef.current) await loadUserData(userRef.current.id, profileId);
+  }, [loadUserData]);
+
+  const addProfile = useCallback(async (label) => {
+    if (!userRef.current || !label.trim()) return;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({ user_id: userRef.current.id, label: label.trim() })
+        .select()
+        .single();
+      if (error || !data) return;
+      setProfiles(p => [...p, data]);
+      await switchProfile(data.id);
+    } catch {}
+  }, [switchProfile]);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) loadUserData(u.id);
+      if (u) { loadUserData(u.id); loadProfiles(u.id); }
       else setAuthLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) { setDemoMode(false); dataLoaded.current = false; loadUserData(u.id); }
+      if (u) { setDemoMode(false); dataLoaded.current = false; setActiveProfileId(null); loadUserData(u.id); loadProfiles(u.id); }
       else { dataLoaded.current = false; setAuthLoading(false); }
     });
     return () => subscription.unsubscribe();
-  }, [loadUserData]);
+  }, [loadUserData, loadProfiles]);
 
   useEffect(() => {
     if (!userRef.current || !dataLoaded.current) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      await supabase.from('user_data').upsert({
+      const profileId = activeProfileIdRef.current;
+      const payload = {
         user_id: userRef.current.id,
         transactions, investments, health_assets: healthAssets,
         budgets, custom_budgets: customBudgets, goals, savings, listings, sold_history: soldHistory,
         loans, debts,
         proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (profileId) {
+        const { data: existing } = await supabase.from('user_data').select('user_id').eq('user_id', userRef.current.id).eq('profile_id', profileId).maybeSingle();
+        if (existing) {
+          await supabase.from('user_data').update(payload).eq('user_id', userRef.current.id).eq('profile_id', profileId);
+        } else {
+          await supabase.from('user_data').insert({ ...payload, profile_id: profileId });
+        }
+      } else {
+        await supabase.from('user_data').upsert(payload);
+      }
     }, 1500);
   }, [transactions, investments, healthAssets, budgets, customBudgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly]);
 
   const handleLogout = async () => {
     dataLoaded.current = false;
     setDemoMode(false);
+    setProfiles([]);
+    setActiveProfileId(null);
     clearSentNotifications();
     await supabase.auth.signOut();
     setTransactions([]); setInvestments([]); setHealthAssets([]);
@@ -828,6 +880,7 @@ export function useData() {
     allDividends, divThisYear, divByMonth,
     exportCSV, exportDataJSON, importJSON, deleteAccount,
     loadedPreferences, savePreferences,
+    profiles, activeProfileId, switchProfile, addProfile,
     ioBannerMsg, setIoBannerMsg,
   };
 }
