@@ -46,6 +46,7 @@ export default function Sidebar({ T, tab, setTab, TABS, data }) {
           return (
             <button
               key={tb.id}
+              data-tutorial={tb.id}
               onClick={() => setTab(tb.id)}
               className={active ? 'sb-item sb-active' : 'sb-item'}
               style={{

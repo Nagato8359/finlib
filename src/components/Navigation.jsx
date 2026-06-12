@@ -9,7 +9,7 @@ export default function Navigation({ T, tab, setTab, TABS }) {
       backdropFilter: 'blur(12px)',
     }}>
       {TABS.map(t => (
-        <button key={t.id} onClick={() => setTab(t.id)}
+        <button key={t.id} data-tutorial={t.id} onClick={() => setTab(t.id)}
           style={{
             flex: 1, border: 'none', background: 'none',
             color: tab === t.id ? (T.accent || '#10b981') : T.textMuted,

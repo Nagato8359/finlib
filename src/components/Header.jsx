@@ -28,7 +28,7 @@ const getInitials = (name, email) => {
 export default function Header({
   T, darkMode, setDarkMode, accentKey, setAccent,
   currency, setCurrency, language, setLanguage, dateFormat, setDateFormat,
-  tab, setTab, TABS, data,
+  tab, setTab, TABS, data, onStartTutorial,
 }) {
   const { t } = useTranslation();
   const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount } = data;
@@ -332,6 +332,7 @@ export default function Header({
 
               {/* ── 5. À PROPOS ────────────────────────────────────── */}
               <SLabel>{t('menu_about')}</SLabel>
+              <MBtn icon="🎓" label="Tutoriel" onClick={() => { closeMenu(); onStartTutorial?.(); }} />
               <MBtn icon="📜" label="Mentions légales"            onClick={() => setLegalModal('mentions')} />
               <MBtn icon="🔒" label="Politique de confidentialité" onClick={() => setLegalModal('privacy')} />
               <MBtn icon="📋" label="CGU"                          onClick={() => setLegalModal('cgu')} />

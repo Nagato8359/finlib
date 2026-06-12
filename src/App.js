@@ -17,6 +17,7 @@ import Investir from './components/Investir';
 import IATab from './components/IATab';
 import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
+import Tutorial from './components/Tutorial';
 
 const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted, accent = '#10b981' }) => (
   <style>{`
@@ -130,6 +131,7 @@ export default function App() {
   const data = useData();
   const [tab, setTab] = useState('accueil');
   const [showSplash, setShowSplash] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('capitaly_tutorial_done'));
   const splashDoneRef = useRef(false);
   const handleSplashDone = useRef(() => {
     if (!splashDoneRef.current) { splashDoneRef.current = true; setShowSplash(false); }
@@ -217,6 +219,7 @@ export default function App() {
             setCurrency={setCurrency}
             language={language}
             setLanguage={setLanguage}
+            onStartTutorial={() => setShowTutorial(true)}
             dateFormat={dateFormat}
             setDateFormat={setDateFormat}
             tab={tab}
@@ -232,6 +235,7 @@ export default function App() {
         <Modals T={T} data={data} />
         <PositionFormModal T={T} data={data} />
       </div>
+      {showTutorial && <Tutorial T={T} onDone={() => setShowTutorial(false)} />}
     </>
     </LanguageProvider>
   );
