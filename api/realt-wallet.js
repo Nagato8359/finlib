@@ -7,6 +7,27 @@ async function getEURUSD() {
   } catch { return 1.08; }
 }
 
+// Safe coerce: return v if it's an array, else []
+function toArr(v) { return Array.isArray(v) ? v : []; }
+
+// Extract balances array from any community-API response shape
+function extractBalances(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  // Try known keys in priority order
+  for (const key of ['holder', 'balances', 'tokens', 'result', 'data']) {
+    const v = raw[key];
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === 'object') {
+      // One level deeper (e.g. raw.holder.balances)
+      for (const sub of Object.values(v)) {
+        if (Array.isArray(sub)) return sub;
+      }
+    }
+  }
+  return [];
+}
+
 // Fetch one URL, log everything, return { status, raw, balances, bodySnippet }
 async function probe(label, url, options = {}) {
   try {
@@ -22,9 +43,7 @@ async function probe(label, url, options = {}) {
     let raw = null;
     try { raw = JSON.parse(text); } catch { /* not JSON */ }
 
-    const balances = raw
-      ? Array.isArray(raw) ? raw : raw?.holder?.balances || raw?.balances || []
-      : [];
+    const balances = extractBalances(raw);
 
     return { label, url, status: res.status, ok: res.ok, raw, balances, bodySnippet };
   } catch (e) {
@@ -97,20 +116,23 @@ async function fetchGnosis(addr) {
   attempts.push(r4);
   if (r4.ok && r4.balances.length > 0) return { balances: r4.balances, attempts };
 
-  // 5. GnosisScan token list (amounts only)
+  // 5. GnosisScan token list (amounts only — response: { status, message, result: [...] })
   const r5 = await probe('GnosisScan tokenlist', `https://api.gnosisscan.io/api?module=account&action=tokenlist&address=${addr}`);
   attempts.push(r5);
-  if (r5.ok && r5.raw?.result) {
-    const items = (r5.raw.result || []).filter(
-      t => /realtoken/i.test(t.name || '') || /realtoken/i.test(t.symbol || '')
+  try {
+    const gnosisResult = Array.isArray(r5.raw?.result) ? r5.raw.result : [];
+    const items = toArr(gnosisResult).filter(
+      t => t && (/realtoken/i.test(t.name || '') || /realtoken/i.test(t.symbol || ''))
     );
-    if (items.length > 0) {
+    if (r5.ok && items.length > 0) {
       const balances = items.map(t => ({
-        amount: String(parseFloat(t.balance) / Math.pow(10, parseInt(t.decimals, 10) || 18)),
-        token: { symbol: t.symbol, name: t.name, tokenPrice: '0', annualPercentageYield: '0' },
+        amount: String(parseFloat(t.balance || '0') / Math.pow(10, parseInt(t.decimals, 10) || 18)),
+        token: { symbol: t.symbol || '', name: t.name || '', tokenPrice: '0', annualPercentageYield: '0' },
       }));
       return { balances, attempts };
     }
+  } catch (e) {
+    console.error(`[realt-wallet] GnosisScan parse error: ${e.message}`);
   }
 
   return { balances: [], attempts };
