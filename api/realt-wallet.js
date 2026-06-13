@@ -7,33 +7,47 @@ async function getEURUSD() {
   } catch { return 1.08; }
 }
 
-// ── Ethereum mainnet (community REST API) ─────────────────────────────────────
-const MAINNET_ENDPOINTS = [
-  addr => `https://api.realtoken.community/v1/holder/${addr}`,
-  addr => `https://api.realtoken.community/v1/holders/${addr}`,
-  addr => `https://api.realtoken.community/v1/wallet/${addr}`,
-  addr => `https://realt-data.netlify.app/api/holder/${addr}`,
-];
+// Fetch one URL, log everything, return { status, raw, balances, bodySnippet }
+async function probe(label, url, options = {}) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0', ...(options.headers || {}) },
+      signal: AbortSignal.timeout(12000),
+      ...options,
+    });
+    const text = await res.text();
+    const bodySnippet = text.slice(0, 400);
+    console.log(`[realt-wallet] ${label} → HTTP ${res.status} | ${bodySnippet}`);
 
-async function fetchMainnet(addr) {
-  for (const mkUrl of MAINNET_ENDPOINTS) {
-    const url = mkUrl(addr);
-    try {
-      const res = await fetch(url, {
-        headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0' },
-        signal: AbortSignal.timeout(10000),
-      });
-      console.log(`[realt-wallet] ${url} → HTTP ${res.status}`);
-      if (res.status === 404) continue;
-      if (!res.ok) { console.error(`[realt-wallet] ${url} error ${res.status}`); continue; }
-      const raw = await res.json();
-      const balances = Array.isArray(raw) ? raw : raw?.holder?.balances || raw?.balances || [];
-      if (balances.length > 0) return balances;
-    } catch (e) {
-      console.error(`[realt-wallet] ${url} threw: ${e.message}`);
-    }
+    let raw = null;
+    try { raw = JSON.parse(text); } catch { /* not JSON */ }
+
+    const balances = raw
+      ? Array.isArray(raw) ? raw : raw?.holder?.balances || raw?.balances || []
+      : [];
+
+    return { label, url, status: res.status, ok: res.ok, raw, balances, bodySnippet };
+  } catch (e) {
+    console.error(`[realt-wallet] ${label} threw: ${e.message}`);
+    return { label, url, status: 0, ok: false, raw: null, balances: [], error: e.message };
   }
-  return [];
+}
+
+// ── Ethereum mainnet (community REST API) ─────────────────────────────────────
+async function fetchMainnet(addr) {
+  const endpoints = [
+    { label: 'community /holder',  url: `https://api.realtoken.community/v1/holder/${addr}` },
+    { label: 'community /holders', url: `https://api.realtoken.community/v1/holders/${addr}` },
+    { label: 'community /wallet',  url: `https://api.realtoken.community/v1/wallet/${addr}` },
+    { label: 'netlify fallback',   url: `https://realt-data.netlify.app/api/holder/${addr}` },
+  ];
+  const attempts = [];
+  for (const ep of endpoints) {
+    const r = await probe(ep.label, ep.url);
+    attempts.push(r);
+    if (r.ok && r.balances.length > 0) return { balances: r.balances, attempts };
+  }
+  return { balances: [], attempts };
 }
 
 // ── Gnosis Chain ──────────────────────────────────────────────────────────────
@@ -41,7 +55,9 @@ const THEGRAPH_URL =
   'https://api.thegraph.com/subgraphs/name/realtoken-thegraph/realtokens-gnosis';
 
 async function fetchGnosis(addr) {
-  // 1. TheGraph Gnosis subgraph — provides amounts + prices in one query
+  const attempts = [];
+
+  // 1. TheGraph Gnosis subgraph
   const query = `{accounts(where:{address:"${addr}"}){balances(where:{amount_gt:"0"}){amount token{address name symbol tokenPrice annualPercentageYield}}}}`;
   try {
     const res = await fetch(THEGRAPH_URL, {
@@ -50,62 +66,54 @@ async function fetchGnosis(addr) {
       body: JSON.stringify({ query }),
       signal: AbortSignal.timeout(12000),
     });
-    console.log(`[realt-wallet] TheGraph Gnosis → HTTP ${res.status}`);
-    if (res.ok) {
-      const json = await res.json();
-      const balances = json?.data?.accounts?.[0]?.balances || [];
-      if (balances.length > 0) {
-        console.log(`[realt-wallet] TheGraph Gnosis: ${balances.length} balances`);
-        return balances;
-      }
+    const text = await res.text();
+    const bodySnippet = text.slice(0, 400);
+    console.log(`[realt-wallet] TheGraph Gnosis → HTTP ${res.status} | ${bodySnippet}`);
+    let raw = null;
+    try { raw = JSON.parse(text); } catch { /* not JSON */ }
+    const balances = raw?.data?.accounts?.[0]?.balances || [];
+    attempts.push({ label: 'TheGraph Gnosis', url: THEGRAPH_URL, status: res.status, ok: res.ok, balances, bodySnippet });
+    if (res.ok && balances.length > 0) {
+      console.log(`[realt-wallet] TheGraph Gnosis: ${balances.length} balances`);
+      return { balances, attempts };
     }
   } catch (e) {
     console.error(`[realt-wallet] TheGraph Gnosis threw: ${e.message}`);
+    attempts.push({ label: 'TheGraph Gnosis', url: THEGRAPH_URL, status: 0, ok: false, balances: [], error: e.message });
   }
 
-  // 2. Community API with explicit network param
-  try {
-    const url = `https://api.realtoken.community/v1/holder/${addr}?network=gnosis`;
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0' },
-      signal: AbortSignal.timeout(10000),
-    });
-    console.log(`[realt-wallet] community?network=gnosis → HTTP ${res.status}`);
-    if (res.ok) {
-      const raw = await res.json();
-      const balances = Array.isArray(raw) ? raw : raw?.holder?.balances || raw?.balances || [];
-      if (balances.length > 0) return balances;
+  // 2. Community API with ?network=xdai (xDai = Gnosis Chain original name)
+  const r2 = await probe('community ?network=xdai', `https://api.realtoken.community/v1/holder/${addr}?network=xdai`);
+  attempts.push(r2);
+  if (r2.ok && r2.balances.length > 0) return { balances: r2.balances, attempts };
+
+  // 3. Community API with ?network=gnosis
+  const r3 = await probe('community ?network=gnosis', `https://api.realtoken.community/v1/holder/${addr}?network=gnosis`);
+  attempts.push(r3);
+  if (r3.ok && r3.balances.length > 0) return { balances: r3.balances, attempts };
+
+  // 4. Community alternative (ehpst portal)
+  const r4 = await probe('ehpst portal', `https://ehpst.duckdns.org/realt_portal/api/wallet/${addr}`);
+  attempts.push(r4);
+  if (r4.ok && r4.balances.length > 0) return { balances: r4.balances, attempts };
+
+  // 5. GnosisScan token list (amounts only)
+  const r5 = await probe('GnosisScan tokenlist', `https://api.gnosisscan.io/api?module=account&action=tokenlist&address=${addr}`);
+  attempts.push(r5);
+  if (r5.ok && r5.raw?.result) {
+    const items = (r5.raw.result || []).filter(
+      t => /realtoken/i.test(t.name || '') || /realtoken/i.test(t.symbol || '')
+    );
+    if (items.length > 0) {
+      const balances = items.map(t => ({
+        amount: String(parseFloat(t.balance) / Math.pow(10, parseInt(t.decimals, 10) || 18)),
+        token: { symbol: t.symbol, name: t.name, tokenPrice: '0', annualPercentageYield: '0' },
+      }));
+      return { balances, attempts };
     }
-  } catch (e) {
-    console.error(`[realt-wallet] community?network=gnosis threw: ${e.message}`);
   }
 
-  // 3. GnosisScan token list (amounts only — usable only when prices come from mainnet)
-  try {
-    const url = `https://api.gnosisscan.io/api?module=account&action=tokenlist&address=${addr}`;
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10000),
-    });
-    console.log(`[realt-wallet] GnosisScan → HTTP ${res.status}`);
-    if (res.ok) {
-      const json = await res.json();
-      const items = (json?.result || []).filter(
-        t => /realtoken/i.test(t.name || '') || /REALTOKEN/i.test(t.symbol || '')
-      );
-      if (items.length > 0) {
-        // Normalize to {amount, token} shape; tokenPrice will be 0 (no price source here)
-        return items.map(t => ({
-          amount: String(parseFloat(t.balance) / Math.pow(10, parseInt(t.decimals, 10) || 18)),
-          token: { symbol: t.symbol, name: t.name, tokenPrice: '0', annualPercentageYield: '0' },
-        }));
-      }
-    }
-  } catch (e) {
-    console.error(`[realt-wallet] GnosisScan threw: ${e.message}`);
-  }
-
-  return [];
+  return { balances: [], attempts };
 }
 
 // ── Normalize a balance entry to output shape ─────────────────────────────────
@@ -141,15 +149,20 @@ module.exports = async function handler(req, res) {
   const addr = address.toLowerCase();
 
   try {
-    const [mainnetBalances, gnosisBalances, eurusd] = await Promise.all([
+    const [mainnetResult, gnosisResult, eurusd] = await Promise.all([
       fetchMainnet(addr),
       fetchGnosis(addr),
       getEURUSD(),
     ]);
 
+    const allAttempts = [
+      ...mainnetResult.attempts.map(a => ({ chain: 'mainnet', ...a })),
+      ...gnosisResult.attempts.map(a => ({ chain: 'gnosis', ...a })),
+    ];
+
     // Merge gnosis first (priority), then mainnet — deduplicate by symbol
     const seen = new Set();
-    const merged = [...gnosisBalances, ...mainnetBalances].filter(b => {
+    const merged = [...gnosisResult.balances, ...mainnetResult.balances].filter(b => {
       const sym = (b.token?.shortName || b.token?.symbol || '').toUpperCase();
       if (!sym || seen.has(sym)) return false;
       seen.add(sym);
@@ -159,12 +172,24 @@ module.exports = async function handler(req, res) {
     const tokens = merged.map(b => normalizeBalance(b, eurusd)).filter(Boolean);
 
     if (tokens.length === 0) {
+      // Always return debug info so the client can diagnose
       return res.status(404).json({
-        error: "Aucun token RealT trouvé pour cette adresse — vérifiez que l'adresse est correcte et contient des tokens RealT",
+        error: "Aucun token RealT trouvé pour cette adresse",
+        debug: {
+          address: addr,
+          mainnetRaw: mainnetResult.balances.length,
+          gnosisRaw: gnosisResult.balances.length,
+          attempts: allAttempts.map(a => ({
+            chain: a.chain, label: a.label, status: a.status, ok: a.ok,
+            balancesFound: a.balances?.length ?? 0,
+            bodySnippet: a.bodySnippet,
+            error: a.error,
+          })),
+        },
       });
     }
 
-    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens (mainnet: ${mainnetBalances.length}, gnosis: ${gnosisBalances.length})`);
+    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens (mainnet: ${mainnetResult.balances.length}, gnosis: ${gnosisResult.balances.length})`);
     res.json({ tokens, eurusd: parseFloat(eurusd.toFixed(4)), count: tokens.length });
   } catch (err) {
     console.error('[realt-wallet] fatal:', err.message);
