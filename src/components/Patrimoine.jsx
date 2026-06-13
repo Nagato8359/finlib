@@ -327,6 +327,7 @@ export default function Patrimoine({ T, data }) {
             <button onClick={fetchPrices} style={{ ...S.btnS, fontSize: 12, padding: '4px 10px' }}>⟳</button>
           </div>
           <button onClick={() => { setEditItem(null); data.setPortfolioForm && data.setPortfolioForm(data.mkPortfolio()); setModal('portfolio'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>{t('inv_add_envelope')}</button>
+          <button onClick={() => setModal('realt')} style={{ ...S.btnS, fontSize: 12, padding: '7px 16px' }}>🏘️ Wallet RealT</button>
         </div>
 
         <div className="g4">

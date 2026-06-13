@@ -80,10 +80,15 @@ module.exports = async function handler(req, res) {
       .select('investments');
     if (dbErr) throw new Error(`user_data read: ${dbErr.message}`);
 
-    // 2. Extract unique tickers / ISINs / commodity futures
+    // 2. Extract unique tickers and RealT wallet addresses
     const tickerSet = new Set();
+    const realtWallets = new Set();
     for (const row of rows || []) {
       for (const inv of row.investments || []) {
+        // Collect RealT wallet addresses for community API update
+        if (inv.type === 'RealT' && inv.platform && /^0x[0-9a-fA-F]{40}$/i.test(inv.platform)) {
+          realtWallets.add(inv.platform.toLowerCase());
+        }
         for (const pos of inv.positions || []) {
           // Skip manual-priced position types (no Yahoo Finance ticker to fetch)
           if (pos.posType === 'other' || pos.posType === 'realestate') continue;
@@ -100,46 +105,87 @@ module.exports = async function handler(req, res) {
     }
 
     const keys = [...tickerSet].filter(k => !UNSUPPORTED_TICKERS.includes(k.toUpperCase()));
-    if (!keys.length) return res.json({ ok: true, updated: 0, total: 0 });
+    if (!keys.length && !realtWallets.size) return res.json({ ok: true, updated: 0, realtUpdated: 0, total: 0 });
 
     // 3. Fetch EUR/USD once for all USD-denominated assets
     const eurusd = await getEURUSD();
 
-    // 4. Fetch price + 1d change_pct and upsert to prices_cache
-    const settled = await Promise.allSettled(
-      keys.map(async (key) => {
-        try {
-          const upper = key.toUpperCase();
-          let entry;
-          if (CRYPTO_MAP[upper]) {
-            entry = await fetchCryptoEntry(CRYPTO_MAP[upper]);
-          } else {
-            const ticker = ISIN_RE.test(upper) ? await isinToTicker(upper) : upper;
-            entry = await fetchStockEntry(ticker, eurusd);
+    // 4. Fetch price + 1d change_pct for Yahoo Finance / CoinGecko tickers
+    let updated = 0;
+    if (keys.length) {
+      const settled = await Promise.allSettled(
+        keys.map(async (key) => {
+          try {
+            const upper = key.toUpperCase();
+            let entry;
+            if (CRYPTO_MAP[upper]) {
+              entry = await fetchCryptoEntry(CRYPTO_MAP[upper]);
+            } else {
+              const ticker = ISIN_RE.test(upper) ? await isinToTicker(upper) : upper;
+              entry = await fetchStockEntry(ticker, eurusd);
+            }
+
+            if (entry.price == null) return { key, ok: false };
+
+            const { error: upsErr } = await supabaseAdmin.from('prices_cache').upsert({
+              ticker: key,
+              price:      parseFloat(entry.price.toFixed(4)),
+              change_pct: entry.change_pct != null ? parseFloat(entry.change_pct.toFixed(3)) : null,
+              currency:   'EUR',
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'ticker' });
+
+            if (upsErr) console.error(`[cron] upsert ${key}:`, upsErr.message);
+            return { key, ok: !upsErr };
+          } catch (e) {
+            console.error(`[cron] ${key}:`, e.message);
+            return { key, ok: false };
           }
+        })
+      );
+      updated = settled.filter(r => r.status === 'fulfilled' && r.value?.ok).length;
+      console.log(`[cron-prices] ${updated}/${keys.length} tickers refreshed`);
+    }
 
-          if (entry.price == null) return { key, ok: false };
+    // 5. Fetch RealT token prices from community API and upsert to prices_cache
+    let realtUpdated = 0;
+    for (const wallet of realtWallets) {
+      try {
+        const rtRes = await fetch(`https://api.realtoken.community/v1/holder/${wallet}`, {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0' },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!rtRes.ok) { console.error(`[cron] RealT ${wallet}: HTTP ${rtRes.status}`); continue; }
+        const raw = await rtRes.json();
+        const balances = Array.isArray(raw) ? raw : raw?.holder?.balances || raw?.balances || [];
 
+        for (const b of balances) {
+          const token = b.token || {};
+          const amount = parseFloat(b.amount) || 0;
+          if (amount <= 0) continue;
+          const ticker = (token.shortName || token.symbol || '').toUpperCase();
+          const priceUSD = parseFloat(token.tokenPrice) || 0;
+          if (!ticker || priceUSD <= 0) continue;
+
+          const priceEUR = priceUSD / eurusd;
           const { error: upsErr } = await supabaseAdmin.from('prices_cache').upsert({
-            ticker: key,
-            price:      parseFloat(entry.price.toFixed(4)),
-            change_pct: entry.change_pct != null ? parseFloat(entry.change_pct.toFixed(3)) : null,
+            ticker,
+            price:      parseFloat(priceEUR.toFixed(4)),
+            change_pct: null,
             currency:   'EUR',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'ticker' });
 
-          if (upsErr) console.error(`[cron] upsert ${key}:`, upsErr.message);
-          return { key, ok: !upsErr };
-        } catch (e) {
-          console.error(`[cron] ${key}:`, e.message);
-          return { key, ok: false };
+          if (!upsErr) realtUpdated++;
+          else console.error(`[cron] RealT ${ticker}:`, upsErr.message);
         }
-      })
-    );
+      } catch (e) {
+        console.error(`[cron] RealT wallet ${wallet}:`, e.message);
+      }
+    }
+    if (realtWallets.size) console.log(`[cron-prices] RealT: ${realtUpdated} token prices updated`);
 
-    const updated = settled.filter(r => r.status === 'fulfilled' && r.value?.ok).length;
-    console.log(`[cron-prices] ${updated}/${keys.length} tickers refreshed`);
-    res.json({ ok: true, updated, total: keys.length });
+    res.json({ ok: true, updated, realtUpdated, total: keys.length });
   } catch (err) {
     console.error('[cron-prices] fatal:', err.message);
     res.status(500).json({ error: err.message });
