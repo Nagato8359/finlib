@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
-import { TT, makeS, fEur, fPct, fDate, MONTHS, CAT_COLORS } from '../utils/constants';
+import { TT, makeS, fEur, fPct, fDate, CAT_COLORS } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 import { computeTrophies } from '../utils/trophies';
 import Confetti from './Confetti';
@@ -174,25 +174,35 @@ export default function Accueil({ T, data, setTab }) {
   // ── Patrimoine history ───────────────────────────────────────────────────
   const patrimoineHistory = useMemo(() => {
     const days = TF_DAYS[chartTf] || 30;
-    const step = days <= 7 ? 1 : days <= 30 ? 2 : days <= 90 ? 7 : 30;
+    // 7J→6h pts, 1M/3M→daily, 1AN→weekly
+    const step = days <= 7 ? (6 / 24) : days <= 90 ? 1 : 7;
     const now = new Date();
-    const points = [];
+    const rawPts = [];
     const seen = new Set();
     const baseNet = patrimoineNet ?? patrimoine;
-    for (let i = days; i >= 0; i -= step) {
+
+    for (let i = days; i >= step; i -= step) {
       const date = new Date(now.getTime() - i * 86400000);
       const futureTx = transactions.filter(tx => new Date(tx.date) > date && new Date(tx.date) <= now);
       const cashDiff = futureTx.reduce((s, tx) => s + tx.amount, 0);
       const val = Math.max(0, baseNet - cashDiff);
-      const label = days <= 7
-        ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
-        : days <= 30
-        ? date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
-        : MONTHS[date.getMonth()] + (days > 90 ? ` ${date.getFullYear().toString().slice(2)}` : '');
-      if (!seen.has(label)) { seen.add(label); points.push({ label, Patrimoine: val }); }
+
+      let label;
+      if (step < 1) {
+        const h = date.getHours();
+        label = h === 0
+          ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
+          : `${date.toLocaleDateString('fr-FR', { weekday: 'short' })} ${h}h`;
+      } else if (days <= 90) {
+        label = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+      } else {
+        label = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      }
+
+      if (!seen.has(label)) { seen.add(label); rawPts.push({ label, Patrimoine: Math.round(val) }); }
     }
-    points.push({ label: t('today_label'), Patrimoine: Math.round(baseNet) });
-    return points;
+    rawPts.push({ label: t('today_label'), Patrimoine: Math.round(baseNet) });
+    return rawPts;
   }, [chartTf, transactions, patrimoine, patrimoineNet, t]);
 
   const displayPatrimoine = patrimoineNet ?? patrimoine;
@@ -352,6 +362,9 @@ export default function Accueil({ T, data, setTab }) {
   }, [investments, invLiveValue, invLiveInvested, cashTotal, healthTotal, healthCost, t]);
 
   const card = { ...S.card };
+  const chartColor = changePct >= 0 ? T.accent : '#f87171';
+  const chartData = chartTf === '1J' && intradayHistory.length > 0 ? intradayHistory : patrimoineHistory;
+  const xTickInterval = Math.max(0, Math.floor(chartData.length / 6) - 1);
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -409,18 +422,18 @@ export default function Accueil({ T, data, setTab }) {
           )}
           {!(chartTf === '1J' && intradayLoading && intradayHistory.length === 0) && (
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={chartTf === '1J' && intradayHistory.length > 0 ? intradayHistory : patrimoineHistory} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="patG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={T.accent} stopOpacity={0.25} />
-                  <stop offset="95%" stopColor={T.accent} stopOpacity={0} />
+                  <stop offset="5%" stopColor={chartColor} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
-              <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={58} />
+              <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={xTickInterval} />
+              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={58} domain={([dMin, dMax]) => [Math.floor(dMin * 0.995), Math.ceil(dMax * 1.005)]} />
               <Tooltip content={chartTf === '1J' ? intradayTooltip : <TT />} />
-              <Area type="monotone" dataKey="Patrimoine" stroke={T.accent} fill="url(#patG)" strokeWidth={2.5} dot={false} />
+              <Area type="monotone" dataKey="Patrimoine" stroke={chartColor} fill="url(#patG)" strokeWidth={2.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
           )}
