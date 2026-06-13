@@ -194,14 +194,23 @@ export default function Modals({ T, data }) {
     const c    = PORTFOLIO_MODAL_COLOR[pt] || '#94A3B8';
     const icon = PORTFOLIO_TYPE_ICON[pt] || '📦';
     const f    = fa(c);
-    const isAV  = pt === 'Assurance-vie';
-    const isCrypto = pt === 'Crypto';
-    const isImmo = pt === 'Immobilier';
-    const isPE  = pt === 'Épargne salariale';
-    const isPEA = pt === 'PEA';
-    const isCTO = pt === 'CTO';
-    const isRealT = pt === 'RealT';
-    const needsValue = isAV || isImmo || isPE || pt === 'Autre' || pt === 'PER' || pt === 'Assurance-vie fonds euros';
+    const isAV        = pt === 'Assurance-vie';
+    const isCrypto    = pt === 'Crypto';
+    const isImmo      = pt === 'Immobilier';
+    const isPE        = pt === 'Épargne salariale';
+    const isPEA       = pt === 'PEA';
+    const isCTO       = pt === 'CTO';
+    const isRealT     = pt === 'RealT';
+    const isMP        = pt === 'Matières premières';
+    const isCrowdImmo = ['La Première Brique', 'Tantiem', 'Bricks.co', 'Crowdfunding immobilier'].includes(pt);
+    const isSCPI      = ['SCPI', 'OPCI', 'SCI'].includes(pt);
+    const isPE2       = ['Private Equity', 'Crowdfunding entreprise'].includes(pt);
+    const isOblig     = pt === 'Obligations';
+    const isAltInvest = ['Art & Collections', 'Forêts / GFI', 'Vignes / GFV'].includes(pt);
+    const isPER       = pt === 'PER';
+    const isAVFE      = pt === 'Assurance-vie fonds euros';
+    const needsValue  = isAV || isImmo || isPE || pt === 'Autre' || isPER || isAVFE
+      || isPE2 || isOblig || isAltInvest || isCrowdImmo;
     const closePortfolio = () => close(() => { setPortfolioForm(mkPortfolio()); resetRealt(); });
     const importRealtAll = () => {
       if (!realtTokens?.length) return;
@@ -229,12 +238,17 @@ export default function Modals({ T, data }) {
         <FRow cols={2}>
           <FField style={f} label={t('portfolio_name')}><input type="text" placeholder="Ex : PEA Boursobank, Crypto Binance…" style={S.inp} value={portfolioForm.name} onChange={e => setPortfolioForm(p => ({ ...p, name: e.target.value }))} /></FField>
           <FField style={f} label={t('portfolio_type')}>
-            <select style={S.inp} value={portfolioForm.type} onChange={e => setPortfolioForm(p => ({ ...p, type: e.target.value }))}>
+            <select style={S.inp} value={portfolioForm.type} onChange={e => {
+              const newType = e.target.value;
+              const autoPlat = ['La Première Brique', 'Tantiem', 'Bricks.co'].includes(newType) ? newType : portfolioForm.platform;
+              setPortfolioForm(p => ({ ...p, type: newType, platform: autoPlat }));
+            }}>
               {PORTFOLIO_TYPES.map(pt2 => <option key={pt2} value={pt2}>{PORTFOLIO_TYPE_ICON[pt2]} {pt2}</option>)}
             </select>
           </FField>
         </FRow>
 
+        {/* ── PEA / CTO ─────────────────────────────────────────────────────── */}
         {(isPEA || isCTO) && (
           <FRow cols={2}>
             <FField style={f} label={t('portfolio_courtier')}>
@@ -254,6 +268,7 @@ export default function Modals({ T, data }) {
           return <div style={{ background: passed ? 'rgba(16,185,129,.08)' : 'rgba(96,165,250,.08)', border: `1px solid ${passed ? 'rgba(16,185,129,.2)' : 'rgba(96,165,250,.2)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 10, fontSize: 12, color: passed ? '#4ade80' : '#60a5fa' }}>{passed ? t('portfolio_pea_tax_ok') : t('portfolio_pea_tax_wait', dateStr)}</div>;
         })()}
 
+        {/* ── Assurance-vie ─────────────────────────────────────────────────── */}
         {isAV && (
           <FRow cols={2}>
             <FField style={f} label={t('portfolio_courtier')}>
@@ -269,6 +284,11 @@ export default function Modals({ T, data }) {
             </FField>
           </FRow>
         )}
+        {isAV && (
+          <FRow cols={1}>
+            <FField style={f} label={t('portfolio_open_date')}><input type="date" style={S.inp} value={portfolioForm.openDate} onChange={e => setPortfolioForm(p => ({ ...p, openDate: e.target.value }))} /></FField>
+          </FRow>
+        )}
         {isAV && portfolioForm.openDate && (() => {
           const open = new Date(portfolioForm.openDate);
           const eightY = new Date(open.getFullYear() + 8, open.getMonth(), open.getDate());
@@ -277,6 +297,7 @@ export default function Modals({ T, data }) {
           return <div style={{ background: passed ? 'rgba(16,185,129,.08)' : 'rgba(96,165,250,.08)', border: `1px solid ${passed ? 'rgba(16,185,129,.2)' : 'rgba(96,165,250,.2)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 10, fontSize: 12, color: passed ? '#4ade80' : '#60a5fa' }}>{passed ? t('portfolio_av_tax_ok') : t('portfolio_av_tax_wait', avDateStr)}</div>;
         })()}
 
+        {/* ── Crypto ────────────────────────────────────────────────────────── */}
         {isCrypto && (
           <FRow cols={2}>
             <FField style={f} label={t('portfolio_platform')}>
@@ -293,6 +314,18 @@ export default function Modals({ T, data }) {
           </FRow>
         )}
 
+        {/* ── Matières premières ────────────────────────────────────────────── */}
+        {isMP && (
+          <FRow cols={1}>
+            <FField style={f} label="Lieu de stockage">
+              <select style={S.inp} value={portfolioForm.adresse} onChange={e => setPortfolioForm(p => ({ ...p, adresse: e.target.value }))}>
+                {['Coffre bancaire', 'Domicile', 'Entrepôt sécurisé', 'Autre'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </FField>
+          </FRow>
+        )}
+
+        {/* ── Immobilier physique ───────────────────────────────────────────── */}
         {isImmo && (
           <>
             <FRow cols={2}>
@@ -321,6 +354,100 @@ export default function Modals({ T, data }) {
           </>
         )}
 
+        {/* ── Crowdfunding immobilier (LPB, Tantiem, Bricks…) ─────────────── */}
+        {isCrowdImmo && (
+          <FRow cols={2}>
+            <FField style={f} label="Plateforme">
+              <input type="text" placeholder="Ex : Homunity, Anaxago, Fundimmo…" style={S.inp} value={portfolioForm.platform} onChange={e => setPortfolioForm(p => ({ ...p, platform: e.target.value }))} />
+            </FField>
+            <FField style={f} label="Date d'investissement">
+              <input type="date" style={S.inp} value={portfolioForm.openDate} onChange={e => setPortfolioForm(p => ({ ...p, openDate: e.target.value }))} />
+            </FField>
+          </FRow>
+        )}
+
+        {/* ── SCPI / OPCI / SCI ────────────────────────────────────────────── */}
+        {isSCPI && (
+          <>
+            <FRow cols={2}>
+              <FField style={f} label="Société de gestion">
+                <input type="text" placeholder="Ex : CORUM, Perial, La Française…" style={S.inp} value={portfolioForm.courtier} onChange={e => setPortfolioForm(p => ({ ...p, courtier: e.target.value }))} />
+              </FField>
+              <FField style={f} label="Nom du fonds">
+                <input type="text" placeholder="Ex : CORUM Origin, PFO2…" style={S.inp} value={portfolioForm.adresse} onChange={e => setPortfolioForm(p => ({ ...p, adresse: e.target.value }))} />
+              </FField>
+            </FRow>
+            <FRow cols={1}>
+              <FField style={f} label="Date de souscription">
+                <input type="date" style={S.inp} value={portfolioForm.openDate} onChange={e => setPortfolioForm(p => ({ ...p, openDate: e.target.value }))} />
+              </FField>
+            </FRow>
+          </>
+        )}
+
+        {/* ── Private Equity / Crowdfunding entreprise ─────────────────────── */}
+        {isPE2 && (
+          <FRow cols={2}>
+            <FField style={f} label="Plateforme">
+              <input type="text" placeholder="Ex : Eurazeo, Bpifrance, Wiseed…" style={S.inp} value={portfolioForm.courtier} onChange={e => setPortfolioForm(p => ({ ...p, courtier: e.target.value }))} />
+            </FField>
+            <FField style={f} label="Nom du fonds / projet">
+              <input type="text" placeholder="Ex : Altaroc Odyssey 2023…" style={S.inp} value={portfolioForm.adresse} onChange={e => setPortfolioForm(p => ({ ...p, adresse: e.target.value }))} />
+            </FField>
+          </FRow>
+        )}
+
+        {/* ── Obligations ──────────────────────────────────────────────────── */}
+        {isOblig && (
+          <FRow cols={2}>
+            <FField style={f} label="Émetteur">
+              <input type="text" placeholder="Ex : OAT France, Total, LVMH…" style={S.inp} value={portfolioForm.courtier} onChange={e => setPortfolioForm(p => ({ ...p, courtier: e.target.value }))} />
+            </FField>
+            <FField style={f} label="Type">
+              <select style={S.inp} value={portfolioForm.avType} onChange={e => setPortfolioForm(p => ({ ...p, avType: e.target.value }))}>
+                {['État', 'Corporate', 'Convertible', 'High Yield'].map(bt => <option key={bt}>{bt}</option>)}
+              </select>
+            </FField>
+          </FRow>
+        )}
+
+        {/* ── Art / Forêts / Vignes ────────────────────────────────────────── */}
+        {isAltInvest && (
+          <FRow cols={1}>
+            <FField style={f} label="Date d'acquisition">
+              <input type="date" style={S.inp} value={portfolioForm.openDate} onChange={e => setPortfolioForm(p => ({ ...p, openDate: e.target.value }))} />
+            </FField>
+          </FRow>
+        )}
+
+        {/* ── PER ──────────────────────────────────────────────────────────── */}
+        {isPER && (
+          <FRow cols={2}>
+            <FField style={f} label="Établissement">
+              <input type="text" placeholder="Ex : Linxea, Yomoni, Generali…" style={S.inp} value={portfolioForm.courtier} onChange={e => setPortfolioForm(p => ({ ...p, courtier: e.target.value }))} />
+            </FField>
+            <FField style={f} label="Date d'ouverture">
+              <input type="date" style={S.inp} value={portfolioForm.openDate} onChange={e => setPortfolioForm(p => ({ ...p, openDate: e.target.value }))} />
+            </FField>
+          </FRow>
+        )}
+
+        {/* ── Assurance-vie fonds euros ─────────────────────────────────────── */}
+        {isAVFE && (
+          <FRow cols={2}>
+            <FField style={f} label="Assureur">
+              <select style={S.inp} value={portfolioForm.assureur} onChange={e => setPortfolioForm(p => ({ ...p, assureur: e.target.value }))}>
+                <option value="">{t('tx_select')}</option>
+                {PORTFOLIO_AV_INSURERS.map(b => <option key={b}>{b}</option>)}
+              </select>
+            </FField>
+            <FField style={f} label="Date d'ouverture">
+              <input type="date" style={S.inp} value={portfolioForm.openDate} onChange={e => setPortfolioForm(p => ({ ...p, openDate: e.target.value }))} />
+            </FField>
+          </FRow>
+        )}
+
+        {/* ── Épargne salariale ────────────────────────────────────────────── */}
         {isPE && (
           <FRow cols={2}>
             <FField style={f} label={t('portfolio_employer')}><input type="text" placeholder="Nom de l'entreprise" style={S.inp} value={portfolioForm.employeur} onChange={e => setPortfolioForm(p => ({ ...p, employeur: e.target.value }))} /></FField>
@@ -337,6 +464,7 @@ export default function Modals({ T, data }) {
           </FRow>
         )}
 
+        {/* ── RealT wallet import ───────────────────────────────────────────── */}
         {isRealT && (
           <div style={{ background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#EF4444' }}>Import wallet Ethereum</div>
@@ -379,7 +507,8 @@ export default function Modals({ T, data }) {
           </div>
         )}
 
-        {(needsValue || isImmo) && (
+        {/* ── Valeur / Investi (types manuels) ─────────────────────────────── */}
+        {needsValue && (
           <FRow cols={2}>
             <FField style={f} label={t('portfolio_current_value')}><input type="number" placeholder="0" style={S.inp} value={portfolioForm.value} onChange={e => setPortfolioForm(p => ({ ...p, value: e.target.value }))} /></FField>
             <FField style={f} label={t('portfolio_invested')}><input type="number" placeholder="0" style={S.inp} value={portfolioForm.invested} onChange={e => setPortfolioForm(p => ({ ...p, invested: e.target.value }))} /></FField>
@@ -394,7 +523,7 @@ export default function Modals({ T, data }) {
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           {isRealT && realtTokens?.length > 0
             ? <CBtn color="#EF4444" onClick={importRealtAll}>✓ Importer {realtTokens.length} token{realtTokens.length > 1 ? 's' : ''}</CBtn>
-            : <CBtn color={c} onClick={savePortfolio}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
+            : <CBtn color={c} onClick={savePortfolio} disabled={!portfolioForm.name}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
           }
           <button onClick={closePortfolio} style={S.btnS}>{t('btn_cancel')}</button>
         </div>
