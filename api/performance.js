@@ -1,4 +1,5 @@
 const { CRYPTO_MAP, isinToTicker, yfGetWithFallback } = require('./_priceUtils');
+const { getCached, setCached } = require('./_cache');
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
@@ -54,9 +55,13 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
 
   try {
-    let changePct;
     const upperKey = key.toUpperCase();
+    const cacheKey = `price:${upperKey}:${tf}`;
 
+    const cached = await getCached(cacheKey);
+    if (cached != null) return res.json({ changePct: cached, key, tf });
+
+    let changePct;
     if (CRYPTO_MAP[upperKey]) {
       changePct = await geckoChangePct(CRYPTO_MAP[upperKey], tfParams.days);
     } else {
@@ -65,7 +70,9 @@ module.exports = async function handler(req, res) {
       changePct = await yfChangePct(ticker, tfParams.range, tfParams.interval);
     }
 
-    res.json({ changePct: parseFloat(changePct.toFixed(3)), key, tf });
+    const result = parseFloat(changePct.toFixed(3));
+    await setCached(cacheKey, result, tf === '1J' ? 900 : 3600);
+    res.json({ changePct: result, key, tf });
   } catch (err) {
     console.error('[performance]', key, tf, err.message);
     res.status(502).json({ error: err.message });

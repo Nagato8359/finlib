@@ -1,4 +1,5 @@
 // Uses native fetch (Node 18) — no axios dependency needed in Vercel Functions
+const { getCached, setCached } = require('./_cache');
 
 const CRYPTO_MAP = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', BNB: 'binancecoin',
@@ -124,12 +125,19 @@ async function resolvePrice(ticker) {
   const now = Date.now();
   if (cache[ticker] && now - cache[ticker].ts < CACHE_TTL) return cache[ticker];
 
+  const redisKey = `price:${ticker}`;
+  const hit = await getCached(redisKey);
+  if (hit) { cache[ticker] = hit; return hit; }
+
   const result = CRYPTO_MAP[ticker]
     ? await fetchCrypto(ticker)
     : await fetchStock(ticker);
 
   const entry = { ...result, ticker, ts: now };
-  if (result.price != null) cache[ticker] = entry;
+  if (result.price != null) {
+    cache[ticker] = entry;
+    await setCached(redisKey, entry, 900);
+  }
   return entry;
 }
 
@@ -139,14 +147,21 @@ async function resolvePriceByKey(key) {
   if (cache[key] && now - cache[key].ts < CACHE_TTL) return cache[key];
 
   if (isIsin(key)) {
+    const redisKey = `price:${key}`;
+    const hit = await getCached(redisKey);
+    if (hit) { cache[key] = hit; return hit; }
+
     const resolvedTicker = await isinToTicker(key);
     const result = await fetchStock(resolvedTicker);
     const entry = { ...result, ticker: key, resolvedTicker, ts: now };
-    if (result.price != null) cache[key] = entry;
+    if (result.price != null) {
+      cache[key] = entry;
+      await setCached(redisKey, entry, 900);
+    }
     return entry;
   }
 
-  // Regular ticker — crypto or stock
+  // Regular ticker — crypto or stock (resolvePrice handles its own Redis cache)
   return resolvePrice(key);
 }
 
