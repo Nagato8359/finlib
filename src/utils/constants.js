@@ -44,11 +44,35 @@ export const INV_CATS = ['Actions', 'Crypto', 'Obligataire', 'Immobilier', 'Épa
 export const INV_COLORS = ['#10b981', '#f59e0b', '#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fb923c', '#facc15'];
 
 // ── Portfolio (enveloppes) ────────────────────────────────────────────────────
-export const PORTFOLIO_TYPES = ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Immobilier', 'Épargne salariale', 'Matières premières', 'Autre'];
+export const PORTFOLIO_TYPES = [
+  // Marchés financiers
+  'PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Épargne salariale', 'Matières premières',
+  // Immobilier physique
+  'Immobilier',
+  // Immobilier fractionné
+  'RealT', 'La Première Brique', 'Tantiem', 'Bricks.co', 'Crowdfunding immobilier',
+  // SCPI / Pierre-papier
+  'SCPI', 'OPCI', 'SCI',
+  // Alternatifs
+  'Private Equity', 'Crowdfunding entreprise', 'Obligations', 'Art & Collections', 'Forêts / GFI', 'Vignes / GFV',
+  // Épargne long terme
+  'PER', 'Assurance-vie fonds euros',
+  // Autre
+  'Autre',
+];
+
 // Strip emoji prefix that may be stored in type field due to missing value= on <option>
 const stripEmoji = s => s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '').trim();
 
-// Returns the position form type ('stock'|'crypto'|'realestate'|'bond'|'commodity')
+// Portfolio types that use manual pricing (no Yahoo Finance / CoinGecko)
+const MANUAL_PORTFOLIO_TYPES = new Set([
+  'RealT', 'La Première Brique', 'Tantiem', 'Bricks.co', 'Crowdfunding immobilier',
+  'SCPI', 'OPCI', 'SCI',
+  'Private Equity', 'Crowdfunding entreprise', 'Obligations', 'Art & Collections', 'Forêts / GFI', 'Vignes / GFV',
+  'PER', 'Assurance-vie fonds euros',
+]);
+
+// Returns the position form type ('stock'|'crypto'|'realestate'|'bond'|'commodity'|'other')
 // Strips emojis first to handle data stored as "🪙 Crypto" instead of "Crypto"
 export const getInvFormType = inv => {
   const t = stripEmoji(inv.type     || '');
@@ -58,6 +82,7 @@ export const getInvFormType = inv => {
   if (t === 'Assurance-vie'    || t === 'Épargne salariale' ||
       c === 'Obligataire'      || c === 'Épargne liquide')  return 'bond';
   if (t === 'Matières premières' || c === 'Matières premières' || c === 'Autres') return 'commodity';
+  if (MANUAL_PORTFOLIO_TYPES.has(t)) return 'other';
   if (t === 'Autre') return 'other';
   return 'stock';
 };
@@ -67,8 +92,30 @@ export const CAT_TO_PORTFOLIO_TYPE = {
   'Actions': 'CTO', 'Obligataire': 'Assurance-vie',
   'Épargne liquide': 'Autre', 'Autres': 'Autre',
 };
-export const PORTFOLIO_TYPE_ICON = { PEA: '🏛️', CTO: '📈', 'Assurance-vie': '🛡️', Crypto: '🪙', Immobilier: '🏠', 'Épargne salariale': '💼', 'Matières premières': '🥇', Autre: '📦' };
-export const PORTFOLIO_TYPE_COLOR = { PEA: '#10b981', CTO: '#60a5fa', 'Assurance-vie': '#a78bfa', Crypto: '#f59e0b', Immobilier: '#fb923c', 'Épargne salariale': '#34d399', 'Matières premières': '#EAB308', Autre: '#94a3b8' };
+export const PORTFOLIO_TYPE_ICON = {
+  // Marchés financiers
+  PEA: '🏛️', CTO: '📈', 'Assurance-vie': '🛡️', Crypto: '🪙', Immobilier: '🏠', 'Épargne salariale': '💼', 'Matières premières': '🥇', Autre: '📦',
+  // Immobilier fractionné
+  RealT: '🏘️', 'La Première Brique': '🧱', Tantiem: '🏗️', 'Bricks.co': '🏢', 'Crowdfunding immobilier': '🏦',
+  // SCPI / Pierre-papier
+  SCPI: '🏬', OPCI: '💡', SCI: '🏛️',
+  // Alternatifs
+  'Private Equity': '🎯', 'Crowdfunding entreprise': '🚀', Obligations: '📄', 'Art & Collections': '🖼️', 'Forêts / GFI': '🌲', 'Vignes / GFV': '🍇',
+  // Épargne long terme
+  PER: '🧓', 'Assurance-vie fonds euros': '💶',
+};
+export const PORTFOLIO_TYPE_COLOR = {
+  // Marchés financiers
+  PEA: '#10b981', CTO: '#60a5fa', 'Assurance-vie': '#a78bfa', Crypto: '#f59e0b', Immobilier: '#fb923c', 'Épargne salariale': '#34d399', 'Matières premières': '#EAB308', Autre: '#94a3b8',
+  // Immobilier fractionné
+  RealT: '#ef4444', 'La Première Brique': '#f97316', Tantiem: '#ea580c', 'Bricks.co': '#dc2626', 'Crowdfunding immobilier': '#b45309',
+  // SCPI / Pierre-papier
+  SCPI: '#d97706', OPCI: '#ca8a04', SCI: '#a16207',
+  // Alternatifs
+  'Private Equity': '#7c3aed', 'Crowdfunding entreprise': '#6d28d9', Obligations: '#2563eb', 'Art & Collections': '#db2777', 'Forêts / GFI': '#16a34a', 'Vignes / GFV': '#9333ea',
+  // Épargne long terme
+  PER: '#0891b2', 'Assurance-vie fonds euros': '#6366f1',
+};
 export const PORTFOLIO_BROKERS_PEA = ['Boursobank', 'Bourse Direct', 'Fortuneo', 'Saxo', 'BNP Paribas', 'Société Générale', 'Crédit Agricole', 'Autre'];
 export const PORTFOLIO_BROKERS_CTO = ['Boursobank', 'Bourse Direct', 'DEGIRO', 'Trade Republic', 'Interactive Brokers', 'Saxo', 'eToro', 'Autre'];
 export const PORTFOLIO_AV_TYPES = ['Fonds euros', 'Unités de compte', 'Mixte'];

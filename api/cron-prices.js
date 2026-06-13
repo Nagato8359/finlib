@@ -7,7 +7,12 @@ const COMMODITY_TICKER_MAP = {
 };
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
-const UNSUPPORTED_TICKERS = ['REALT', 'REALT.'];
+const UNSUPPORTED_TICKERS = [
+  'REALT', 'REALT.',                    // RealT tokens
+  'SCPI', 'OPCI', 'SCI',               // Pierre-papier
+  'GFI', 'GFV',                         // Forêts / Vignes
+  'PER',                                 // Plan Épargne Retraite
+];
 
 async function getEURUSD() {
   try {
@@ -80,6 +85,8 @@ module.exports = async function handler(req, res) {
     for (const row of rows || []) {
       for (const inv of row.investments || []) {
         for (const pos of inv.positions || []) {
+          // Skip manual-priced position types (no Yahoo Finance ticker to fetch)
+          if (pos.posType === 'other' || pos.posType === 'realestate') continue;
           if (pos.posType === 'commodity') {
             const t = COMMODITY_TICKER_MAP[pos.commodityType];
             if (t) tickerSet.add(t);

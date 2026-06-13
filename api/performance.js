@@ -5,7 +5,12 @@ const supabaseModule = require('./_supabase');
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
-const UNSUPPORTED_TICKERS = ['REALT', 'REALT.'];
+const UNSUPPORTED_TICKERS = [
+  'REALT', 'REALT.',                    // RealT tokens
+  'SCPI', 'OPCI', 'SCI',               // Pierre-papier
+  'GFI', 'GFV',                         // Forêts / Vignes
+  'PER',                                 // Plan Épargne Retraite
+];
 
 const TF = {
   '1J':  { range: '1d',  interval: '5m',  days: 1   },

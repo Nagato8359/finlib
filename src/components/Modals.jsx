@@ -50,6 +50,14 @@ const PORTFOLIO_MODAL_COLOR = {
   Immobilier: '#8B5CF6',
   'Épargne salariale': '#06B6D4',
   Autre: '#94A3B8',
+  // Immobilier fractionné
+  RealT: '#EF4444', 'La Première Brique': '#F97316', Tantiem: '#EA580C', 'Bricks.co': '#DC2626', 'Crowdfunding immobilier': '#B45309',
+  // SCPI / Pierre-papier
+  SCPI: '#D97706', OPCI: '#CA8A04', SCI: '#A16207',
+  // Alternatifs
+  'Private Equity': '#7C3AED', 'Crowdfunding entreprise': '#6D28D9', Obligations: '#2563EB', 'Art & Collections': '#DB2777', 'Forêts / GFI': '#16A34A', 'Vignes / GFV': '#9333EA',
+  // Épargne long terme
+  PER: '#0891B2', 'Assurance-vie fonds euros': '#6366F1',
 };
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -173,7 +181,7 @@ export default function Modals({ T, data }) {
     const isPE  = pt === 'Épargne salariale';
     const isPEA = pt === 'PEA';
     const isCTO = pt === 'CTO';
-    const needsValue = isAV || isImmo || isPE || pt === 'Autre';
+    const needsValue = isAV || isImmo || isPE || pt === 'Autre' || pt === 'PER' || pt === 'Assurance-vie fonds euros';
     return (
       <CMShell T={T} title={editItem ? t('modal_portfolio_edit') : t('modal_portfolio_new')} icon={icon} color={c} onClose={() => close(() => setPortfolioForm(mkPortfolio()))}>
         <FRow cols={2}>
