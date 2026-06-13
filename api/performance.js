@@ -5,6 +5,8 @@ const supabaseModule = require('./_supabase');
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
+const UNSUPPORTED_TICKERS = ['REALT', 'REALT.'];
+
 const TF = {
   '1J':  { range: '1d',  interval: '5m',  days: 1   },
   '1S':  { range: '5d',  interval: '1h',  days: 7   },
@@ -58,6 +60,11 @@ module.exports = async function handler(req, res) {
 
   try {
     const upperKey = key.toUpperCase();
+
+    if (UNSUPPORTED_TICKERS.includes(upperKey)) {
+      return res.json({ changePct: 0, key, tf, unsupported: true });
+    }
+
     const cacheKey = `price:${upperKey}:${tf}`;
 
     // L1: Redis cache (per-TF key, short TTL)

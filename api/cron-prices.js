@@ -7,6 +7,8 @@ const COMMODITY_TICKER_MAP = {
 };
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
+const UNSUPPORTED_TICKERS = ['REALT', 'REALT.'];
+
 async function getEURUSD() {
   try {
     const d = await yfGetWithFallback('/v8/finance/chart/EURUSD=X?interval=1d&range=1d');
@@ -90,7 +92,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const keys = [...tickerSet];
+    const keys = [...tickerSet].filter(k => !UNSUPPORTED_TICKERS.includes(k.toUpperCase()));
     if (!keys.length) return res.json({ ok: true, updated: 0, total: 0 });
 
     // 3. Fetch EUR/USD once for all USD-denominated assets
