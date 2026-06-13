@@ -1,5 +1,6 @@
 const { CRYPTO_MAP, isinToTicker, yfGetWithFallback } = require('./_priceUtils');
 const { getCached, setCached } = require('./_cache');
+const { supabaseAnon } = require('./_supabase');
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
@@ -60,6 +61,21 @@ module.exports = async function handler(req, res) {
 
     const cached = await getCached(cacheKey);
     if (cached != null) return res.json({ changePct: cached, key, tf });
+
+    // For 1J (intraday), read from Supabase prices_cache populated by the hourly cron.
+    // Longer timeframes still call Yahoo Finance — prices_cache only stores 1d change_pct.
+    if (tf === '1J') {
+      const { data: row } = await supabaseAnon
+        .from('prices_cache')
+        .select('change_pct')
+        .eq('ticker', upperKey)
+        .maybeSingle();
+      if (row?.change_pct != null) {
+        const result = parseFloat(Number(row.change_pct).toFixed(3));
+        await setCached(cacheKey, result, 900);
+        return res.json({ changePct: result, key, tf });
+      }
+    }
 
     let changePct;
     if (CRYPTO_MAP[upperKey]) {
