@@ -300,25 +300,32 @@ export function useData() {
     if (!userRef.current || !dataLoaded.current) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      const profileId = activeProfileIdRef.current;
-      const payload = {
-        user_id: userRef.current.id,
-        transactions, investments, health_assets: healthAssets,
-        budgets, custom_budgets: customBudgets, goals, savings, listings, sold_history: soldHistory,
-        loans, debts,
-        proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
-        updated_at: new Date().toISOString(),
-      };
-      if (profileId != null) {
-        const { data: existing } = await supabase.from('user_data').select('user_id').eq('user_id', userRef.current.id).eq('profile_id', profileId).maybeSingle();
-        if (existing) {
-          await supabase.from('user_data').update(payload).eq('user_id', userRef.current.id).eq('profile_id', profileId);
+      try {
+        const profileId = activeProfileIdRef.current;
+        const payload = {
+          user_id: userRef.current.id,
+          transactions, investments, health_assets: healthAssets,
+          budgets, custom_budgets: customBudgets, goals, savings, listings, sold_history: soldHistory,
+          loans, debts,
+          proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
+          updated_at: new Date().toISOString(),
+        };
+        if (profileId != null) {
+          const { data: existing, error: selErr } = await supabase.from('user_data').select('user_id').eq('user_id', userRef.current.id).eq('profile_id', profileId).maybeSingle();
+          if (selErr) { console.error('SAVE ERROR (select):', selErr); return; }
+          if (existing) {
+            const { error: updErr } = await supabase.from('user_data').update(payload).eq('user_id', userRef.current.id).eq('profile_id', profileId);
+            if (updErr) console.error('SAVE ERROR (update):', updErr);
+          } else {
+            const { error: insErr } = await supabase.from('user_data').insert({ ...payload, profile_id: profileId });
+            if (insErr) console.error('SAVE ERROR (insert):', insErr);
+          }
         } else {
-          await supabase.from('user_data').insert({ ...payload, profile_id: profileId });
+          const { error: upsErr } = await supabase.from('user_data').upsert(payload, { onConflict: 'user_id' });
+          if (upsErr) console.error('SAVE ERROR (upsert):', upsErr);
         }
-      } else {
-        // Principal profile: keep existing upsert, never write profile_id
-        await supabase.from('user_data').upsert(payload);
+      } catch (e) {
+        console.error('SAVE ERROR:', e);
       }
     }, 1500);
   }, [transactions, investments, healthAssets, budgets, customBudgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly]);
