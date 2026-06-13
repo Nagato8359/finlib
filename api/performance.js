@@ -1,4 +1,4 @@
-const { CRYPTO_MAP, isinToTicker, yfGet } = require('./_priceUtils');
+const { CRYPTO_MAP, isinToTicker, yfGetWithFallback } = require('./_priceUtils');
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
@@ -11,8 +11,8 @@ const TF = {
 };
 
 async function yfChangePct(ticker, range, interval) {
-  const data = await yfGet(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`
+  const data = await yfGetWithFallback(
+    `/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`
   );
   const result = data?.chart?.result?.[0];
   if (!result) throw new Error(`No Yahoo result for ${ticker}`);

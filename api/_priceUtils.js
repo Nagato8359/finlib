@@ -15,25 +15,40 @@ const isinCache = {};         // ISIN → Yahoo ticker, 24h TTL
 const CACHE_TTL  = 60_000;
 const ISIN_TTL   = 86_400_000;
 const EURUSD_TTL = 300_000;
-const YF_UA      = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+const YF_UA      = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const ISIN_RE    = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
 function isIsin(key) { return ISIN_RE.test(key); }
 
+const YF_HEADERS = {
+  'User-Agent': YF_UA,
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
 async function yfGet(url) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': YF_UA },
+    headers: YF_HEADERS,
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status} — ${url}`);
   return res.json();
 }
 
+async function yfGetWithFallback(pathAndQuery) {
+  try {
+    return await yfGet(`https://query1.finance.yahoo.com${pathAndQuery}`);
+  } catch (err) {
+    console.warn('[prices] query1 failed, falling back to query2 —', err.message);
+    return await yfGet(`https://query2.finance.yahoo.com${pathAndQuery}`);
+  }
+}
+
 async function getEURUSD() {
   const now = Date.now();
   if (cache['__eurusd'] && now - cache['__eurusd'].ts < EURUSD_TTL) return cache['__eurusd'].rate;
   try {
-    const data = await yfGet('https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval=1d&range=1d');
+    const data = await yfGetWithFallback('/v8/finance/chart/EURUSD=X?interval=1d&range=1d');
     const rate = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
     if (rate) cache['__eurusd'] = { rate, ts: now };
     return rate || 1.08;
@@ -57,8 +72,8 @@ async function fetchCrypto(ticker) {
 }
 
 async function fetchStock(ticker) {
-  const data = await yfGet(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`
+  const data = await yfGetWithFallback(
+    `/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`
   );
   const result   = data?.chart?.result?.[0];
   const price    = result?.meta?.regularMarketPrice;
@@ -82,8 +97,8 @@ async function isinToTicker(isin) {
 
   // Step 1 — ISIN directly (works on some exchanges)
   try {
-    const data = await yfGet(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${isin}?interval=1d&range=1d`
+    const data = await yfGetWithFallback(
+      `/v8/finance/chart/${isin}?interval=1d&range=1d`
     );
     const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
     if (price != null) {
@@ -135,4 +150,4 @@ async function resolvePriceByKey(key) {
   return resolvePrice(key);
 }
 
-module.exports = { resolvePrice, resolvePriceByKey, CRYPTO_MAP, isinToTicker, yfGet, YF_UA };
+module.exports = { resolvePrice, resolvePriceByKey, CRYPTO_MAP, isinToTicker, yfGet, yfGetWithFallback, YF_UA };
