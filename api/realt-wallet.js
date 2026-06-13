@@ -1,6 +1,6 @@
 const { yfGetWithFallback } = require('./_priceUtils');
 
-const THEGRAPH_URL = 'https://gateway-arbitrum.network.thegraph.com/api/public/subgraphs/id/6AgkBr1KnkGXX4MRSA7btfhGU1WT3AKFsDexFVFCVaS';
+const THEGRAPH_URL = 'https://api.thegraph.com/subgraphs/name/realtoken-thegraph/realtokens-gnosis';
 
 async function getEURUSD() {
   try {
