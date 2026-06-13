@@ -61,120 +61,6 @@ const PORTFOLIO_MODAL_COLOR = {
   PER: '#0891B2', 'Assurance-vie fonds euros': '#6366F1',
 };
 
-// ── RealT wallet import modal ─────────────────────────────────────────────────
-function RealTModal({ T, S, onClose, setInvestments }) {
-  const [addr, setAddr]       = useState('');
-  const [loading, setLoading] = useState(false);
-  const [err, setErr]         = useState('');
-  const [tokens, setTokens]   = useState(null);
-
-  const search = async () => {
-    const a = addr.trim();
-    if (!/^0x[0-9a-fA-F]{40}$/i.test(a)) {
-      setErr('Adresse invalide — format attendu : 0x + 40 caractères hexadécimaux');
-      return;
-    }
-    setLoading(true);
-    setErr('');
-    setTokens(null);
-    try {
-      const res = await fetch(`/api/realt-wallet?address=${a}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setTokens(data.tokens || []);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const importAll = () => {
-    if (!tokens?.length) return;
-    const a = addr.trim();
-    const shortAddr = `${a.slice(0, 6)}…${a.slice(-4)}`;
-    const newInv = {
-      id: uid(), name: `RealT ${shortAddr}`, type: 'RealT', color: '#ef4444',
-      platform: a, walletType: '', courtier: '', openDate: '', devise: 'EUR',
-      assureur: '', avType: '', immoBien: '', adresse: '', acquisitionDate: '',
-      loanId: '', loyerMensuel: 0, chargesMensuelles: 0, employeur: '', peType: '',
-      disponibiliteDate: '', value: 0, invested: 0, notes: '', cash: 0,
-      positions: tokens.map(tk => ({
-        id: uid(), ticker: tk.symbol, name: tk.name,
-        shares: tk.amount, buyPrice: tk.priceEUR, currentPrice: tk.priceEUR,
-        posType: 'other', divYield: tk.annualYield || 0,
-        isin: '', exchange: '', currency: 'EUR', platform: '', notes: '', commodityType: '',
-      })),
-      dividends: [],
-    };
-    setInvestments(prev => [...(prev || []), newInv]);
-    onClose();
-  };
-
-  const totalEUR = (tokens || []).reduce((s, t) => s + t.totalEUR, 0);
-
-  return (
-    <CMShell T={T} title="Importer wallet RealT" icon="🏘️" color="#EF4444" onClose={onClose}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <FRow cols={1}>
-          <FField label="Adresse wallet Ethereum (0x...)">
-            <input
-              type="text" placeholder="0x1234...abcd" style={S.inp} value={addr}
-              onChange={e => setAddr(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !loading && search()}
-            />
-          </FField>
-        </FRow>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <CBtn color="#EF4444" onClick={search} disabled={loading || !addr.trim()}>
-            {loading ? 'Recherche en cours…' : 'Rechercher mes tokens'}
-          </CBtn>
-        </div>
-        {err && (
-          <div style={{ color: '#f87171', fontSize: 12, padding: '8px 12px', background: 'rgba(248,113,113,.1)', borderRadius: 8, border: '1px solid rgba(248,113,113,.25)' }}>
-            {err}
-          </div>
-        )}
-        {tokens !== null && tokens.length === 0 && !err && (
-          <div style={{ color: T.textMuted, fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
-            Aucun token RealT trouvé pour cette adresse.
-          </div>
-        )}
-        {tokens && tokens.length > 0 && (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: T.textMuted }}>
-                {tokens.length} token{tokens.length > 1 ? 's' : ''} trouvé{tokens.length > 1 ? 's' : ''}
-              </span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#EF4444' }}>Total : {fEur(totalEUR)}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto', paddingRight: 4 }}>
-              {tokens.map((tk, i) => (
-                <div key={i} style={{ padding: '10px 12px', background: T.bg2, borderRadius: 10, borderLeft: '3px solid #EF4444' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tk.name}</div>
-                      <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span>{+parseFloat(tk.amount).toFixed(4)} token{tk.amount !== 1 ? 's' : ''}</span>
-                        <span>· {fEur(tk.priceEUR)}/token</span>
-                        {tk.annualYield > 0 && <span style={{ color: '#4ade80' }}>· {tk.annualYield.toFixed(2)} % / an</span>}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.text, flexShrink: 0 }}>{fEur(tk.totalEUR)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <CBtn color="#EF4444" onClick={importAll}>
-              ✓ Importer tout ({tokens.length} token{tokens.length > 1 ? 's' : ''}) dans RealT
-            </CBtn>
-          </>
-        )}
-      </div>
-    </CMShell>
-  );
-}
-
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function Modals({ T, data }) {
   const S = makeS(T);
@@ -203,6 +89,24 @@ export default function Modals({ T, data }) {
 
   const BUDGET_ICONS   = ['🛒','🍔','🚗','🏠','💊','🎮','✈️','👔','📚','🎵','💆','🐾','🏋️','🍷','☕','🎁','📱','💻','🔧','🌿','🛍️','🎬','⚽','🎨','🎂'];
   const BUDGET_COLORS  = ['#10b981','#f87171','#fb923c','#fbbf24','#a78bfa','#60a5fa','#34d399','#f472b6','#94a3b8','#f59e0b','#06b6d4','#84cc16'];
+
+  const [realtAddr, setRealtAddr]       = useState('');
+  const [realtLoading, setRealtLoading] = useState(false);
+  const [realtErr, setRealtErr]         = useState('');
+  const [realtTokens, setRealtTokens]   = useState(null);
+  const resetRealt = () => { setRealtAddr(''); setRealtLoading(false); setRealtErr(''); setRealtTokens(null); };
+  const searchRealt = async () => {
+    const a = realtAddr.trim();
+    if (!/^0x[0-9a-fA-F]{40}$/i.test(a)) { setRealtErr('Adresse invalide — format 0x + 40 hex'); return; }
+    setRealtLoading(true); setRealtErr(''); setRealtTokens(null);
+    try {
+      const res = await fetch(`/api/realt-wallet?address=${a}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      setRealtTokens(d.tokens || []);
+    } catch (e) { setRealtErr(e.message); }
+    finally { setRealtLoading(false); }
+  };
 
   if (!modal) return null;
   const close = reset => { setModal(null); setEditItem(null); reset && reset(); };
@@ -296,9 +200,32 @@ export default function Modals({ T, data }) {
     const isPE  = pt === 'Épargne salariale';
     const isPEA = pt === 'PEA';
     const isCTO = pt === 'CTO';
+    const isRealT = pt === 'RealT';
     const needsValue = isAV || isImmo || isPE || pt === 'Autre' || pt === 'PER' || pt === 'Assurance-vie fonds euros';
+    const closePortfolio = () => close(() => { setPortfolioForm(mkPortfolio()); resetRealt(); });
+    const importRealtAll = () => {
+      if (!realtTokens?.length) return;
+      const a = realtAddr.trim();
+      const shortAddr = `${a.slice(0, 6)}…${a.slice(-4)}`;
+      const newInv = {
+        id: uid(), name: `RealT ${shortAddr}`, type: 'RealT', color: '#ef4444',
+        platform: a, walletType: '', courtier: '', openDate: '', devise: 'EUR',
+        assureur: '', avType: '', immoBien: '', adresse: '', acquisitionDate: '',
+        loanId: '', loyerMensuel: 0, chargesMensuelles: 0, employeur: '', peType: '',
+        disponibiliteDate: '', value: 0, invested: 0, notes: '', cash: 0,
+        positions: realtTokens.map(tk => ({
+          id: uid(), ticker: tk.symbol, name: tk.name,
+          shares: tk.amount, buyPrice: tk.priceEUR, currentPrice: tk.priceEUR,
+          posType: 'other', divYield: tk.annualYield || 0,
+          isin: '', exchange: '', currency: 'EUR', platform: '', notes: '', commodityType: '',
+        })),
+        dividends: [],
+      };
+      setInvestments(prev => [...(prev || []), newInv]);
+      closePortfolio();
+    };
     return (
-      <CMShell T={T} title={editItem ? t('modal_portfolio_edit') : t('modal_portfolio_new')} icon={icon} color={c} onClose={() => close(() => setPortfolioForm(mkPortfolio()))}>
+      <CMShell T={T} title={editItem ? t('modal_portfolio_edit') : t('modal_portfolio_new')} icon={icon} color={c} onClose={closePortfolio}>
         <FRow cols={2}>
           <FField style={f} label={t('portfolio_name')}><input type="text" placeholder="Ex : PEA Boursobank, Crypto Binance…" style={S.inp} value={portfolioForm.name} onChange={e => setPortfolioForm(p => ({ ...p, name: e.target.value }))} /></FField>
           <FField style={f} label={t('portfolio_type')}>
@@ -409,6 +336,49 @@ export default function Modals({ T, data }) {
             <FField style={f} label={t('portfolio_availability')}><input type="date" style={S.inp} value={portfolioForm.disponibiliteDate} onChange={e => setPortfolioForm(p => ({ ...p, disponibiliteDate: e.target.value }))} /></FField>
           </FRow>
         )}
+
+        {isRealT && (
+          <div style={{ background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#EF4444' }}>Import wallet Ethereum</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text" placeholder="0x1234...abcd" style={{ ...S.inp, flex: 1 }} value={realtAddr}
+                onChange={e => setRealtAddr(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !realtLoading && searchRealt()}
+              />
+              <CBtn color="#EF4444" onClick={searchRealt} disabled={realtLoading || !realtAddr.trim()}>
+                {realtLoading ? '…' : 'Rechercher'}
+              </CBtn>
+            </div>
+            {realtErr && <div style={{ color: '#f87171', fontSize: 11 }}>{realtErr}</div>}
+            {realtTokens !== null && realtTokens.length === 0 && !realtErr && (
+              <div style={{ color: T.textMuted, fontSize: 12, textAlign: 'center' }}>Aucun token trouvé.</div>
+            )}
+            {realtTokens && realtTokens.length > 0 && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                  <span style={{ color: T.textMuted }}>{realtTokens.length} token{realtTokens.length > 1 ? 's' : ''} trouvé{realtTokens.length > 1 ? 's' : ''}</span>
+                  <span style={{ color: '#EF4444', fontWeight: 600 }}>{fEur(realtTokens.reduce((s, tk) => s + tk.totalEUR, 0))}</span>
+                </div>
+                <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {realtTokens.map((tk, i) => (
+                    <div key={i} style={{ padding: '7px 10px', background: T.bg2, borderRadius: 8, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tk.name}</div>
+                        <div style={{ fontSize: 10, color: T.textMuted }}>
+                          {+parseFloat(tk.amount).toFixed(4)} tok · {fEur(tk.priceEUR)}/tok
+                          {tk.annualYield > 0 && <span style={{ color: '#4ade80' }}> · {tk.annualYield.toFixed(2)}%/an</span>}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.text, flexShrink: 0 }}>{fEur(tk.totalEUR)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {(needsValue || isImmo) && (
           <FRow cols={2}>
             <FField style={f} label={t('portfolio_current_value')}><input type="number" placeholder="0" style={S.inp} value={portfolioForm.value} onChange={e => setPortfolioForm(p => ({ ...p, value: e.target.value }))} /></FField>
@@ -422,8 +392,11 @@ export default function Modals({ T, data }) {
           <FField style={f} label={t('portfolio_notes')}><input type="text" placeholder="Remarques…" style={S.inp} value={portfolioForm.notes} onChange={e => setPortfolioForm(p => ({ ...p, notes: e.target.value }))} /></FField>
         </FRow>
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <CBtn color={c} onClick={savePortfolio}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
-          <button onClick={() => close(() => setPortfolioForm(mkPortfolio()))} style={S.btnS}>{t('btn_cancel')}</button>
+          {isRealT && realtTokens?.length > 0
+            ? <CBtn color="#EF4444" onClick={importRealtAll}>✓ Importer {realtTokens.length} token{realtTokens.length > 1 ? 's' : ''}</CBtn>
+            : <CBtn color={c} onClick={savePortfolio}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
+          }
+          <button onClick={closePortfolio} style={S.btnS}>{t('btn_cancel')}</button>
         </div>
       </CMShell>
     );
@@ -785,11 +758,6 @@ export default function Modals({ T, data }) {
         </div>
       </CMShell>
     );
-  }
-
-  // ── RealT wallet import ────────────────────────────────────────────────────────
-  if (modal === 'realt') {
-    return <RealTModal T={T} S={S} onClose={() => close()} setInvestments={setInvestments} />;
   }
 
   return null;
