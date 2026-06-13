@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
@@ -38,6 +38,10 @@ export default function Patrimoine({ T, data }) {
   const { t } = useTranslation();
   const [section, setSection] = useState('invest');
   const [loanSim, setLoanSim] = useState({});
+  const [rentData, setRentData]       = useState(null);
+  const [rentLoading, setRentLoading] = useState(false);
+  const [rentError, setRentError]     = useState('');
+  const [rentTf, setRentTf]           = useState('12M');
 
   const SECTIONS = [
     { id: 'invest', label: t('pat_invest') },
@@ -61,6 +65,19 @@ export default function Patrimoine({ T, data }) {
     allDividends, divThisYear, divByMonth, delDividend,
     setPosForm, mkPos, setInvestments,
   } = data;
+
+  // Fetch rent history when drilling into a RealT portfolio with a wallet address
+  useEffect(() => {
+    if (!drillInv) { setRentData(null); setRentError(''); return; }
+    const inv = data.investments?.find(i => i.id === drillInv.id) || drillInv;
+    if (inv.type !== 'RealT' || !/^0x[0-9a-fA-F]{40}$/i.test(inv.platform || '')) return;
+    setRentLoading(true); setRentData(null); setRentError('');
+    fetch(`/api/realt-rents?address=${inv.platform}`)
+      .then(r => r.json())
+      .then(d => { if (d.error) { setRentError(d.error); } else { setRentData(d); } })
+      .catch(e => setRentError(e.message))
+      .finally(() => setRentLoading(false));
+  }, [drillInv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const SubNav = () => (
     <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
@@ -323,6 +340,71 @@ export default function Patrimoine({ T, data }) {
                     );
                   })}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Loyers RealT ─────────────────────────────────────────────────── */}
+          {cur.type === 'RealT' && /^0x[0-9a-fA-F]{40}$/i.test(cur.platform || '') && (
+            <div style={{ ...S.card }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Loyers reçus</h3>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {['3M', '6M', '12M', 'TOUT'].map(tf => (
+                    <button key={tf} onClick={() => setRentTf(tf)} style={{ background: rentTf === tf ? 'rgba(74,222,128,.12)' : T.cardBg, border: `1px solid ${rentTf === tf ? '#4ade80' : T.cardBorder}`, color: rentTf === tf ? '#4ade80' : T.textMuted, borderRadius: 8, padding: '3px 9px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>{tf}</button>
+                  ))}
+                </div>
+              </div>
+              {rentLoading && <div style={{ textAlign: 'center', padding: '14px 0', color: T.textMuted, fontSize: 12 }}>Chargement…</div>}
+              {rentError && <div style={{ color: '#f87171', fontSize: 12 }}>{rentError}</div>}
+              {!rentLoading && rentData && (() => {
+                const now = Date.now();
+                const days = rentTf === '3M' ? 90 : rentTf === '6M' ? 180 : rentTf === '12M' ? 365 : Infinity;
+                const filtered = rentData.allRents.filter(r => (now - new Date(r.date).getTime()) / 86400000 <= days);
+                const totalEUR = filtered.reduce((s, r) => s + r.amountEUR, 0);
+                const totalUSD = filtered.reduce((s, r) => s + r.amountUSD, 0);
+                return (
+                  <>
+                    <div className="g3" style={{ marginBottom: 14 }}>
+                      {[
+                        { label: 'Total EUR', value: fEur(totalEUR, true), icon: '💶' },
+                        { label: 'Total USD', value: `$${totalUSD.toFixed(2)}`, icon: '💵' },
+                        { label: 'Versements', value: String(filtered.length), icon: '📅' },
+                      ].map(k => <KPI key={k.label} T={T} label={k.label} value={k.value} icon={k.icon} />)}
+                    </div>
+                    {filtered.length === 0
+                      ? <div style={{ textAlign: 'center', padding: '14px 0', color: T.textFaint, fontSize: 12 }}>Aucun loyer sur la période</div>
+                      : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 220, overflowY: 'auto' }}>
+                          {[...filtered].sort((a, b) => b.date.localeCompare(a.date)).map((r, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: T.bg2, borderRadius: 7, fontSize: 12 }}>
+                              <div>
+                                <span style={{ color: T.textFaint, fontSize: 11 }}>{r.date}</span>
+                                {r.propertyName && <span style={{ color: T.textMuted, fontSize: 10, marginLeft: 8, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.propertyName.replace(/^RealToken-S-/i, '')}</span>}
+                                <span style={{ color: T.textFaint, fontSize: 10, marginLeft: 6 }}>({r.stablecoin})</span>
+                              </div>
+                              <span style={{ fontWeight: 700, color: '#4ade80', flexShrink: 0 }}>+{fEur(r.amountEUR)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
+                    {rentData.byProperty.length > 1 && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}` }}>
+                        <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8 }}>Par propriété</div>
+                        {rentData.byProperty.map((prop, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
+                            <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%', fontSize: 11 }}>{prop.propertyName.replace(/^RealToken-S-/i, '')}</span>
+                            <span style={{ color: T.text, fontWeight: 600 }}>{fEur(prop.totalEUR)} ({prop.count}×)</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+              {!rentLoading && !rentData && !rentError && (
+                <div style={{ textAlign: 'center', padding: '14px 0', color: T.textFaint, fontSize: 12 }}>Aucun loyer trouvé</div>
               )}
             </div>
           )}
