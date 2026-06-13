@@ -1,6 +1,7 @@
 const { CRYPTO_MAP, isinToTicker, yfGetWithFallback } = require('./_priceUtils');
 const { getCached, setCached } = require('./_cache');
 const { supabaseAnon } = require('./_supabase');
+const supabaseModule = require('./_supabase');
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
@@ -59,24 +60,27 @@ module.exports = async function handler(req, res) {
     const upperKey = key.toUpperCase();
     const cacheKey = `price:${upperKey}:${tf}`;
 
+    // L1: Redis cache (per-TF key, short TTL)
     const cached = await getCached(cacheKey);
     if (cached != null) return res.json({ changePct: cached, key, tf });
 
-    // For 1J (intraday), read from Supabase prices_cache populated by the hourly cron.
-    // Longer timeframes still call Yahoo Finance — prices_cache only stores 1d change_pct.
-    if (tf === '1J') {
-      const { data: row } = await supabaseAnon
-        .from('prices_cache')
-        .select('change_pct')
-        .eq('ticker', upperKey)
-        .maybeSingle();
-      if (row?.change_pct != null) {
+    // L2: Supabase prices_cache — all timeframes, freshness < 1h
+    const { data: row } = await supabaseAnon
+      .from('prices_cache')
+      .select('change_pct, updated_at')
+      .eq('ticker', upperKey)
+      .maybeSingle();
+
+    if (row?.change_pct != null && row?.updated_at) {
+      const ageMs = Date.now() - new Date(row.updated_at).getTime();
+      if (ageMs < 3_600_000) {
         const result = parseFloat(Number(row.change_pct).toFixed(3));
         await setCached(cacheKey, result, 900);
         return res.json({ changePct: result, key, tf });
       }
     }
 
+    // L3: Yahoo Finance / CoinGecko fallback
     let changePct;
     if (CRYPTO_MAP[upperKey]) {
       changePct = await geckoChangePct(CRYPTO_MAP[upperKey], tfParams.days);
@@ -87,7 +91,25 @@ module.exports = async function handler(req, res) {
     }
 
     const result = parseFloat(changePct.toFixed(3));
+
+    // Store in Redis
     await setCached(cacheKey, result, tf === '1J' ? 900 : 3600);
+
+    // Write-through to prices_cache (fire-and-forget, uses admin to bypass RLS)
+    try {
+      supabaseModule.supabaseAdmin
+        .from('prices_cache')
+        .upsert(
+          { ticker: upperKey, change_pct: result, updated_at: new Date().toISOString() },
+          { onConflict: 'ticker' }
+        )
+        .then(({ error }) => {
+          if (error) console.error('[performance] prices_cache write:', error.message);
+        });
+    } catch {
+      // supabaseAdmin unavailable (SUPABASE_SERVICE_ROLE_KEY not set) — skip cache write
+    }
+
     res.json({ changePct: result, key, tf });
   } catch (err) {
     console.error('[performance]', key, tf, err.message);
