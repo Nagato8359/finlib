@@ -3,6 +3,12 @@ const { getCached, setCached } = require('./_cache');
 
 const CHROME_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+const COMMUNITY_URLS = [
+  'https://api.realtoken.community/v1/token',
+  'https://api.realtoken.community/v1/token?limit=1000',
+  'https://api.realtoken.community/v2/token',
+];
+
 async function getEURUSD() {
   try {
     const data = await yfGetWithFallback('/v8/finance/chart/EURUSD=X?interval=1d&range=1d');
@@ -10,90 +16,71 @@ async function getEURUSD() {
   } catch { return 1.08; }
 }
 
-// ── Cryptalloc CSV → RealT token price index ─────────────────────────────────
-function parseCsvRow(line) {
-  const values = [];
-  let cur = '';
-  let inQ = false;
-  for (const ch of line) {
-    if (ch === '"') { inQ = !inQ; }
-    else if (ch === ',' && !inQ) { values.push(cur.trim()); cur = ''; }
-    else { cur += ch; }
-  }
-  values.push(cur.trim());
-  return values.map(v => v.replace(/^"|"$/g, ''));
-}
-
-async function fetchCryptalloc() {
-  const cacheKey = 'realt:csv:v1';
+// ── RealToken community API → price index by contract address ─────────────────
+async function fetchCommunityApi() {
+  const cacheKey = 'realt:community:v1';
   const cached = await getCached(cacheKey);
   if (cached) return cached;
 
-  const url = 'https://www.cryptalloc.com/realtlab/properties.csv';
-  const csvDebug = { url, status: null, size: 0, snippet: '', headers: [], cols: {} };
+  const attempts = [];
 
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': CHROME_UA, 'Accept': 'text/csv,text/plain,*/*' },
-      signal: AbortSignal.timeout(10000),
-    });
-    const text = await res.text();
-    csvDebug.status = res.status;
-    csvDebug.size = text.length;
-    csvDebug.snippet = text.slice(0, 50);
-    console.log(`[realt-wallet] Cryptalloc → HTTP ${res.status} | ${text.slice(0, 100)}`);
+  for (const url of COMMUNITY_URLS) {
+    let attempt = { url, status: null, bodySnippet: '' };
+    try {
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': CHROME_UA },
+        signal: AbortSignal.timeout(10000),
+      });
+      const text = await res.text();
+      attempt.status = res.status;
+      attempt.bodySnippet = text.slice(0, 200);
+      console.log(`[realt-wallet] community ${url} → HTTP ${res.status} | ${text.slice(0, 120)}`);
+      attempts.push(attempt);
 
-    if (!res.ok) return { index: {}, debug: csvDebug };
+      if (!res.ok) continue;
 
-    const lines = text.trim().split(/\r?\n/);
-    if (lines.length < 2) return { index: {}, debug: csvDebug };
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { continue; }
 
-    const headers = parseCsvRow(lines[0]).map(h => h.toLowerCase());
-    csvDebug.headers = headers;
+      // Response can be array, { data: [...] }, { tokens: [...] }, or { items: [...] }
+      const list = Array.isArray(parsed)
+        ? parsed
+        : (parsed?.data || parsed?.tokens || parsed?.items || []);
+      if (!list.length) continue;
 
-    const find = (...kws) => {
-      for (const kw of kws) {
-        const i = headers.findIndex(h => h.includes(kw));
-        if (i >= 0) return i;
+      const index = {};
+      for (const t of list) {
+        const tokenPrice = parseFloat(t.tokenPrice) || 0;
+        if (tokenPrice <= 0) continue;
+        const entry = {
+          tokenPrice,
+          annualPercentageYield: parseFloat(t.annualPercentageYield) || 0,
+          fullName:  t.fullName  || t.shortName || '',
+          shortName: t.shortName || '',
+        };
+        // Index by every address field available
+        for (const field of ['gnosisContract', 'xDaiContract', 'address']) {
+          const addr = (t[field] || '').toLowerCase().trim();
+          if (addr && addr.length === 42 && addr.startsWith('0x')) index[addr] = entry;
+        }
       }
-      return -1;
-    };
 
-    const iAddr  = find('gnosis', 'xdai', 'contract_address', 'contract');
-    const iPrice = find('tokenprice', 'token_price', 'price');
-    const iApy   = find('annualpercentageyield', 'annual_percentage_yield', 'apy', 'yield', 'annual');
-    const iName  = find('fullname', 'full_name', 'shortname', 'name', 'title');
-    csvDebug.cols = { addr: iAddr, price: iPrice, apy: iApy, name: iName };
+      if (!Object.keys(index).length) continue;
 
-    if (iAddr < 0 || iPrice < 0) {
-      console.error('[realt-wallet] Cryptalloc CSV: required columns not found', headers);
-      return { index: {}, debug: csvDebug };
+      console.log(`[realt-wallet] community API: ${Object.keys(index).length} tokens indexed from ${url}`);
+      const result = { index, debug: { url, status: res.status, bodySnippet: text.slice(0, 200), indexed: Object.keys(index).length, attempts } };
+      await setCached(cacheKey, result, 3600);
+      return result;
+    } catch (e) {
+      attempt.status = 0;
+      attempt.bodySnippet = e.message.slice(0, 200);
+      attempts.push(attempt);
+      console.error(`[realt-wallet] community ${url} threw: ${e.message}`);
     }
-
-    const index = {};
-    for (const line of lines.slice(1)) {
-      if (!line.trim()) continue;
-      const vals = parseCsvRow(line);
-      const addr = (vals[iAddr] || '').toLowerCase().trim();
-      if (!addr || addr.length !== 42 || !addr.startsWith('0x')) continue;
-      const tokenPrice = parseFloat(vals[iPrice]) || 0;
-      if (tokenPrice <= 0) continue;
-      index[addr] = {
-        tokenPrice,
-        annualPercentageYield: iApy >= 0 ? parseFloat(vals[iApy]) || 0 : 0,
-        fullName:              iName >= 0 ? (vals[iName] || '') : '',
-      };
-    }
-
-    console.log(`[realt-wallet] Cryptalloc: ${Object.keys(index).length} tokens indexed`);
-    const result = { index, debug: csvDebug };
-    if (Object.keys(index).length > 0) await setCached(cacheKey, result, 3600);
-    return result;
-  } catch (e) {
-    csvDebug.snippet = e.message.slice(0, 50);
-    console.error(`[realt-wallet] Cryptalloc threw: ${e.message}`);
-    return { index: {}, debug: csvDebug };
   }
+
+  console.error('[realt-wallet] all community API URLs failed');
+  return { index: {}, debug: { url: null, status: null, bodySnippet: '', indexed: 0, attempts } };
 }
 
 // ── Blockscout Gnosis → ERC-20 RealT balances ────────────────────────────────
@@ -131,7 +118,7 @@ async function fetchBlockscout(addr) {
   }
 }
 
-// Priority: Cryptalloc tokenPrice → Blockscout exchange_rate → needsManualPrice
+// Priority: community API tokenPrice → Blockscout exchange_rate → needsManualPrice
 function itemToToken(item, eurusd, priceIndex) {
   const token    = item.token || {};
   const decimals = parseInt(token.decimals, 10) || 18;
@@ -148,7 +135,7 @@ function itemToToken(item, eurusd, priceIndex) {
 
   return {
     symbol:           token.symbol || 'REALT',
-    name:             listed?.fullName || token.name || 'RealT Token',
+    name:             listed?.fullName || listed?.shortName || token.name || 'RealT Token',
     contractAddress,
     amount,
     priceUSD:         priceUSD != null ? parseFloat(priceUSD.toFixed(4)) : null,
@@ -156,7 +143,7 @@ function itemToToken(item, eurusd, priceIndex) {
     totalUSD:         priceUSD != null ? parseFloat((amount * priceUSD).toFixed(2)) : null,
     totalEUR:         priceEUR != null ? parseFloat((amount * priceEUR).toFixed(2)) : null,
     annualYield:      listed?.annualPercentageYield ? parseFloat(listed.annualPercentageYield) : null,
-    priceSource:      hasPrice ? (listed ? 'cryptalloc' : 'blockscout') : null,
+    priceSource:      hasPrice ? (listed ? 'community' : 'blockscout') : null,
     needsManualPrice: !hasPrice,
   };
 }
@@ -175,33 +162,32 @@ module.exports = async function handler(req, res) {
   const addr = address.toLowerCase();
 
   try {
-    const [blockscout, eurusd, cryptallocResult] = await Promise.all([
+    const [blockscout, eurusd, communityResult] = await Promise.all([
       fetchBlockscout(addr),
       getEURUSD(),
-      fetchCryptalloc(),
+      fetchCommunityApi(),
     ]);
 
-    const { index: priceIndex, debug: csvDebug } = cryptallocResult;
+    const { index: priceIndex, debug: apiDebug } = communityResult;
     const tokens = blockscout.items.map(item => itemToToken(item, eurusd, priceIndex)).filter(Boolean);
     const withPrice = tokens.filter(t => !t.needsManualPrice).length;
 
     const debug = {
       address: addr,
       blockscout: {
-        status:     blockscout.status,
-        ok:         blockscout.ok,
-        rawERC20:   blockscout.rawCount ?? 0,
-        realtFound: blockscout.items?.length ?? 0,
+        status:      blockscout.status,
+        ok:          blockscout.ok,
+        rawERC20:    blockscout.rawCount ?? 0,
+        realtFound:  blockscout.items?.length ?? 0,
         withPrice,
         bodySnippet: blockscout.bodySnippet,
       },
-      csv: {
-        status:  csvDebug?.status,
-        size:    csvDebug?.size,
-        snippet: csvDebug?.snippet,
-        headers: csvDebug?.headers,
-        cols:    csvDebug?.cols,
-        indexed: Object.keys(priceIndex).length,
+      tokenList: {
+        url:         apiDebug?.url,
+        status:      apiDebug?.status,
+        bodySnippet: apiDebug?.bodySnippet,
+        indexed:     apiDebug?.indexed ?? 0,
+        attempts:    apiDebug?.attempts,
       },
       eurusd,
     };
