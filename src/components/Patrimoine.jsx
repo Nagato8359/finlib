@@ -363,25 +363,27 @@ export default function Patrimoine({ T, data }) {
                 const filtered = rentData.allRents.filter(r => (now - new Date(r.date).getTime()) / 86400000 <= days);
                 const totalEUR = filtered.reduce((s, r) => s + r.amountEUR, 0);
                 const totalUSD = filtered.reduce((s, r) => s + r.amountUSD, 0);
+                const yieldPct = lv > 0 && rentData.last12MonthsEUR > 0
+                  ? (rentData.last12MonthsEUR / lv) * 100
+                  : null;
                 return (
                   <>
                     <div className="g3" style={{ marginBottom: 14 }}>
                       {[
                         { label: 'Total EUR', value: fEur(totalEUR, true), icon: '💶' },
                         { label: 'Total USD', value: `$${totalUSD.toFixed(2)}`, icon: '💵' },
-                        { label: 'Versements', value: String(filtered.length), icon: '📅' },
+                        { label: yieldPct != null ? 'Rendement annualisé' : 'Versements', value: yieldPct != null ? `${yieldPct.toFixed(2)}%` : String(filtered.length), icon: yieldPct != null ? '📈' : '📅' },
                       ].map(k => <KPI key={k.label} T={T} label={k.label} value={k.value} icon={k.icon} />)}
                     </div>
                     {filtered.length === 0
                       ? <div style={{ textAlign: 'center', padding: '14px 0', color: T.textFaint, fontSize: 12 }}>Aucun loyer sur la période</div>
                       : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 220, overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 240, overflowY: 'auto' }}>
                           {[...filtered].sort((a, b) => b.date.localeCompare(a.date)).map((r, i) => (
                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: T.bg2, borderRadius: 7, fontSize: 12 }}>
-                              <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span style={{ color: T.textFaint, fontSize: 11 }}>{r.date}</span>
-                                {r.propertyName && <span style={{ color: T.textMuted, fontSize: 10, marginLeft: 8, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.propertyName.replace(/^RealToken-S-/i, '')}</span>}
-                                <span style={{ color: T.textFaint, fontSize: 10, marginLeft: 6 }}>({r.stablecoin})</span>
+                                <span style={{ color: T.textMuted, fontSize: 11 }}>${r.amountUSD.toFixed(2)} USDC</span>
                               </div>
                               <span style={{ fontWeight: 700, color: '#4ade80', flexShrink: 0 }}>+{fEur(r.amountEUR)}</span>
                             </div>
@@ -389,17 +391,6 @@ export default function Patrimoine({ T, data }) {
                         </div>
                       )
                     }
-                    {rentData.byProperty.length > 1 && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}` }}>
-                        <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8 }}>Par propriété</div>
-                        {rentData.byProperty.map((prop, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
-                            <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%', fontSize: 11 }}>{prop.propertyName.replace(/^RealToken-S-/i, '')}</span>
-                            <span style={{ color: T.text, fontWeight: 600 }}>{fEur(prop.totalEUR)} ({prop.count}×)</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </>
                 );
               })()}
@@ -409,8 +400,8 @@ export default function Patrimoine({ T, data }) {
             </div>
           )}
 
-          {/* Dividendes — scoped à cette enveloppe */}
-          <div style={{ ...S.card }}>
+          {/* Dividendes — scoped à cette enveloppe (masqué pour RealT : loyers via Blockscout) */}
+          {cur.type !== 'RealT' && <div style={{ ...S.card }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('inv_dividends')}</h3>
               <button onClick={() => { setDivInvId(cur.id); setModal('div'); }} style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>{t('inv_add_dividend')}</button>
@@ -443,7 +434,7 @@ export default function Patrimoine({ T, data }) {
                 </div>
               </>
             )}
-          </div>
+          </div>}
         </div>
       );
     }
