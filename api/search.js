@@ -1,5 +1,5 @@
 // Proxy CORS-safe search: Yahoo Finance (stocks/ISIN) and CoinGecko (crypto)
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+const { yfGetWithFallback } = require('./_priceUtils');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -10,12 +10,9 @@ module.exports = async function handler(req, res) {
 
   try {
     if (type === 'stock') {
-      const resp = await fetch(
-        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=6&newsCount=0&enableFuzzyQuery=false`,
-        { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
+      const data = await yfGetWithFallback(
+        `/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=6&newsCount=0&enableFuzzyQuery=false`
       );
-      if (!resp.ok) throw new Error(`Yahoo ${resp.status}`);
-      const data = await resp.json();
       const results = (data?.quotes || [])
         .filter(r => r.quoteType !== 'OPTION' && r.quoteType !== 'FUTURE')
         .slice(0, 6)
@@ -46,12 +43,9 @@ module.exports = async function handler(req, res) {
     }
 
     if (type === 'divinfo') {
-      const resp = await fetch(
-        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(q)}?modules=summaryDetail`,
-        { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
+      const data = await yfGetWithFallback(
+        `/v10/finance/quoteSummary/${encodeURIComponent(q)}?modules=summaryDetail`
       );
-      if (!resp.ok) throw new Error(`Yahoo quoteSummary ${resp.status}`);
-      const data = await resp.json();
       const sd = data?.quoteSummary?.result?.[0]?.summaryDetail || {};
 
       const yieldRaw = sd.dividendYield?.raw;

@@ -1,11 +1,11 @@
-const { CRYPTO_MAP, isinToTicker, yfGet } = require('./_priceUtils');
+const { CRYPTO_MAP, isinToTicker, yfGetWithFallback } = require('./_priceUtils');
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
 async function fetchEURUSDHourly() {
   try {
-    const data = await yfGet(
-      'https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval=1h&range=1d'
+    const data = await yfGetWithFallback(
+      '/v8/finance/chart/EURUSD=X?interval=1h&range=1d'
     );
     const result = data?.chart?.result?.[0];
     const timestamps = result?.timestamp || [];
@@ -20,8 +20,8 @@ async function fetchEURUSDHourly() {
 }
 
 async function fetchYFHourly(ticker) {
-  const data = await yfGet(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1h&range=1d`
+  const data = await yfGetWithFallback(
+    `/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1h&range=1d`
   );
   const result = data?.chart?.result?.[0];
   if (!result) throw new Error(`No YF intraday for ${ticker}`);
