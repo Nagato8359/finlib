@@ -1,6 +1,13 @@
 const { yfGetWithFallback } = require('./_priceUtils');
+const { getCached, setCached } = require('./_cache');
 
-const THEGRAPH_URL = 'https://api.thegraph.com/subgraphs/name/realtoken-thegraph/realtokens-gnosis';
+const CHROME_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+const TOKEN_LIST_URLS = [
+  'https://realt.co/wp-json/realt/v1/tokens',
+  'https://data.realt.co/tokens.json',
+  'https://raw.githubusercontent.com/RealToken-Community/dashboard-v2/main/public/data/realtokens.json',
+];
 
 async function getEURUSD() {
   try {
@@ -9,60 +16,55 @@ async function getEURUSD() {
   } catch { return 1.08; }
 }
 
-// ── The Graph subgraph → wallet balances + tokenPrice ────────────────────────
-async function fetchTheGraph(addr) {
-  const query = `{ accounts(where:{address:"${addr}"}) { balances(where:{amount_gt:"0"}) { amount token { address name symbol tokenPrice annualPercentageYield netRentYearPerToken } } } }`;
-  try {
-    const res = await fetch(THEGRAPH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ query }),
-      signal: AbortSignal.timeout(12000),
-    });
-    const text = await res.text();
-    const bodySnippet = text.slice(0, 300);
-    console.log(`[realt-wallet] TheGraph → HTTP ${res.status} | ${bodySnippet}`);
+// ── RealT token price list → index by contract address ───────────────────────
+async function fetchTokenList() {
+  const cacheKey = 'realt:v3:tokenlist';
+  const cached = await getCached(cacheKey);
+  if (cached) return cached;
 
-    if (!res.ok) return { balances: [], status: res.status, ok: false, bodySnippet };
+  let lastDebug = { url: null, status: null, bodySnippet: null };
 
-    let data;
-    try { data = JSON.parse(text); } catch {
-      return { balances: [], status: res.status, ok: false, bodySnippet };
+  for (const url of TOKEN_LIST_URLS) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': CHROME_UA },
+        signal: AbortSignal.timeout(10000),
+      });
+      const text = await res.text();
+      lastDebug = { url, status: res.status, bodySnippet: text.slice(0, 200) };
+      console.log(`[realt-wallet] token list ${url} → HTTP ${res.status} | ${text.slice(0, 120)}`);
+
+      if (!res.ok) continue;
+
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { continue; }
+
+      const list = Array.isArray(parsed) ? parsed : (parsed?.tokens || parsed?.data || []);
+      if (!list.length) continue;
+
+      const index = {};
+      for (const t of list) {
+        const addr = (t.gnosisContract || t.xDaiContract || t.address || '').toLowerCase();
+        if (addr && addr.length === 42) index[addr] = t;
+      }
+
+      if (!Object.keys(index).length) continue;
+
+      console.log(`[realt-wallet] token list: ${Object.keys(index).length} indexed from ${url}`);
+      const result = { index, debug: { url, status: res.status, bodySnippet: text.slice(0, 200) } };
+      await setCached(cacheKey, result, 3600);
+      return result;
+    } catch (e) {
+      lastDebug = { url, status: 0, bodySnippet: e.message };
+      console.error(`[realt-wallet] token list ${url} threw: ${e.message}`);
     }
-
-    const balances = data?.data?.accounts?.[0]?.balances || [];
-    console.log(`[realt-wallet] TheGraph: ${balances.length} balances`);
-    return { balances, status: res.status, ok: true, bodySnippet, count: balances.length };
-  } catch (e) {
-    console.error(`[realt-wallet] TheGraph threw: ${e.message}`);
-    return { balances: [], status: 0, ok: false, bodySnippet: e.message };
   }
+
+  console.error('[realt-wallet] all token list URLs failed');
+  return { index: {}, debug: lastDebug };
 }
 
-function balanceToToken(balance, eurusd) {
-  const token = balance.token || {};
-  const amount = parseFloat(balance.amount || '0') / 1e18;
-  if (amount <= 0) return null;
-
-  const priceUSD = parseFloat(token.tokenPrice || '0');
-  if (priceUSD <= 0) return null;
-
-  const priceEUR = priceUSD / eurusd;
-
-  return {
-    symbol:          token.symbol || 'REALT',
-    name:            token.name   || 'RealT Token',
-    contractAddress: (token.address || '').toLowerCase(),
-    amount,
-    priceUSD:        parseFloat(priceUSD.toFixed(4)),
-    priceEUR:        parseFloat(priceEUR.toFixed(2)),
-    totalUSD:        parseFloat((amount * priceUSD).toFixed(2)),
-    totalEUR:        parseFloat((amount * priceEUR).toFixed(2)),
-    annualYield:     token.annualPercentageYield ? parseFloat(token.annualPercentageYield) : null,
-  };
-}
-
-// ── Blockscout fallback → ERC-20 balances + exchange_rate ────────────────────
+// ── Blockscout Gnosis → ERC-20 RealT balances ────────────────────────────────
 async function fetchBlockscout(addr) {
   const url = `https://gnosis.blockscout.com/api/v2/addresses/${addr}/token-balances`;
   try {
@@ -72,7 +74,7 @@ async function fetchBlockscout(addr) {
     });
     const text = await res.text();
     const bodySnippet = text.slice(0, 300);
-    console.log(`[realt-wallet] Blockscout fallback → HTTP ${res.status} | ${bodySnippet}`);
+    console.log(`[realt-wallet] Blockscout → HTTP ${res.status} | ${bodySnippet}`);
 
     if (!res.ok) return { items: [], status: res.status, ok: false, bodySnippet };
 
@@ -89,7 +91,7 @@ async function fetchBlockscout(addr) {
       return /realtoken/i.test(name) || /realtoken/i.test(sym);
     });
 
-    console.log(`[realt-wallet] Blockscout fallback: ${raw.length} ERC-20, ${items.length} RealT`);
+    console.log(`[realt-wallet] Blockscout: ${raw.length} ERC-20, ${items.length} RealT`);
     return { items, rawCount: raw.length, status: res.status, ok: true, bodySnippet };
   } catch (e) {
     console.error(`[realt-wallet] Blockscout threw: ${e.message}`);
@@ -97,27 +99,32 @@ async function fetchBlockscout(addr) {
   }
 }
 
-function blockscoutItemToToken(item, eurusd) {
+// Priority: token list tokenPrice → Blockscout exchange_rate → skip
+function itemToToken(item, eurusd, priceIndex) {
   const token    = item.token || {};
   const decimals = parseInt(token.decimals, 10) || 18;
   const amount   = parseFloat(item.value || '0') / Math.pow(10, decimals);
   if (amount <= 0) return null;
 
   const contractAddress = (token.address || token.address_hash || '').toLowerCase();
-  const priceUSD = parseFloat(token.exchange_rate || '0');
+  const listed = priceIndex[contractAddress];
+
+  const priceUSD = parseFloat(listed?.tokenPrice || token.exchange_rate || '0');
   if (priceUSD <= 0) return null;
 
   const priceEUR = priceUSD / eurusd;
+
   return {
     symbol:          token.symbol || 'REALT',
-    name:            token.name   || 'RealT Token',
+    name:            listed?.fullName || listed?.shortName || token.name || 'RealT Token',
     contractAddress,
     amount,
     priceUSD:        parseFloat(priceUSD.toFixed(4)),
     priceEUR:        parseFloat(priceEUR.toFixed(2)),
     totalUSD:        parseFloat((amount * priceUSD).toFixed(2)),
     totalEUR:        parseFloat((amount * priceEUR).toFixed(2)),
-    annualYield:     null,
+    annualYield:     listed?.annualPercentageYield ? parseFloat(listed.annualPercentageYield) : null,
+    priceSource:     listed ? 'tokenlist' : 'blockscout',
   };
 }
 
@@ -135,40 +142,31 @@ module.exports = async function handler(req, res) {
   const addr = address.toLowerCase();
 
   try {
-    const [graphResult, eurusd] = await Promise.all([fetchTheGraph(addr), getEURUSD()]);
+    const [blockscout, eurusd, tokenListResult] = await Promise.all([
+      fetchBlockscout(addr),
+      getEURUSD(),
+      fetchTokenList(),
+    ]);
 
-    let tokens = [];
-    let source = 'thegraph';
-    let fallbackResult = null;
-
-    if (graphResult.ok && graphResult.balances.length > 0) {
-      tokens = graphResult.balances.map(b => balanceToToken(b, eurusd)).filter(Boolean);
-    }
-
-    if (tokens.length === 0) {
-      source = 'blockscout';
-      fallbackResult = await fetchBlockscout(addr);
-      tokens = fallbackResult.items.map(item => blockscoutItemToToken(item, eurusd)).filter(Boolean);
-    }
+    const { index: priceIndex, debug: tokenListDebug } = tokenListResult;
+    const tokens = blockscout.items.map(item => itemToToken(item, eurusd, priceIndex)).filter(Boolean);
 
     const debug = {
       address: addr,
-      source,
-      thegraph: {
-        status:      graphResult.status,
-        ok:          graphResult.ok,
-        balances:    graphResult.balances.length,
-        withPrice:   source === 'thegraph' ? tokens.length : undefined,
-        bodySnippet: graphResult.bodySnippet,
+      blockscout: {
+        status:      blockscout.status,
+        ok:          blockscout.ok,
+        rawERC20:    blockscout.rawCount ?? 0,
+        realtFound:  blockscout.items?.length ?? 0,
+        withPrice:   tokens.length,
+        bodySnippet: blockscout.bodySnippet,
       },
-      blockscout: fallbackResult ? {
-        status:       fallbackResult.status,
-        ok:           fallbackResult.ok,
-        rawERC20:     fallbackResult.rawCount ?? 0,
-        realtFound:   fallbackResult.items?.length ?? 0,
-        withPrice:    tokens.length,
-        bodySnippet:  fallbackResult.bodySnippet,
-      } : null,
+      tokenList: {
+        size:        Object.keys(priceIndex).length,
+        url:         tokenListDebug?.url,
+        status:      tokenListDebug?.status,
+        bodySnippet: tokenListDebug?.bodySnippet,
+      },
       eurusd,
     };
 
@@ -176,7 +174,7 @@ module.exports = async function handler(req, res) {
       return res.status(404).json({ error: 'Aucun token RealT trouvé pour cette adresse', debug });
     }
 
-    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens via ${source}`);
+    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens (list size: ${Object.keys(priceIndex).length})`);
     res.json({ tokens, eurusd: parseFloat(eurusd.toFixed(4)), count: tokens.length, debug });
   } catch (err) {
     console.error('[realt-wallet] fatal:', err.message);
