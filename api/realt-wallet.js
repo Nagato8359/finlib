@@ -8,29 +8,59 @@ async function getEURUSD() {
   } catch { return 1.08; }
 }
 
-// ── GitHub RealT token list (xdai.json) → tokenPrice index ──────────────────
+// ── RealT token list → tokenPrice index ──────────────────────────────────────
+const REALT_LIST_URLS = [
+  'https://raw.githubusercontent.com/real-token/realt-tokens-list/main/tokens/xdai.json',
+  'https://raw.githubusercontent.com/real-token/realt-tokens-list/main/src/tokens/xdai.json',
+  'https://api.realtoken.community/v1/realtokens',
+];
+
 async function fetchGitHubTokenList() {
-  const key = 'realt:tokenlist:xdai';
-  const cached = await getCached(key);
+  const cacheKey = 'realt:tokenlist:xdai:v2';
+  const cached = await getCached(cacheKey);
   if (cached) return cached;
 
-  const res = await fetch(
-    'https://raw.githubusercontent.com/real-token/realt-tokens-list/main/tokens/xdai.json',
-    { signal: AbortSignal.timeout(10000) }
-  );
-  if (!res.ok) throw new Error(`GitHub token list HTTP ${res.status}`);
-  const list = await res.json();
-  const tokens = Array.isArray(list) ? list : (list?.tokens || []);
+  let lastDebug = { url: null, status: null, bodySnippet: null };
 
-  const index = {};
-  for (const t of tokens) {
-    const addr = (t.address || t.xDaiContract || '').toLowerCase();
-    if (addr) index[addr] = t;
+  for (const url of REALT_LIST_URLS) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0' },
+        signal: AbortSignal.timeout(10000),
+      });
+      const text = await res.text();
+      lastDebug = { url, status: res.status, bodySnippet: text.slice(0, 200) };
+      console.log(`[realt-wallet] token list ${url} → HTTP ${res.status} | ${text.slice(0, 100)}`);
+
+      if (!res.ok) continue;
+
+      let list;
+      try { list = JSON.parse(text); } catch { continue; }
+
+      const tokens = Array.isArray(list) ? list : (list?.tokens || []);
+      if (!tokens.length) continue;
+
+      const index = {};
+      for (const t of tokens) {
+        const addr = (t.xDaiContract || t.gnosisContract || t.address || '').toLowerCase();
+        if (addr && addr !== '0x' && addr.length === 42) index[addr] = t;
+      }
+
+      if (Object.keys(index).length === 0) continue;
+
+      console.log(`[realt-wallet] token list: ${Object.keys(index).length} indexed from ${url}`);
+      const result = { index, debug: { url, status: res.status, bodySnippet: text.slice(0, 200) } };
+      await setCached(cacheKey, result, 3600);
+      return result;
+    } catch (e) {
+      lastDebug = { url, status: 0, bodySnippet: e.message };
+      console.error(`[realt-wallet] token list ${url} threw: ${e.message}`);
+    }
   }
 
-  await setCached(key, index, 3600);
-  console.log(`[realt-wallet] GitHub token list: ${Object.keys(index).length} tokens indexed`);
-  return index;
+  // All URLs failed — return empty, do NOT cache so next request retries
+  console.error('[realt-wallet] all token list URLs failed');
+  return { index: {}, debug: lastDebug };
 }
 
 // ── Blockscout Gnosis → ERC-20 balances + exchange_rate ──────────────────────
@@ -117,14 +147,13 @@ module.exports = async function handler(req, res) {
   const addr = address.toLowerCase();
 
   try {
-    const [blockscout, eurusd, githubIndex] = await Promise.all([
+    const [blockscout, eurusd, tokenListResult] = await Promise.all([
       fetchBlockscout(addr),
       getEURUSD(),
-      fetchGitHubTokenList().catch(e => {
-        console.error('[realt-wallet] GitHub token list failed:', e.message);
-        return {};
-      }),
+      fetchGitHubTokenList(),
     ]);
+
+    const { index: githubIndex, debug: tokenListDebug } = tokenListResult;
 
     const tokens = blockscout.items
       .map(item => itemToToken(item, eurusd, githubIndex))
@@ -141,7 +170,12 @@ module.exports = async function handler(req, res) {
         bodySnippet:    blockscout.bodySnippet,
         error:          blockscout.error,
       },
-      githubTokenListSize: Object.keys(githubIndex).length,
+      tokenList: {
+        size:        Object.keys(githubIndex).length,
+        url:         tokenListDebug?.url,
+        status:      tokenListDebug?.status,
+        bodySnippet: tokenListDebug?.bodySnippet,
+      },
       eurusd,
     };
 
