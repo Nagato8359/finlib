@@ -9,6 +9,8 @@ const CRYPTO_MAP = {
   NEAR: 'near', ALGO: 'algorand', XLM: 'stellar', TRX: 'tron',
   SUI: 'sui', OP: 'optimism', ARB: 'arbitrum', SHIB: 'shiba-inu',
   PEPE: 'pepe', TON: 'the-open-network', WIF: 'dogwifcoin',
+  // Extended — symbols where Yahoo Finance returns wrong data
+  FET: 'fetch-ai', EGLD: 'elrond-erd-2', INJ: 'injective-protocol', AAVE: 'aave',
 };
 
 const cache = {};
@@ -59,8 +61,28 @@ async function getEURUSD() {
   }
 }
 
+async function resolveCoinGeckoId(symbol) {
+  if (CRYPTO_MAP[symbol]) return CRYPTO_MAP[symbol];
+
+  const redisKey = `cgid:${symbol}`;
+  const cached = await getCached(redisKey);
+  if (cached) return cached;
+
+  const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(symbol)}`, {
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`CoinGecko search HTTP ${res.status} for ${symbol}`);
+  const data = await res.json();
+  const coinId = data?.coins?.[0]?.id;
+  if (!coinId) throw new Error(`CoinGecko: symbol ${symbol} not found`);
+
+  await setCached(redisKey, coinId, 86400);
+  console.log(`[prices] CoinGecko dynamic: ${symbol} → ${coinId}`);
+  return coinId;
+}
+
 async function fetchCrypto(ticker) {
-  const coinId = CRYPTO_MAP[ticker];
+  const coinId = await resolveCoinGeckoId(ticker);
   const res = await fetch(
     `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=eur`,
     { signal: AbortSignal.timeout(8000) }
@@ -165,4 +187,4 @@ async function resolvePriceByKey(key) {
   return resolvePrice(key);
 }
 
-module.exports = { resolvePrice, resolvePriceByKey, CRYPTO_MAP, isinToTicker, yfGet, yfGetWithFallback, YF_UA };
+module.exports = { resolvePrice, resolvePriceByKey, resolveCoinGeckoId, CRYPTO_MAP, isinToTicker, yfGet, yfGetWithFallback, YF_UA };
