@@ -3,10 +3,11 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
-import { TT, makeS, fEur, fPct, fDate, CAT_COLORS } from '../utils/constants';
+import { makeS, fEur, fPct, fDate, CAT_COLORS } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 import { computeTrophies } from '../utils/trophies';
 import Confetti from './Confetti';
+import { supabase } from '../supabaseClient';
 
 const TF_DAYS = { '1J': 1, '7J': 7, '1M': 30, '3M': 90, '1AN': 365 };
 const PERF_TF_DAYS = { '1J': 1, '1S': 7, '1M': 30, '3M': 90, '1AN': 365, 'TOUT': null };
@@ -95,6 +96,7 @@ export default function Accueil({ T, data, setTab }) {
   const [perfPrices, setPerfPrices] = useState({});
   const [intradayHistory, setIntradayHistory] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
+  const [dbHistory, setDbHistory] = useState([]);
 
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
@@ -171,6 +173,36 @@ export default function Accueil({ T, data, setTab }) {
     return () => ctrl.abort();
   }, [chartTf, investments, cashTotal, healthTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── DB patrimoine history — fetch real snapshots from Supabase ──────────
+  useEffect(() => {
+    if (!data.user || chartTf === '1J') { setDbHistory([]); return; }
+    const days = TF_DAYS[chartTf] || 30;
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    supabase
+      .from('patrimoine_history')
+      .select('valeur, recorded_at')
+      .gte('recorded_at', since)
+      .order('recorded_at', { ascending: true })
+      .then(({ data: rows, error }) => {
+        if (error || !rows?.length) { setDbHistory([]); return; }
+        setDbHistory(rows.map(row => {
+          const date = new Date(row.recorded_at);
+          let label;
+          if (days <= 7) {
+            const h = date.getHours();
+            label = h === 0
+              ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
+              : `${date.toLocaleDateString('fr-FR', { weekday: 'short' })} ${h}h`;
+          } else if (days <= 90) {
+            label = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+          } else {
+            label = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+          }
+          return { label, Patrimoine: Math.round(parseFloat(row.valeur)), ts: date.getTime() };
+        }));
+      });
+  }, [chartTf, data.user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Patrimoine history ───────────────────────────────────────────────────
   const patrimoineHistory = useMemo(() => {
     const days = TF_DAYS[chartTf] || 30;
@@ -206,9 +238,11 @@ export default function Accueil({ T, data, setTab }) {
   }, [chartTf, transactions, patrimoine, patrimoineNet, t]);
 
   const displayPatrimoine = patrimoineNet ?? patrimoine;
+  // Prefer real DB snapshots; fall back to transaction-based approximation
+  const activeHistory = dbHistory.length > 1 ? dbHistory : patrimoineHistory;
   const histOpen = chartTf === '1J' && intradayHistory.length > 0
     ? intradayHistory[0].Patrimoine
-    : (patrimoineHistory.length > 1 ? patrimoineHistory[0].Patrimoine : displayPatrimoine);
+    : (activeHistory.length > 1 ? activeHistory[0].Patrimoine : displayPatrimoine);
   const change = displayPatrimoine - histOpen;
   const changePct = histOpen > 0 && histOpen !== displayPatrimoine ? (change / histOpen) * 100 : 0;
   const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#fb923c' : '#f87171';
@@ -347,6 +381,21 @@ export default function Accueil({ T, data, setTab }) {
     );
   }, [T]);
 
+  const patrimoineTooltip = useCallback(({ active, payload, label }) => {
+    if (!active || !payload?.[0]) return null;
+    const val = payload[0].value;
+    const ts = payload[0].payload?.ts;
+    const dateStr = ts
+      ? new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : label;
+    return (
+      <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,.3)' }}>
+        <div style={{ color: T.textMuted, marginBottom: 4, fontSize: 11 }}>{dateStr}</div>
+        <div style={{ color: T.text, fontWeight: 700, fontSize: 14 }}>{fEur(val)}</div>
+      </div>
+    );
+  }, [T]);
+
   // ── Asset cards ──────────────────────────────────────────────────────────
   const assetCards = useMemo(() => {
     const cards = [];
@@ -363,7 +412,9 @@ export default function Accueil({ T, data, setTab }) {
 
   const card = { ...S.card };
   const chartColor = changePct >= 0 ? T.accent : '#f87171';
-  const chartData = chartTf === '1J' && intradayHistory.length > 0 ? intradayHistory : patrimoineHistory;
+  const chartData = chartTf === '1J' && intradayHistory.length > 0
+    ? intradayHistory
+    : activeHistory;
   const xTickInterval = Math.max(0, Math.floor(chartData.length / 6) - 1);
 
   return (
@@ -429,10 +480,10 @@ export default function Accueil({ T, data, setTab }) {
                   <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
+              <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} vertical={false} />
               <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={xTickInterval} />
-              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={58} domain={([dMin, dMax]) => [Math.floor(dMin * 0.995), Math.ceil(dMax * 1.005)]} />
-              <Tooltip content={chartTf === '1J' ? intradayTooltip : <TT />} />
+              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k€` : `${Math.round(v)}€`} width={52} domain={([dMin, dMax]) => { const pad = (dMax - dMin) * 0.1 || 1000; return [Math.floor(dMin - pad), Math.ceil(dMax + pad * 0.2)]; }} />
+              <Tooltip content={chartTf === '1J' ? intradayTooltip : patrimoineTooltip} />
               <Area type="monotone" dataKey="Patrimoine" stroke={chartColor} fill="url(#patG)" strokeWidth={2.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>

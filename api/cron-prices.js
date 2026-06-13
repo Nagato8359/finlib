@@ -74,10 +74,10 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // 1. Read all investments across all users (requires service role key)
+    // 1. Read all user data (requires service role key)
     const { data: rows, error: dbErr } = await supabaseAdmin
       .from('user_data')
-      .select('investments');
+      .select('user_id, investments, savings, health_assets, loans');
     if (dbErr) throw new Error(`user_data read: ${dbErr.message}`);
 
     // 2. Extract unique tickers and RealT wallet addresses
@@ -185,7 +185,41 @@ module.exports = async function handler(req, res) {
     }
     if (realtWallets.size) console.log(`[cron-prices] RealT: ${realtUpdated} token prices updated`);
 
-    res.json({ ok: true, updated, realtUpdated, total: keys.length });
+    // 6. Record one patrimoine snapshot per user per hour
+    const snapshotHour = new Date();
+    snapshotHour.setMinutes(0, 0, 0);
+    const recordedAt = snapshotHour.toISOString();
+
+    const historyEntries = (rows || [])
+      .filter(row => row.user_id)
+      .map(row => {
+        const investments_ = row.investments || [];
+        const savings_     = row.savings || [];
+        const healthAssets = row.health_assets || [];
+        const loans_       = row.loans || [];
+        const invTotal_    = investments_.reduce((s, inv) => s + (parseFloat(inv.value) || 0), 0);
+        const cashTotal_   = savings_.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0);
+        const healthTotal_ = healthAssets.reduce((s, h) => s + (parseFloat(h.currentValue) || 0), 0);
+        const linkedDebt   = investments_
+          .filter(inv => inv.loanId)
+          .reduce((s, inv) => {
+            const loan = loans_.find(l => l.id === inv.loanId);
+            return s + (parseFloat(loan?.capitalRemaining) || 0);
+          }, 0);
+        const valeur = Math.round(invTotal_ + cashTotal_ + healthTotal_ - linkedDebt);
+        return { user_id: row.user_id, valeur, recorded_at: recordedAt };
+      })
+      .filter(e => e.valeur > 0);
+
+    if (historyEntries.length > 0) {
+      const { error: histErr } = await supabaseAdmin
+        .from('patrimoine_history')
+        .upsert(historyEntries, { onConflict: 'user_id,recorded_at' });
+      if (histErr) console.error('[cron-prices] patrimoine_history:', histErr.message);
+      else console.log(`[cron-prices] patrimoine_history: ${historyEntries.length} snapshots`);
+    }
+
+    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length });
   } catch (err) {
     console.error('[cron-prices] fatal:', err.message);
     res.status(500).json({ error: err.message });
