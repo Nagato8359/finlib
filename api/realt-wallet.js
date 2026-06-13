@@ -7,47 +7,18 @@ async function getEURUSD() {
   } catch { return 1.08; }
 }
 
-// ── Community /v1/realtokens → full list with prices ─────────────────────────
-async function fetchRealTokensList() {
-  try {
-    const res = await fetch('https://api.realtoken.community/v1/realtokens', {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0' },
-      signal: AbortSignal.timeout(15000),
-    });
-    const text = await res.text();
-    console.log(`[realt-wallet] community /realtokens → HTTP ${res.status} | ${text.slice(0, 200)}`);
-    if (!res.ok) return { byContract: {}, status: res.status };
-    let list = [];
-    try { list = JSON.parse(text); } catch { return { byContract: {}, status: res.status }; }
-    if (!Array.isArray(list)) return { byContract: {}, status: res.status };
-
-    // Index by contract address (lowercase) for fast O(1) lookup
-    const byContract = {};
-    for (const t of list) {
-      for (const field of ['xDaiContract', 'gnosisContract', 'ethereumContract']) {
-        const addr = t[field];
-        if (addr && typeof addr === 'string') byContract[addr.toLowerCase()] = t;
-      }
-    }
-    console.log(`[realt-wallet] community /realtokens: ${list.length} tokens indexed`);
-    return { byContract, status: res.status };
-  } catch (e) {
-    console.error(`[realt-wallet] community /realtokens threw: ${e.message}`);
-    return { byContract: {}, error: e.message };
-  }
-}
-
-// ── Blockscout Gnosis → ERC20 balances for wallet ────────────────────────────
+// ── Blockscout Gnosis → ERC-20 balances + exchange_rate ──────────────────────
 async function fetchBlockscout(addr) {
   const url = `https://gnosis.blockscout.com/api/v2/addresses/${addr}/token-balances`;
   try {
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0' },
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(15000),
     });
     const text = await res.text();
-    const bodySnippet = text.slice(0, 400);
-    console.log(`[realt-wallet] Blockscout Gnosis → HTTP ${res.status} | ${bodySnippet}`);
+    const bodySnippet = text.slice(0, 500);
+    console.log(`[realt-wallet] Blockscout → HTTP ${res.status} | ${bodySnippet}`);
+
     if (!res.ok) return { items: [], status: res.status, ok: false, bodySnippet };
 
     let data = null;
@@ -55,10 +26,10 @@ async function fetchBlockscout(addr) {
       return { items: [], status: res.status, ok: false, bodySnippet };
     }
 
-    // Response is array or { items: [...] }
+    // v2 response: array or { items: [...] }
     const raw = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
 
-    // Keep only RealT ERC-20 tokens
+    // Keep only ERC-20 RealT tokens
     const items = raw.filter(item => {
       if (item?.token?.type && !/ERC-?20/i.test(item.token.type)) return false;
       const name = item?.token?.name || '';
@@ -66,7 +37,7 @@ async function fetchBlockscout(addr) {
       return /realtoken/i.test(name) || /realtoken/i.test(sym);
     });
 
-    console.log(`[realt-wallet] Blockscout: ${raw.length} ERC-20 tokens, ${items.length} RealT`);
+    console.log(`[realt-wallet] Blockscout: ${raw.length} ERC-20, ${items.length} RealT`);
     return { items, rawCount: raw.length, status: res.status, ok: true, bodySnippet };
   } catch (e) {
     console.error(`[realt-wallet] Blockscout threw: ${e.message}`);
@@ -74,74 +45,32 @@ async function fetchBlockscout(addr) {
   }
 }
 
-// Blockscout item + community token data → normalized balance shape
-function blockscoutToBalance(item, communityToken) {
-  const decimals = parseInt(item.token?.decimals, 10) || 18;
+// Convert one Blockscout token-balance entry to output token shape
+// exchange_rate is the CoinGecko USD price embedded by Blockscout
+function itemToToken(item, eurusd) {
+  const token    = item.token || {};
+  const decimals = parseInt(token.decimals, 10) || 18;
   const amount   = parseFloat(item.value || '0') / Math.pow(10, decimals);
-  return {
-    amount: String(amount),
-    contractAddress: (item.token?.address || '').toLowerCase(),
-    token: {
-      shortName:            communityToken?.shortName            || item.token?.symbol || '',
-      fullName:             communityToken?.fullName             || item.token?.name   || '',
-      symbol:               item.token?.symbol || '',
-      name:                 item.token?.name   || '',
-      tokenPrice:           String(communityToken?.tokenPrice           ?? 0),
-      annualPercentageYield: String(communityToken?.annualPercentageYield ?? 0),
-    },
-  };
-}
-
-// ── Ethereum mainnet fallback (community REST API) ────────────────────────────
-async function fetchMainnet(addr) {
-  const endpoints = [
-    { label: 'community /holder',  url: `https://api.realtoken.community/v1/holder/${addr}` },
-    { label: 'community /holders', url: `https://api.realtoken.community/v1/holders/${addr}` },
-    { label: 'community /wallet',  url: `https://api.realtoken.community/v1/wallet/${addr}` },
-  ];
-  const attempts = [];
-  for (const ep of endpoints) {
-    try {
-      const res = await fetch(ep.url, {
-        headers: { 'Accept': 'application/json', 'User-Agent': 'Capitaly/1.0' },
-        signal: AbortSignal.timeout(10000),
-      });
-      const text = await res.text();
-      const bodySnippet = text.slice(0, 300);
-      console.log(`[realt-wallet] ${ep.label} → HTTP ${res.status} | ${bodySnippet}`);
-      let raw = null;
-      try { raw = JSON.parse(text); } catch { /* not JSON */ }
-      const balances = Array.isArray(raw) ? raw
-        : Array.isArray(raw?.holder?.balances) ? raw.holder.balances
-        : Array.isArray(raw?.balances) ? raw.balances
-        : [];
-      attempts.push({ label: ep.label, url: ep.url, status: res.status, ok: res.ok, balancesFound: balances.length, bodySnippet });
-      if (res.ok && balances.length > 0) return { balances, attempts };
-    } catch (e) {
-      console.error(`[realt-wallet] ${ep.label} threw: ${e.message}`);
-      attempts.push({ label: ep.label, url: ep.url, status: 0, ok: false, balancesFound: 0, error: e.message });
-    }
-  }
-  return { balances: [], attempts };
-}
-
-// ── Normalize to output shape ─────────────────────────────────────────────────
-function normalizeBalance(b, eurusd) {
-  const token  = b.token || {};
-  const amount = parseFloat(b.amount) || 0;
   if (amount <= 0) return null;
-  const priceUSD = parseFloat(token.tokenPrice) || 0;
-  const priceEUR = priceUSD > 0 ? priceUSD / eurusd : 0;
-  if (priceEUR <= 0) return null;
+
+  // address field: v2 uses "address", older versions used "address_hash"
+  const contractAddress = (token.address || token.address_hash || '').toLowerCase();
+
+  const priceUSD = parseFloat(token.exchange_rate || '0');
+  if (priceUSD <= 0) return null; // skip tokens Blockscout has no price for
+
+  const priceEUR = priceUSD / eurusd;
+
   return {
-    symbol:      token.shortName || token.symbol || 'REALT',
-    name:        token.fullName  || token.name   || token.shortName || token.symbol || 'RealT Token',
+    symbol:          token.symbol || 'REALT',
+    name:            token.name   || 'RealT Token',
+    contractAddress,
     amount,
-    priceUSD,
-    priceEUR:     parseFloat(priceEUR.toFixed(2)),
-    totalUSD:     parseFloat((amount * priceUSD).toFixed(2)),
-    totalEUR:     parseFloat((amount * priceEUR).toFixed(2)),
-    annualYield:  parseFloat(token.annualPercentageYield || 0),
+    priceUSD:        parseFloat(priceUSD.toFixed(4)),
+    priceEUR:        parseFloat(priceEUR.toFixed(2)),
+    totalUSD:        parseFloat((amount * priceUSD).toFixed(2)),
+    totalEUR:        parseFloat((amount * priceEUR).toFixed(2)),
+    annualYield:     null,
   };
 }
 
@@ -159,48 +88,37 @@ module.exports = async function handler(req, res) {
   const addr = address.toLowerCase();
 
   try {
-    // Run all sources in parallel
-    const [blockscout, realTokensData, mainnetResult, eurusd] = await Promise.all([
+    const [blockscout, eurusd] = await Promise.all([
       fetchBlockscout(addr),
-      fetchRealTokensList(),
-      fetchMainnet(addr),
       getEURUSD(),
     ]);
 
-    // ── Gnosis: enrich Blockscout tokens with prices from community list ──
-    const gnosisBalances = blockscout.items.map(item => {
-      const contractAddr  = (item.token?.address || '').toLowerCase();
-      const communityToken = realTokensData.byContract?.[contractAddr];
-      return blockscoutToBalance(item, communityToken);
-    });
-
-    // ── Merge: gnosis first (priority), then mainnet — deduplicate by symbol ──
-    const seen = new Set();
-    const merged = [...gnosisBalances, ...mainnetResult.balances].filter(b => {
-      const sym = (b.token?.shortName || b.token?.symbol || '').toUpperCase();
-      if (!sym || seen.has(sym)) return false;
-      seen.add(sym);
-      return true;
-    });
-
-    const tokens = merged.map(b => normalizeBalance(b, eurusd)).filter(Boolean);
+    const tokens = blockscout.items
+      .map(item => itemToToken(item, eurusd))
+      .filter(Boolean);
 
     const debug = {
       address: addr,
-      blockscout:  { status: blockscout.status, ok: blockscout.ok, realtTokensFound: blockscout.items?.length ?? 0, rawERC20Count: blockscout.rawCount ?? 0, bodySnippet: blockscout.bodySnippet, error: blockscout.error },
-      realtTokens: { status: realTokensData.status, indexed: Object.keys(realTokensData.byContract ?? {}).length, error: realTokensData.error },
-      mainnet:     mainnetResult.attempts,
-      gnosisBalancesRaw: gnosisBalances.length,
-      mainnetBalancesRaw: mainnetResult.balances.length,
-      mergedAfterDedup: merged.length,
-      tokensWithPrice: tokens.length,
+      blockscout: {
+        status:         blockscout.status,
+        ok:             blockscout.ok,
+        rawERC20Count:  blockscout.rawCount ?? 0,
+        realtFound:     blockscout.items?.length ?? 0,
+        withPrice:      tokens.length,
+        bodySnippet:    blockscout.bodySnippet,
+        error:          blockscout.error,
+      },
+      eurusd,
     };
 
     if (tokens.length === 0) {
-      return res.status(404).json({ error: 'Aucun token RealT trouvé pour cette adresse', debug });
+      return res.status(404).json({
+        error: 'Aucun token RealT trouvé pour cette adresse',
+        debug,
+      });
     }
 
-    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens (gnosis: ${gnosisBalances.length}, mainnet: ${mainnetResult.balances.length})`);
+    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens via Blockscout`);
     res.json({ tokens, eurusd: parseFloat(eurusd.toFixed(4)), count: tokens.length, debug });
   } catch (err) {
     console.error('[realt-wallet] fatal:', err.message);
