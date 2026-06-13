@@ -269,7 +269,8 @@ export default function PositionFormModal({ T, data }) {
   // ── Preview ───────────────────────────────────────────────────────────────────
   const qty = parseFloat(posForm.shares) || (formType === 'realestate' || formType === 'bond' ? 1 : 0);
   const bp  = parseFloat(posForm.buyPrice) || 0;
-  const liveKey = posForm.isin || posForm.ticker;
+  const hasLiveFeed = ['stock', 'etf', 'crypto', 'commodity'].includes(formType);
+  const liveKey = hasLiveFeed ? (posForm.isin || posForm.ticker) : null;
   const livePx  = (liveKey ? prices[liveKey] : null) ?? (parseFloat(posForm.currentPrice) || 0);
   const invested  = qty * bp;
   const curVal    = qty * livePx;

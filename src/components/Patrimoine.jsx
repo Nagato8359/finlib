@@ -290,7 +290,8 @@ export default function Patrimoine({ T, data }) {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(cur.positions || []).map(pos => {
-                    const livePrice = data.prices[pos.ticker] ?? pos.currentPrice;
+                    const hasLiveFeed = ['stock', 'etf', 'crypto', 'commodity'].includes(pos.posType);
+                    const livePrice = (hasLiveFeed ? (data.prices[pos.ticker] ?? null) : null) ?? pos.currentPrice;
                     const posVal = pos.shares * livePrice;
                     const posInv = pos.shares * pos.buyPrice;
                     const posPnl = posVal - posInv;
@@ -303,7 +304,7 @@ export default function Patrimoine({ T, data }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
                               <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{pos.ticker}</span>
                               <span style={{ color: T.textMuted, fontSize: 12 }}>{pos.name}</span>
-                              {data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: T.accent + '33', color: T.accent, padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
+                              {hasLiveFeed && data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: T.accent + '33', color: T.accent, padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
                             </div>
                             <div style={{ fontSize: 11, color: T.textFaint }}>
                               {isCryptoType ? `Qté ${+parseFloat(pos.shares).toFixed(4)}` : `${+parseFloat(pos.shares).toFixed(4)} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
