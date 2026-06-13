@@ -142,6 +142,7 @@ export default function Patrimoine({ T, data }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 12, color: T.textMuted, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.04em' }}>{t('inv_details')}</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {/* PEA / CTO */}
               {(type === 'PEA' || type === 'CTO') && cur.courtier && (
                 <span style={{ fontSize: 12, color: T.textMuted }}>{t('inv_courtier')} : <strong style={{ color: T.text }}>{cur.courtier}</strong></span>
               )}
@@ -151,6 +152,8 @@ export default function Patrimoine({ T, data }) {
                 const passed = now >= fiveYears;
                 return <span style={{ fontSize: 12, color: passed ? '#4ade80' : '#fb923c' }}>{passed ? t('inv_pea_tax_ok') : `${t('inv_pea_tax_wait')}: ${fiveYears.toLocaleDateString('fr-FR')}`}</span>;
               })()}
+
+              {/* Assurance-vie */}
               {type === 'Assurance-vie' && (
                 <>
                   {cur.assureur && <span style={{ fontSize: 12, color: T.textMuted }}>{t('inv_assurer')} : <strong style={{ color: T.text }}>{cur.assureur}</strong></span>}
@@ -162,12 +165,21 @@ export default function Patrimoine({ T, data }) {
                   })()}
                 </>
               )}
+
+              {/* Crypto */}
               {type === 'Crypto' && (
                 <>
                   {cur.platform && <span style={{ fontSize: 12, color: T.textMuted }}>{t('inv_platform')} : <strong style={{ color: T.text }}>{cur.platform}</strong></span>}
                   {cur.walletType && <span style={{ fontSize: 12, color: T.textMuted }}>{t('inv_wallet_type')} : <strong style={{ color: T.text }}>{cur.walletType}</strong></span>}
                 </>
               )}
+
+              {/* Matières premières */}
+              {type === 'Matières premières' && cur.adresse && (
+                <span style={{ fontSize: 12, color: T.textMuted }}>Stockage : <strong style={{ color: T.text }}>{cur.adresse}</strong></span>
+              )}
+
+              {/* Immobilier */}
               {type === 'Immobilier' && (
                 <>
                   {cur.immoBien && <span style={{ fontSize: 12, color: T.textMuted }}>{t('inv_wallet_type')} : <strong style={{ color: T.text }}>{cur.immoBien}</strong></span>}
@@ -182,6 +194,47 @@ export default function Patrimoine({ T, data }) {
                   )}
                 </>
               )}
+
+              {/* Crowdfunding immobilier */}
+              {['La Première Brique', 'Tantiem', 'Bricks.co', 'Crowdfunding immobilier'].includes(type) && cur.platform && (
+                <span style={{ fontSize: 12, color: T.textMuted }}>Plateforme : <strong style={{ color: T.text }}>{cur.platform}</strong></span>
+              )}
+
+              {/* SCPI / OPCI / SCI */}
+              {['SCPI', 'OPCI', 'SCI'].includes(type) && (
+                <>
+                  {cur.courtier && <span style={{ fontSize: 12, color: T.textMuted }}>Sté de gestion : <strong style={{ color: T.text }}>{cur.courtier}</strong></span>}
+                  {cur.adresse && <span style={{ fontSize: 12, color: T.textMuted }}>Fonds : <strong style={{ color: T.text }}>{cur.adresse}</strong></span>}
+                </>
+              )}
+
+              {/* Private Equity / Crowdfunding entreprise */}
+              {['Private Equity', 'Crowdfunding entreprise'].includes(type) && (
+                <>
+                  {cur.courtier && <span style={{ fontSize: 12, color: T.textMuted }}>Plateforme : <strong style={{ color: T.text }}>{cur.courtier}</strong></span>}
+                  {cur.adresse && <span style={{ fontSize: 12, color: T.textMuted }}>Fonds / projet : <strong style={{ color: T.text }}>{cur.adresse}</strong></span>}
+                </>
+              )}
+
+              {/* Obligations */}
+              {type === 'Obligations' && (
+                <>
+                  {cur.courtier && <span style={{ fontSize: 12, color: T.textMuted }}>Émetteur : <strong style={{ color: T.text }}>{cur.courtier}</strong></span>}
+                  {cur.avType && <span style={{ fontSize: 12, color: T.textMuted }}>Type : <strong style={{ color: T.text }}>{cur.avType}</strong></span>}
+                </>
+              )}
+
+              {/* PER */}
+              {type === 'PER' && cur.courtier && (
+                <span style={{ fontSize: 12, color: T.textMuted }}>Établissement : <strong style={{ color: T.text }}>{cur.courtier}</strong></span>
+              )}
+
+              {/* Assurance-vie fonds euros */}
+              {type === 'Assurance-vie fonds euros' && cur.assureur && (
+                <span style={{ fontSize: 12, color: T.textMuted }}>Assureur : <strong style={{ color: T.text }}>{cur.assureur}</strong></span>
+              )}
+
+              {/* Épargne salariale */}
               {type === 'Épargne salariale' && (
                 <>
                   {cur.employeur && <span style={{ fontSize: 12, color: T.textMuted }}>{t('inv_employer')} : <strong style={{ color: T.text }}>{cur.employeur}</strong></span>}
@@ -189,6 +242,7 @@ export default function Patrimoine({ T, data }) {
                   {cur.disponibiliteDate && <span style={{ fontSize: 12, color: T.textMuted }}>{t('inv_availability')} : <strong style={{ color: '#fb923c' }}>{fDate(cur.disponibiliteDate)}</strong></span>}
                 </>
               )}
+
               {cur.notes && <span style={{ fontSize: 12, color: T.textMuted, width: '100%' }}>{t('inv_notes')} : <em style={{ color: T.text }}>{cur.notes}</em></span>}
             </div>
           </div>
