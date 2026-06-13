@@ -90,11 +90,12 @@ export default function Modals({ T, data }) {
   const BUDGET_ICONS   = ['🛒','🍔','🚗','🏠','💊','🎮','✈️','👔','📚','🎵','💆','🐾','🏋️','🍷','☕','🎁','📱','💻','🔧','🌿','🛍️','🎬','⚽','🎨','🎂'];
   const BUDGET_COLORS  = ['#10b981','#f87171','#fb923c','#fbbf24','#a78bfa','#60a5fa','#34d399','#f472b6','#94a3b8','#f59e0b','#06b6d4','#84cc16'];
 
-  const [realtAddr, setRealtAddr]       = useState('');
-  const [realtLoading, setRealtLoading] = useState(false);
-  const [realtErr, setRealtErr]         = useState('');
-  const [realtTokens, setRealtTokens]   = useState(null);
-  const resetRealt = () => { setRealtAddr(''); setRealtLoading(false); setRealtErr(''); setRealtTokens(null); };
+  const [realtAddr, setRealtAddr]               = useState('');
+  const [realtLoading, setRealtLoading]         = useState(false);
+  const [realtErr, setRealtErr]                 = useState('');
+  const [realtTokens, setRealtTokens]           = useState(null);
+  const [realtManualPrices, setRealtManualPrices] = useState({});
+  const resetRealt = () => { setRealtAddr(''); setRealtLoading(false); setRealtErr(''); setRealtTokens(null); setRealtManualPrices({}); };
   const searchRealt = async () => {
     const a = realtAddr.trim();
     if (!/^0x[0-9a-fA-F]{40}$/i.test(a)) { setRealtErr('Adresse invalide — format 0x + 40 hex'); return; }
@@ -104,6 +105,7 @@ export default function Modals({ T, data }) {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
       setRealtTokens(d.tokens || []);
+      setRealtManualPrices({});
     } catch (e) { setRealtErr(e.message); }
     finally { setRealtLoading(false); }
   };
@@ -221,12 +223,17 @@ export default function Modals({ T, data }) {
         assureur: '', avType: '', immoBien: '', adresse: '', acquisitionDate: '',
         loanId: '', loyerMensuel: 0, chargesMensuelles: 0, employeur: '', peType: '',
         disponibiliteDate: '', value: 0, invested: 0, notes: '', cash: 0,
-        positions: realtTokens.map(tk => ({
-          id: uid(), ticker: tk.symbol, name: tk.name,
-          shares: tk.amount, buyPrice: tk.priceEUR, currentPrice: tk.priceEUR,
-          posType: 'other', divYield: tk.annualYield || 0,
-          isin: '', exchange: '', currency: 'EUR', platform: '', notes: '', commodityType: '',
-        })),
+        positions: realtTokens.map(tk => {
+          const price = tk.needsManualPrice
+            ? (parseFloat(realtManualPrices[tk.contractAddress] || '0') || 0)
+            : (tk.priceEUR || 0);
+          return {
+            id: uid(), ticker: tk.symbol, name: tk.name,
+            shares: tk.amount, buyPrice: price, currentPrice: price,
+            posType: 'other', divYield: tk.annualYield || 0,
+            isin: '', exchange: '', currency: 'EUR', platform: '', notes: '', commodityType: '',
+          };
+        }),
         dividends: [],
       };
       setInvestments(prev => [...(prev || []), newInv]);
@@ -479,35 +486,61 @@ export default function Modals({ T, data }) {
             {realtTokens !== null && realtTokens.length === 0 && !realtErr && (
               <div style={{ color: T.textMuted, fontSize: 12, textAlign: 'center' }}>Aucun token trouvé.</div>
             )}
-            {realtTokens && realtTokens.length > 0 && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                  <span style={{ color: T.textMuted }}>{realtTokens.length} token{realtTokens.length > 1 ? 's' : ''} trouvé{realtTokens.length > 1 ? 's' : ''}</span>
-                  <span style={{ color: '#EF4444', fontWeight: 600 }}>{fEur(realtTokens.reduce((s, tk) => s + tk.totalEUR, 0))}</span>
-                </div>
-                <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {realtTokens.map((tk, i) => (
-                    <div key={i} style={{ padding: '7px 10px', background: T.bg2, borderRadius: 8, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tk.name}</div>
-                        <div style={{ fontSize: 10, color: T.textMuted }}>
-                          {+parseFloat(tk.amount).toFixed(4)} tok · {fEur(tk.priceEUR)}/tok
-                          {tk.annualYield > 0 && <span style={{ color: '#4ade80' }}> · {tk.annualYield.toFixed(2)}%/an</span>}
+            {realtTokens && realtTokens.length > 0 && (() => {
+              const totalEUR = realtTokens.reduce((s, tk) => {
+                if (!tk.needsManualPrice) return s + (tk.totalEUR || 0);
+                const mp = parseFloat(realtManualPrices[tk.contractAddress] || '0');
+                return s + (mp > 0 ? tk.amount * mp : 0);
+              }, 0);
+              const needsPriceCount = realtTokens.filter(tk => tk.needsManualPrice).length;
+              return (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ color: T.textMuted }}>
+                      {realtTokens.length} token{realtTokens.length > 1 ? 's' : ''} trouvé{realtTokens.length > 1 ? 's' : ''}
+                      {needsPriceCount > 0 && <span style={{ color: '#fb923c' }}> · {needsPriceCount} sans prix auto</span>}
+                    </span>
+                    <span style={{ color: '#EF4444', fontWeight: 600 }}>{fEur(totalEUR)}</span>
+                  </div>
+                  <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {realtTokens.map((tk, i) => (
+                      <div key={i} style={{ padding: '7px 10px', background: T.bg2, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tk.name}</div>
+                          <div style={{ fontSize: 10, color: T.textMuted }}>
+                            {+parseFloat(tk.amount).toFixed(4)} tok
+                            {tk.annualYield > 0 && <span style={{ color: '#4ade80' }}> · {tk.annualYield.toFixed(2)}%/an</span>}
+                          </div>
                         </div>
+                        {tk.needsManualPrice ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            <input
+                              type="number" min="0" step="0.01" placeholder="Prix €"
+                              style={{ ...S.inp, width: 72, fontSize: 11, padding: '3px 6px', textAlign: 'right' }}
+                              value={realtManualPrices[tk.contractAddress] || ''}
+                              onChange={e => setRealtManualPrices(p => ({ ...p, [tk.contractAddress]: e.target.value }))}
+                            />
+                            <span style={{ fontSize: 10, color: T.textMuted }}>/tok</span>
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{fEur(tk.totalEUR)}</div>
+                            <div style={{ fontSize: 10, color: T.textMuted }}>{fEur(tk.priceEUR)}/tok</div>
+                          </div>
+                        )}
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: T.text, flexShrink: 0 }}>{fEur(tk.totalEUR)}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           {isRealT && realtTokens?.length > 0
             ? <CBtn color="#EF4444" onClick={importRealtAll}>✓ Importer {realtTokens.length} token{realtTokens.length > 1 ? 's' : ''}</CBtn>
-            : <CBtn color={c} onClick={savePortfolio} disabled={!portfolioForm.name}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
+            : <CBtn color={c} onClick={savePortfolio} disabled={!portfolioForm.name || (isRealT && !realtTokens)}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
           }
           <button onClick={closePortfolio} style={S.btnS}>{t('btn_cancel')}</button>
         </div>

@@ -99,7 +99,7 @@ async function fetchBlockscout(addr) {
   }
 }
 
-// Priority: token list tokenPrice → Blockscout exchange_rate → skip
+// Priority: token list tokenPrice → Blockscout exchange_rate → needsManualPrice
 function itemToToken(item, eurusd, priceIndex) {
   const token    = item.token || {};
   const decimals = parseInt(token.decimals, 10) || 18;
@@ -109,22 +109,23 @@ function itemToToken(item, eurusd, priceIndex) {
   const contractAddress = (token.address || token.address_hash || '').toLowerCase();
   const listed = priceIndex[contractAddress];
 
-  const priceUSD = parseFloat(listed?.tokenPrice || token.exchange_rate || '0');
-  if (priceUSD <= 0) return null;
-
-  const priceEUR = priceUSD / eurusd;
+  const rawPriceUSD = parseFloat(listed?.tokenPrice || token.exchange_rate || '0');
+  const hasPrice = rawPriceUSD > 0;
+  const priceUSD = hasPrice ? rawPriceUSD : null;
+  const priceEUR = hasPrice ? rawPriceUSD / eurusd : null;
 
   return {
-    symbol:          token.symbol || 'REALT',
-    name:            listed?.fullName || listed?.shortName || token.name || 'RealT Token',
+    symbol:           token.symbol || 'REALT',
+    name:             listed?.fullName || listed?.shortName || token.name || 'RealT Token',
     contractAddress,
     amount,
-    priceUSD:        parseFloat(priceUSD.toFixed(4)),
-    priceEUR:        parseFloat(priceEUR.toFixed(2)),
-    totalUSD:        parseFloat((amount * priceUSD).toFixed(2)),
-    totalEUR:        parseFloat((amount * priceEUR).toFixed(2)),
-    annualYield:     listed?.annualPercentageYield ? parseFloat(listed.annualPercentageYield) : null,
-    priceSource:     listed ? 'tokenlist' : 'blockscout',
+    priceUSD:         priceUSD != null ? parseFloat(priceUSD.toFixed(4)) : null,
+    priceEUR:         priceEUR != null ? parseFloat(priceEUR.toFixed(2)) : null,
+    totalUSD:         priceUSD != null ? parseFloat((amount * priceUSD).toFixed(2)) : null,
+    totalEUR:         priceEUR != null ? parseFloat((amount * priceEUR).toFixed(2)) : null,
+    annualYield:      listed?.annualPercentageYield ? parseFloat(listed.annualPercentageYield) : null,
+    priceSource:      hasPrice ? (listed ? 'tokenlist' : 'blockscout') : null,
+    needsManualPrice: !hasPrice,
   };
 }
 
@@ -150,6 +151,7 @@ module.exports = async function handler(req, res) {
 
     const { index: priceIndex, debug: tokenListDebug } = tokenListResult;
     const tokens = blockscout.items.map(item => itemToToken(item, eurusd, priceIndex)).filter(Boolean);
+    const withPrice = tokens.filter(t => !t.needsManualPrice).length;
 
     const debug = {
       address: addr,
@@ -158,7 +160,7 @@ module.exports = async function handler(req, res) {
         ok:          blockscout.ok,
         rawERC20:    blockscout.rawCount ?? 0,
         realtFound:  blockscout.items?.length ?? 0,
-        withPrice:   tokens.length,
+        withPrice,
         bodySnippet: blockscout.bodySnippet,
       },
       tokenList: {
@@ -174,7 +176,7 @@ module.exports = async function handler(req, res) {
       return res.status(404).json({ error: 'Aucun token RealT trouvé pour cette adresse', debug });
     }
 
-    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens (list size: ${Object.keys(priceIndex).length})`);
+    console.log(`[realt-wallet] ${addr}: ${tokens.length} tokens (${withPrice} with price)`);
     res.json({ tokens, eurusd: parseFloat(eurusd.toFixed(4)), count: tokens.length, debug });
   } catch (err) {
     console.error('[realt-wallet] fatal:', err.message);
