@@ -252,7 +252,7 @@ export default function Patrimoine({ T, data }) {
                               {data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: T.accent + '33', color: T.accent, padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
                             </div>
                             <div style={{ fontSize: 11, color: T.textFaint }}>
-                              {isCryptoType ? `Qté ${pos.shares}` : `${pos.shares} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
+                              {isCryptoType ? `Qté ${+parseFloat(pos.shares).toFixed(4)}` : `${+parseFloat(pos.shares).toFixed(4)} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
