@@ -1,10 +1,36 @@
 const { yfGetWithFallback } = require('./_priceUtils');
+const { getCached, setCached } = require('./_cache');
 
 async function getEURUSD() {
   try {
     const data = await yfGetWithFallback('/v8/finance/chart/EURUSD=X?interval=1d&range=1d');
     return data?.chart?.result?.[0]?.meta?.regularMarketPrice || 1.08;
   } catch { return 1.08; }
+}
+
+// ── GitHub RealT token list (xdai.json) → tokenPrice index ──────────────────
+async function fetchGitHubTokenList() {
+  const key = 'realt:tokenlist:xdai';
+  const cached = await getCached(key);
+  if (cached) return cached;
+
+  const res = await fetch(
+    'https://raw.githubusercontent.com/real-token/realt-tokens-list/main/tokens/xdai.json',
+    { signal: AbortSignal.timeout(10000) }
+  );
+  if (!res.ok) throw new Error(`GitHub token list HTTP ${res.status}`);
+  const list = await res.json();
+  const tokens = Array.isArray(list) ? list : (list?.tokens || []);
+
+  const index = {};
+  for (const t of tokens) {
+    const addr = (t.address || t.xDaiContract || '').toLowerCase();
+    if (addr) index[addr] = t;
+  }
+
+  await setCached(key, index, 3600);
+  console.log(`[realt-wallet] GitHub token list: ${Object.keys(index).length} tokens indexed`);
+  return index;
 }
 
 // ── Blockscout Gnosis → ERC-20 balances + exchange_rate ──────────────────────
@@ -46,31 +72,34 @@ async function fetchBlockscout(addr) {
 }
 
 // Convert one Blockscout token-balance entry to output token shape
-// exchange_rate is the CoinGecko USD price embedded by Blockscout
-function itemToToken(item, eurusd) {
+// Priority: GitHub tokenPrice → Blockscout exchange_rate → skip
+function itemToToken(item, eurusd, githubIndex) {
   const token    = item.token || {};
   const decimals = parseInt(token.decimals, 10) || 18;
   const amount   = parseFloat(item.value || '0') / Math.pow(10, decimals);
   if (amount <= 0) return null;
 
-  // address field: v2 uses "address", older versions used "address_hash"
   const contractAddress = (token.address || token.address_hash || '').toLowerCase();
 
-  const priceUSD = parseFloat(token.exchange_rate || '0');
-  if (priceUSD <= 0) return null; // skip tokens Blockscout has no price for
+  const githubEntry = githubIndex[contractAddress];
+  const priceUSD = parseFloat(githubEntry?.tokenPrice || token.exchange_rate || '0');
+  if (priceUSD <= 0) return null;
 
   const priceEUR = priceUSD / eurusd;
+  const annualYield = githubEntry?.annualPercentageYield
+    ? parseFloat(githubEntry.annualPercentageYield)
+    : null;
 
   return {
     symbol:          token.symbol || 'REALT',
-    name:            token.name   || 'RealT Token',
+    name:            githubEntry?.fullName || token.name || 'RealT Token',
     contractAddress,
     amount,
     priceUSD:        parseFloat(priceUSD.toFixed(4)),
     priceEUR:        parseFloat(priceEUR.toFixed(2)),
     totalUSD:        parseFloat((amount * priceUSD).toFixed(2)),
     totalEUR:        parseFloat((amount * priceEUR).toFixed(2)),
-    annualYield:     null,
+    annualYield,
   };
 }
 
@@ -88,13 +117,17 @@ module.exports = async function handler(req, res) {
   const addr = address.toLowerCase();
 
   try {
-    const [blockscout, eurusd] = await Promise.all([
+    const [blockscout, eurusd, githubIndex] = await Promise.all([
       fetchBlockscout(addr),
       getEURUSD(),
+      fetchGitHubTokenList().catch(e => {
+        console.error('[realt-wallet] GitHub token list failed:', e.message);
+        return {};
+      }),
     ]);
 
     const tokens = blockscout.items
-      .map(item => itemToToken(item, eurusd))
+      .map(item => itemToToken(item, eurusd, githubIndex))
       .filter(Boolean);
 
     const debug = {
@@ -108,6 +141,7 @@ module.exports = async function handler(req, res) {
         bodySnippet:    blockscout.bodySnippet,
         error:          blockscout.error,
       },
+      githubTokenListSize: Object.keys(githubIndex).length,
       eurusd,
     };
 
