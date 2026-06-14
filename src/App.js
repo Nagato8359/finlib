@@ -6,6 +6,7 @@ import { useData } from './hooks/useData';
 import { t } from './utils/settings';
 import { LanguageProvider } from './context/LanguageContext';
 import AuthScreen from './components/AuthScreen';
+import ResetPassword from './components/ResetPassword';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Navigation from './components/Navigation';
@@ -135,6 +136,7 @@ export default function App() {
   } = useTheme();
   const data = useData();
   const [tab, setTab] = useState('accueil');
+  const [isReset, setIsReset] = useState(() => window.location.hash.includes('type=recovery'));
   const [showSplash, setShowSplash] = useState(true);
   const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('capitaly_tutorial_done'));
   const splashDoneRef = useRef(false);
@@ -174,6 +176,15 @@ export default function App() {
   useEffect(() => {
     if (data.user || data.demoMode) requestNotifPermission();
   }, [data.user, data.demoMode]);
+
+  if (isReset) {
+    return (
+      <>
+        <style>{`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #080e1a; color: #f1f5f9; }`}</style>
+        <ResetPassword onDone={() => setIsReset(false)} />
+      </>
+    );
+  }
 
   if (showSplash) return <SplashScreen onDone={handleSplashDone} />;
 
