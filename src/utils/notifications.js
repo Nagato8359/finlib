@@ -65,8 +65,15 @@ export const registerPush = async (userId) => {
 
     const existing = await reg.pushManager.getSubscription();
     if (existing) {
-      await existing.unsubscribe();
-      console.log('[push] unsubscribed old subscription');
+      console.log('[push] reusing existing subscription');
+      const apiRes = await fetch('/api/push?action=subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: existing.toJSON(), user_id: userId }),
+      });
+      const apiData = await apiRes.json().catch(() => ({}));
+      console.log('6. API response (reuse):', apiRes.status, apiData);
+      return;
     }
 
     const sub = await reg.pushManager.subscribe({
