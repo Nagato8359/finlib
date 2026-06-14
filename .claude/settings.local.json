@@ -44,7 +44,9 @@
       "Bash(xargs '-I{}' bash -c 'hash=$\\(echo \"{}\" | cut -d\" \" -f1\\); rest=$\\(echo \"{}\" | cut -d\" \" -f2-\\); result=$\\(git show $hash -- src/App.js 2>/dev/null | grep -E \"^\\\\+.*\\\\bloans\\\\b.*upsert|^\\\\+.*upsert.*\\\\bloans\\\\b\" | head -2\\); if [ -n \"$result\" ]; then echo \"=== $hash $rest ===\"; echo \"$result\"; fi')",
       "Bash(xargs '-I{}' bash -c 'hash=$\\(echo \"{}\" | cut -d\" \" -f1\\); rest=$\\(echo \"{}\" | cut -d\" \" -f2-\\); result=$\\(git show $hash 2>/dev/null | grep -E \"preferences.*column|column.*preferences|ALTER.*user_data.*preferences|ADD COLUMN.*preferences\" | head -2\\); if [ -n \"$result\" ]; then echo \"=== $hash $rest ===\"; echo \"$result\"; fi')",
       "Bash(xargs '-I{}' bash -c 'hash=$\\(echo \"{}\" | cut -d\" \" -f1\\); rest=$\\(echo \"{}\" | cut -d\" \" -f2-\\); result=$\\(git show $hash -- src/hooks/useData.js 2>/dev/null | grep -E \"^\\\\+.*savePreferences|^\\\\+.*preferences.*prefs\" | head -2\\); if [ -n \"$result\" ]; then echo \"=== $hash $rest ===\"; echo \"$result\"; fi')",
-      "Bash(not exist *)"
+      "Bash(not exist *)",
+      "Bash(npx vite *)",
+      "Bash(dir C:Usersalexafinlibpublic *)"
     ]
   }
 }

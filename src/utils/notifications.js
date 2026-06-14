@@ -40,6 +40,37 @@ export const notify = async (title, body) => {
 // Call on logout so the next session (or a different user) starts clean.
 export const clearSentNotifications = () => localStorage.removeItem(SENT_KEY);
 
+// ── Web Push VAPID subscription ───────────────────────────────────────────────
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = window.atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+export const registerPush = async (userId) => {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const publicKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+  if (!publicKey) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+    const existing = await reg.pushManager.getSubscription();
+    const sub = existing || await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+    await fetch('/api/push-subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON(), user_id: userId }),
+    });
+  } catch {}
+};
+
 // ── iOS detection ──────────────────────────────────────────────────────────────
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
@@ -84,7 +115,7 @@ const MSGS_7 = [
 ];
 
 export const checkReminderNotif = async (transactions = [], iosFallback = null) => {
-  if (!isNotifEnabled() || !transactions.length) return;
+  if (!isNotifEnabled()) return;
   const today = todayStr();
   if (localStorage.getItem(REMINDER_KEY) === today) return;
 

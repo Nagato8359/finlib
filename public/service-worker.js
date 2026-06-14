@@ -30,22 +30,25 @@ self.addEventListener('fetch', e => {
 
 self.addEventListener('push', e => {
   if (!e.data) return;
-  const { title, body, icon } = e.data.json();
+  const { title, body, icon, url } = e.data.json();
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon: icon || '/logo192.png',
       badge: '/logo192.png',
+      data: { url: url || '/' },
     })
   );
 });
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
+  const target = e.notification.data?.url || '/';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       const existing = list.find(c => c.url.startsWith(self.location.origin) && 'focus' in c);
-      return existing ? existing.focus() : clients.openWindow('/');
+      if (existing) { existing.focus(); existing.navigate(target); return; }
+      return clients.openWindow(target);
     })
   );
 });

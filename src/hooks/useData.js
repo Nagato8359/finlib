@@ -5,7 +5,7 @@ import {
   SEED_TX, SEED_INV, SEED_HEALTH, SEED_BUDGETS, SEED_GOALS, SEED_CASH, SEED_LISTINGS,
   calcScore, fEur, PORTFOLIO_TYPE_COLOR, CAT_TO_PORTFOLIO_TYPE,
 } from '../utils/constants';
-import { notifyOnce, clearSentNotifications, checkAndSendDailyNotif, checkReminderNotif } from '../utils/notifications';
+import { notifyOnce, clearSentNotifications, checkAndSendDailyNotif, checkReminderNotif, registerPush } from '../utils/notifications';
 
 const API_BASE = '';
 
@@ -290,7 +290,7 @@ export function useData() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) { setDemoMode(false); dataLoaded.current = false; setActiveProfileId(null); loadUserData(u.id); loadProfiles(u.id); }
+      if (u) { setDemoMode(false); dataLoaded.current = false; setActiveProfileId(null); loadUserData(u.id); loadProfiles(u.id); registerPush(u.id); }
       else { dataLoaded.current = false; setAuthLoading(false); }
     });
     return () => subscription.unsubscribe();

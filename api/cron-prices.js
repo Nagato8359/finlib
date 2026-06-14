@@ -1,6 +1,7 @@
 const { supabaseAdmin } = require('./_supabase');
 const { yfGetWithFallback, CRYPTO_MAP, isinToTicker } = require('./_priceUtils');
-const { getCached, delCached } = require('./_cache');
+const { getCached, setCached, delCached } = require('./_cache');
+const { sendPushToUser } = require('./_push');
 
 const COMMODITY_TICKER_MAP = {
   'Or': 'GC=F', 'Argent': 'SI=F', 'Platine': 'PL=F',
@@ -93,7 +94,7 @@ module.exports = async function handler(req, res) {
     // 1. Read all user data (requires service role key)
     const { data: rows, error: dbErr } = await supabaseAdmin
       .from('user_data')
-      .select('user_id, investments, savings, health_assets, loans');
+      .select('user_id, investments, savings, health_assets, loans, updated_at, preferences');
     if (dbErr) throw new Error(`user_data read: ${dbErr.message}`);
 
     // 2. Extract unique tickers and RealT wallet addresses
@@ -128,8 +129,9 @@ module.exports = async function handler(req, res) {
 
     // 4. Fetch price + 1d change_pct for Yahoo Finance / CoinGecko tickers
     let updated = 0;
+    let settled = [];
     if (keys.length) {
-      const settled = await Promise.allSettled(
+      settled = await Promise.allSettled(
         keys.map(async (key) => {
           try {
             const upper = key.toUpperCase();
@@ -152,7 +154,7 @@ module.exports = async function handler(req, res) {
             }, { onConflict: 'ticker' });
 
             if (upsErr) console.error(`[cron] upsert ${key}:`, upsErr.message);
-            return { key, ok: !upsErr };
+            return { key, ok: !upsErr, change_pct: entry.change_pct, price: entry.price };
           } catch (e) {
             console.error(`[cron] ${key}:`, e.message);
             return { key, ok: false };
@@ -333,7 +335,139 @@ module.exports = async function handler(req, res) {
       console.log(`[cron-prices] dividends: ${divUpserted} confirmed events upserted for ${divTickers.length} tickers`);
     }
 
-    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length, rentsInvalidated, divTickers: divTickers.length, divUpserted });
+    // 9. Push notifications — inactivité, dividendes J+3, paliers, records, performance
+    const todayNotifStr = new Date().toISOString().slice(0, 10);
+    let pushSent = 0;
+
+    // Build ticker-stats map from step-4 settled results (performance alerts)
+    const tickerStats = {};
+    for (const r of (settled || [])) {
+      if (r.status === 'fulfilled' && r.value?.ok && r.value.change_pct != null) {
+        tickerStats[r.value.key] = { change_pct: r.value.change_pct, price: r.value.price };
+      }
+    }
+
+    // Build per-user stock holdings map: userId → { base_ticker → shares }
+    const userHoldings = {};
+    for (const row of rows || []) {
+      if (!row.user_id) continue;
+      userHoldings[row.user_id] = {};
+      for (const inv of row.investments || []) {
+        for (const pos of inv.positions || []) {
+          if (['stock', 'etf'].includes(pos.posType) && pos.ticker) {
+            const base = pos.ticker.split('.')[0].toUpperCase();
+            userHoldings[row.user_id][base] = (userHoldings[row.user_id][base] || 0) + (parseFloat(pos.shares) || 0);
+          }
+        }
+      }
+    }
+
+    // A) Per-user notifications (inactivité, paliers, records)
+    for (const row of rows || []) {
+      if (!row.user_id) continue;
+      const np = row.preferences?.notifications ?? {};
+
+      // A1. Inactivité
+      if (np.inactivite !== false && row.updated_at) {
+        const daysSince = Math.floor((Date.now() - new Date(row.updated_at).getTime()) / 86400000);
+        const inactMsgs = {
+          3:  'Cela fait 3 jours que vous n\'avez pas mis à jour votre patrimoine. Un petit coup d\'œil ?',
+          7:  '1 semaine sans mise à jour ! Vos données sont peut-être obsolètes. 2 minutes suffisent.',
+          14: '2 semaines sans activité. Votre patrimoine affiché ne reflète peut-être plus la réalité.',
+          30: '1 mois sans mise à jour ! Vos données sont probablement obsolètes.',
+          60: 'Vous nous manquez ! Votre dernier suivi date de 2 mois.',
+          90: '3 mois d\'absence... Votre patrimoine a peut-être bien évolué depuis. Revenez voir !',
+        };
+        const inactMsg = inactMsgs[daysSince];
+        if (inactMsg) {
+          const cKey = `push:inact:${row.user_id}:${daysSince}`;
+          if (!await getCached(cKey)) {
+            await sendPushToUser(row.user_id, '📝 Capitaly — Rappel', inactMsg, '/');
+            await setCached(cKey, '1', 2 * 86400);
+            pushSent++;
+          }
+        }
+      }
+
+      // A2. Paliers patrimoine
+      const userHist = historyEntries.find(e => e.user_id === row.user_id);
+      const currentPat = userHist?.valeur || 0;
+      if (currentPat > 0 && np.paliers !== false) {
+        const MILESTONES = [50000, 100000, 150000, 200000, 500000, 1000000];
+        for (const ms of MILESTONES) {
+          if (currentPat >= ms) {
+            const mKey = `push:mile:${row.user_id}:${ms}`;
+            if (!await getCached(mKey)) {
+              const fmt = new Intl.NumberFormat('fr-FR').format(ms);
+              await sendPushToUser(row.user_id, '🏆 Palier franchi !', `Votre patrimoine dépasse les ${fmt}€. Félicitations !`, '/');
+              await setCached(mKey, '1', 365 * 86400);
+              pushSent++;
+              break;
+            }
+          }
+        }
+
+        // A3. Record patrimoine (once per day)
+        const recKey = `push:rec:${row.user_id}`;
+        const recDayKey = `push:recday:${row.user_id}:${todayNotifStr}`;
+        const prevMaxStr = await getCached(recKey);
+        const prevMax = parseFloat(prevMaxStr || '0');
+        if (currentPat > prevMax) {
+          await setCached(recKey, String(currentPat), 400 * 86400);
+          if (prevMax > 0 && currentPat > prevMax * 1.005 && !await getCached(recDayKey)) {
+            const fmt = new Intl.NumberFormat('fr-FR').format(currentPat);
+            await sendPushToUser(row.user_id, '📈 Record battu !', `Votre patrimoine atteint un nouveau sommet : ${fmt}€ 🎉`, '/');
+            await setCached(recDayKey, '1', 86400);
+            pushSent++;
+          }
+        }
+      }
+    }
+
+    // B) Dividende dans 3 jours
+    const in3days = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+    const { data: upcomingDivs } = await supabaseAdmin
+      .from('dividend_events')
+      .select('ticker, amount, amount_eur, currency')
+      .eq('ex_date', in3days)
+      .eq('status', 'confirmed');
+
+    for (const ev of upcomingDivs || []) {
+      const divKey = `push:div3:${ev.ticker}:${in3days}`;
+      if (await getCached(divKey)) continue;
+      for (const row of rows || []) {
+        if (!row.user_id || (row.preferences?.notifications?.dividendes) === false) continue;
+        if (!userHoldings[row.user_id]?.[ev.ticker]) continue;
+        const amtStr = ev.amount_eur ? `${ev.amount_eur.toFixed(4)}€` : `${ev.amount} ${ev.currency}`;
+        await sendPushToUser(row.user_id, '💰 Dividende imminent', `${ev.ticker} verse ${amtStr}/action dans 3 jours.`, '/');
+        pushSent++;
+      }
+      await setCached(divKey, '1', 4 * 86400);
+    }
+
+    // C) Performance actifs (+/- 5%)
+    for (const [ticker, stats] of Object.entries(tickerStats)) {
+      if (Math.abs(stats.change_pct) < 5) continue;
+      const perfKey = `push:perf:${ticker}:${todayNotifStr}`;
+      if (await getCached(perfKey)) continue;
+      const isDown = stats.change_pct < 0;
+      const pct = Math.abs(stats.change_pct).toFixed(1);
+      for (const row of rows || []) {
+        if (!row.user_id || (row.preferences?.notifications?.performance) === false) continue;
+        const shares = userHoldings[row.user_id]?.[ticker];
+        if (!shares) continue;
+        const impact = Math.round(shares * (stats.price || 0) * Math.abs(stats.change_pct) / 100);
+        const impactStr = impact > 0 ? ` ${isDown ? 'Impact' : 'Gain'} : ${isDown ? '-' : '+'}${new Intl.NumberFormat('fr-FR').format(impact)}€` : '';
+        const body = `${ticker} ${isDown ? `a chuté de ${pct}%` : `+${pct}%`} aujourd'hui.${impactStr}`;
+        await sendPushToUser(row.user_id, `${isDown ? '📉' : '📈'} ${ticker}`, body, '/');
+        pushSent++;
+      }
+      await setCached(perfKey, '1', 86400);
+    }
+
+    console.log(`[cron-prices] push: ${pushSent} notifications envoyées`);
+
+    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length, rentsInvalidated, divTickers: divTickers.length, divUpserted, pushSent });
   } catch (err) {
     console.error('[cron-prices] fatal:', err.message);
     res.status(500).json({ error: err.message });

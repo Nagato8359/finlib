@@ -32,7 +32,7 @@ export default function Header({
   tab, setTab, TABS, data, onStartTutorial,
 }) {
   const { t } = useTranslation();
-  const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount, profiles, activeProfileId, switchProfile, addProfile } = data;
+  const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount, profiles, activeProfileId, switchProfile, addProfile, savePreferences, loadedPreferences } = data;
 
   const [menuOpen, setMenuOpen]           = useState(false);
   const [profilePage, setProfilePage]     = useState(false);
@@ -250,6 +250,8 @@ export default function Header({
                   setLanguage={setLanguage}
                   notifEnabled={notifEnabled}
                   handleNotif={handleNotif}
+                  loadedPreferences={loadedPreferences}
+                  savePreferences={savePreferences}
                 />
               ) : trophiesPage ? (
                 <TrophiesPage

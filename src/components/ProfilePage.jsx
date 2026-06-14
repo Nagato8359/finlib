@@ -10,13 +10,23 @@ const EMPTY_PROFILE = {
   statut: '', employeur: '', revenuMensuel: '', anciennete: '',
 };
 
-export default function ProfilePage({ T, user, accent, onBack, currency, setCurrency, language, setLanguage, notifEnabled, handleNotif }) {
+const NOTIF_TYPES = [
+  { key: 'inactivite',  label: 'Rappels inactivité',    desc: 'Si vous n\'ouvrez pas Capitaly pendant plusieurs jours' },
+  { key: 'dividendes',  label: 'Dividendes imminents',   desc: 'J-3 avant la date ex-dividende' },
+  { key: 'performance', label: 'Performance des actifs', desc: 'Variation +/- 5% en une journée' },
+  { key: 'paliers',     label: 'Paliers patrimoine',     desc: '50k, 100k, 200k, 500k, 1M€ franchis' },
+  { key: 'trophees',    label: 'Trophées',               desc: 'Quand vous débloquez un nouveau trophée' },
+  { key: 'loyers',      label: 'Loyers RealT',           desc: 'Détection d\'un nouveau loyer sur votre wallet' },
+];
+
+export default function ProfilePage({ T, user, accent, onBack, currency, setCurrency, language, setLanguage, notifEnabled, handleNotif, loadedPreferences, savePreferences }) {
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [notifPrefs, setNotifPrefs] = useState(() => loadedPreferences?.notifications || {});
 
   useEffect(() => {
     try {
@@ -281,10 +291,10 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 6px' }}>
           <div>
             <div style={lbl}>Notifications</div>
-            <div style={{ fontSize: 11, color: T.textFaint }}>Alertes et rappels</div>
+            <div style={{ fontSize: 11, color: T.textFaint }}>Activer les alertes push</div>
           </div>
           <button
             onClick={handleNotif}
@@ -293,6 +303,35 @@ export default function ProfilePage({ T, user, accent, onBack, currency, setCurr
             <div style={{ position: 'absolute', top: 2, left: notifEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
           </button>
         </div>
+
+        {notifEnabled && (
+          <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: '6px 10px', marginBottom: 8 }}>
+            {NOTIF_TYPES.map(({ key, label, desc }) => {
+              const enabled = notifPrefs[key] !== false;
+              const toggle = () => {
+                const next = { ...notifPrefs, [key]: !enabled };
+                setNotifPrefs(next);
+                if (savePreferences && loadedPreferences !== undefined) {
+                  savePreferences({ ...loadedPreferences, notifications: next });
+                }
+              };
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${T.cardBorder}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: enabled ? T.text : T.textFaint, fontWeight: 500 }}>{label}</div>
+                    <div style={{ fontSize: 10, color: T.textFaint }}>{desc}</div>
+                  </div>
+                  <button
+                    onClick={toggle}
+                    style={{ position: 'relative', width: 36, height: 20, borderRadius: 10, background: enabled ? accent : T.cardBorder, border: 'none', cursor: 'pointer', transition: 'background .2s', padding: 0, flexShrink: 0 }}
+                  >
+                    <div style={{ position: 'absolute', top: 2, left: enabled ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Feedback */}
         {msg && (
