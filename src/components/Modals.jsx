@@ -43,6 +43,39 @@ const mLeft = endDate => {
   return Math.max(0, (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth()));
 };
 
+// ── Static data for universal search ─────────────────────────────────────────
+const COMMODITY_KEYWORDS = [
+  { keywords: ['or', 'gold'],               name: 'Or',        ticker: 'GC=F', commodityType: 'Or',        icon: '🥇' },
+  { keywords: ['argent', 'silver'],         name: 'Argent',    ticker: 'SI=F', commodityType: 'Argent',    icon: '🪙' },
+  { keywords: ['platine', 'platinum'],      name: 'Platine',   ticker: 'PL=F', commodityType: 'Platine',   icon: '⬜' },
+  { keywords: ['palladium'],                name: 'Palladium', ticker: 'PA=F', commodityType: 'Palladium', icon: '🔘' },
+  { keywords: ['pétrole', 'petrol', 'oil'], name: 'Pétrole',   ticker: 'CL=F', commodityType: 'Pétrole',   icon: '🛢️' },
+  { keywords: ['cuivre', 'copper'],         name: 'Cuivre',    ticker: 'HG=F', commodityType: 'Cuivre',    icon: '🔶' },
+];
+const SCPI_LIST = [
+  'Corum Origin', 'Corum XL', 'Corum Eurion', 'Immorente', 'PFO2', 'Efimmo',
+  'Rivoli Avenir Patrimoine', 'Pierre 48', 'Épargne Foncière',
+  'Primopierre', 'Interpierre', 'Novapierre', 'Sofidy Europe Invest',
+  'Remake Live', 'Transitions Europe', 'Vendôme Régions',
+];
+const CRYPTO_LOCAL = [
+  { symbol: 'BTC',   name: 'Bitcoin',    id: 'bitcoin',            thumb: '' },
+  { symbol: 'ETH',   name: 'Ethereum',   id: 'ethereum',           thumb: '' },
+  { symbol: 'BNB',   name: 'BNB',        id: 'binancecoin',        thumb: '' },
+  { symbol: 'SOL',   name: 'Solana',     id: 'solana',             thumb: '' },
+  { symbol: 'XRP',   name: 'XRP',        id: 'ripple',             thumb: '' },
+  { symbol: 'ADA',   name: 'Cardano',    id: 'cardano',            thumb: '' },
+  { symbol: 'AVAX',  name: 'Avalanche',  id: 'avalanche-2',        thumb: '' },
+  { symbol: 'DOT',   name: 'Polkadot',   id: 'polkadot',           thumb: '' },
+  { symbol: 'MATIC', name: 'Polygon',    id: 'matic-network',      thumb: '' },
+  { symbol: 'LINK',  name: 'Chainlink',  id: 'chainlink',          thumb: '' },
+  { symbol: 'UNI',   name: 'Uniswap',    id: 'uniswap',            thumb: '' },
+  { symbol: 'AAVE',  name: 'Aave',       id: 'aave',               thumb: '' },
+  { symbol: 'INJ',   name: 'Injective',  id: 'injective-protocol', thumb: '' },
+  { symbol: 'FET',   name: 'Fetch.ai',   id: 'fetch-ai',           thumb: '' },
+  { symbol: 'EGLD',  name: 'MultiversX', id: 'elrond-erd-2',       thumb: '' },
+];
+
 // ── Color maps for modals ─────────────────────────────────────────────────────
 const PORTFOLIO_MODAL_COLOR = {
   PEA: '#10B981', CTO: '#10B981',
@@ -227,17 +260,25 @@ export default function Modals({ T, data }) {
     const onSearchChange = val => {
       setAddInvSearch(val);
       if (addInvTimerRef.current) clearTimeout(addInvTimerRef.current);
-      if (val.length < 2) { setAddInvResults([]); return; }
+      if (val.length < 2) { setAddInvResults([]); setAddInvLoading(false); return; }
+      setAddInvLoading(true);
       addInvTimerRef.current = setTimeout(() => doSearch(val), 300);
     };
 
+    const selectScpi = name => {
+      setPortfolioForm({ ...mkPortfolio(), type: 'SCPI', name, adresse: name });
+      resetAddInv(); setModal('portfolio');
+    };
+
     const ENV_COMPAT = {
-      stock:  ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
-      etf:    ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
-      crypto: ['Crypto'],
+      stock:     ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
+      etf:       ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
+      crypto:    ['Crypto'],
+      commodity: ['Matières premières'],
     };
     const compatEnvs = asset => {
       const allowed = asset._kind === 'crypto' ? ENV_COMPAT.crypto
+        : asset._kind === 'commodity' ? ENV_COMPAT.commodity
         : (asset.type === 'ETF' ? ENV_COMPAT.etf : ENV_COMPAT.stock);
       return (investments || []).filter(inv => allowed.includes(inv.type));
     };
@@ -256,17 +297,20 @@ export default function Modals({ T, data }) {
 
     const saveAsset = () => {
       if (!addInvAsset || !addInvEnvId || !addInvForm.shares || !addInvForm.buyPrice) return;
+      const isCom = addInvAsset._kind === 'commodity';
+      const isCr  = addInvAsset._kind === 'crypto';
       const pos = {
         id: uid(), isin: '',
-        ticker:       addInvAsset.symbol || addInvAsset.id || '',
-        name:         addInvAsset.name,
-        shares:       parseFloat(addInvForm.shares),
-        buyPrice:     parseFloat(addInvForm.buyPrice),
-        currentPrice: parseFloat(addInvForm.currentPrice) || parseFloat(addInvForm.buyPrice) || 0,
-        posType:      addInvAsset._kind === 'crypto' ? 'crypto' : 'stock',
-        purchaseDate: addInvForm.purchaseDate,
+        ticker:        isCom ? addInvAsset.ticker : (addInvAsset.symbol || addInvAsset.id || ''),
+        name:          addInvAsset.name,
+        shares:        parseFloat(addInvForm.shares),
+        buyPrice:      parseFloat(addInvForm.buyPrice),
+        currentPrice:  parseFloat(addInvForm.currentPrice) || parseFloat(addInvForm.buyPrice) || 0,
+        posType:       isCr ? 'crypto' : isCom ? 'commodity' : 'stock',
+        commodityType: isCom ? addInvAsset.commodityType : '',
+        purchaseDate:  addInvForm.purchaseDate,
         divYield: 0, exchange: addInvAsset.exchange || '', currency: 'EUR',
-        platform: '', notes: '', commodityType: '',
+        platform: '', notes: '',
       };
       setInvestments(prev => prev.map(inv =>
         inv.id !== addInvEnvId ? inv : { ...inv, positions: [...(inv.positions || []), pos] }
@@ -305,6 +349,7 @@ export default function Modals({ T, data }) {
     // ── Step 2: formulaire actif ───────────────────────────────────────────────
     if (addInvStep === 2) {
       const f = fa('#10B981');
+      const isCommodityStep2 = addInvAsset?._kind === 'commodity';
       return (
         <CMShell T={T} title={addInvAsset?.name || 'Ajouter un actif'} icon="📊" color="#10B981"
           onClose={() => { resetAddInv(); close(); }} maxWidth={480}>
@@ -312,9 +357,9 @@ export default function Modals({ T, data }) {
             onClick={() => { setAddInvStep(1); setAddInvForm({ shares: '', buyPrice: '', currentPrice: '', purchaseDate: today() }); }}
             style={{ ...S.btnS, fontSize: 12, marginBottom: 18 }}>← Retour</button>
           <FRow cols={2}>
-            <FField style={f} label="Ticker / ID">
+            <FField style={f} label={isCommodityStep2 ? 'Type' : 'Ticker / ID'}>
               <input readOnly type="text" style={{ ...S.inp, opacity: .6 }}
-                value={addInvAsset?.symbol || addInvAsset?.id || ''} />
+                value={isCommodityStep2 ? (addInvAsset?.commodityType || '') : (addInvAsset?.symbol || addInvAsset?.id || '')} />
             </FField>
             <FField style={f} label={addInvPriceFetching ? 'Prix actuel (€) · chargement…' : 'Prix actuel (€)'}>
               <input type="number" min="0" step="0.0001" placeholder="0.0000" style={S.inp}
@@ -354,8 +399,8 @@ export default function Modals({ T, data }) {
     // ── Step 1: choix de l'enveloppe ──────────────────────────────────────────
     if (addInvStep === 1 && addInvAsset) {
       const envs       = compatEnvs(addInvAsset);
-      const ticker     = addInvAsset.symbol || addInvAsset.id || '';
-      const defEnvType = addInvAsset._kind === 'crypto' ? 'Crypto' : 'CTO';
+      const ticker     = addInvAsset._kind === 'commodity' ? addInvAsset.ticker : (addInvAsset.symbol || addInvAsset.id || '');
+      const defEnvType = addInvAsset._kind === 'crypto' ? 'Crypto' : addInvAsset._kind === 'commodity' ? 'Matières premières' : 'CTO';
       return (
         <CMShell T={T} title="Dans quelle enveloppe ?" icon="🏦" color="#10B981"
           onClose={() => { resetAddInv(); close(); }} maxWidth={520}>
@@ -400,6 +445,59 @@ export default function Modals({ T, data }) {
     }
 
     // ── Step 0: recherche + grille de catégories ──────────────────────────────
+    const qLow   = addInvSearch.toLowerCase();
+    const qWords = qLow.split(/[\s,]+/).filter(Boolean);
+    const commodityMatches = addInvSearch.length >= 2
+      ? COMMODITY_KEYWORDS.filter(c => c.keywords.some(kw => qWords.includes(kw)))
+          .map(c => ({ _kind: 'commodity', name: c.name, ticker: c.ticker, commodityType: c.commodityType, icon: c.icon }))
+      : [];
+    const scpiMatches = addInvSearch.length >= 2
+      ? SCPI_LIST.filter(s => s.toLowerCase().includes(qLow)).map(s => ({ _kind: 'scpi', name: s }))
+      : [];
+    const apiStocks  = addInvResults.filter(r => r._kind === 'stock');
+    const apiCryptos = addInvResults.filter(r => r._kind === 'crypto');
+    const localCryptoHits = addInvSearch.length >= 2
+      ? CRYPTO_LOCAL.filter(c => c.name.toLowerCase().includes(qLow) || c.symbol.toLowerCase().includes(qLow))
+          .map(c => ({ ...c, _kind: 'crypto' }))
+      : [];
+    const cryptosToShow = !addInvLoading && apiCryptos.length === 0 ? localCryptoHits : apiCryptos;
+    const hasAnyResult  = (filteredTypes?.length ?? 0) > 0 || commodityMatches.length > 0
+      || scpiMatches.length > 0 || apiStocks.length > 0 || cryptosToShow.length > 0;
+    const showFallback  = !addInvLoading && addInvSearch.length >= 2 && !hasAnyResult;
+
+    const renderAssetRow = (asset, key) => {
+      const isCom = asset._kind === 'commodity';
+      const isSc  = asset._kind === 'scpi';
+      const isCr  = asset._kind === 'crypto';
+      const badgeColor = isCom ? '#EAB308' : isSc ? '#D97706' : isCr ? '#F59E0B' : '#60A5FA';
+      const badgeText  = isCom ? 'MATIÈRE 1ÈRE' : isSc ? 'SCPI' : isCr ? 'Crypto' : (asset.type === 'ETF' ? 'ETF' : 'Action');
+      const onClick = isSc ? () => selectScpi(asset.name) : () => { setAddInvAsset(asset); setAddInvStep(1); };
+      return (
+        <button key={key} onClick={onClick}
+          style={{ background: T.bg2, border: '1px solid rgba(255,255,255,.06)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', marginBottom: 4 }}
+          onMouseEnter={e => e.currentTarget.style.background = T.bg3}
+          onMouseLeave={e => e.currentTarget.style.background = T.bg2}>
+          {isCom
+            ? <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>{asset.icon}</span>
+            : isCr && asset.thumb
+              ? <img src={asset.thumb} alt="" style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0 }} />
+              : <div style={{ width: 24, height: 24, borderRadius: 6, background: badgeColor + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>
+                  {isCr ? '🪙' : isSc ? '🏬' : '📈'}
+                </div>
+          }
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.name}</div>
+            <div style={{ fontSize: 11, color: T.textMuted }}>
+              {isCom ? asset.ticker : isSc ? 'Pierre-papier' : `${asset.symbol || asset.id}${asset.exchange ? ` · ${asset.exchange}` : ''}`}
+            </div>
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: badgeColor + '22', color: badgeColor, flexShrink: 0, whiteSpace: 'nowrap' }}>
+            {badgeText}
+          </span>
+        </button>
+      );
+    };
+
     return (
       <CMShell T={T} title="Ajouter un investissement" icon="✨" color="#10B981"
         onClose={() => { resetAddInv(); close(); }} maxWidth={640}>
@@ -409,7 +507,7 @@ export default function Modals({ T, data }) {
 
         {addInvSearch.length >= 2 ? (
           <div>
-            {/* Enveloppes filtrées — en premier */}
+            {/* 1. Enveloppes filtrées */}
             {filteredTypes.length > 0 && (
               <div style={{ marginBottom: 18 }}>
                 <div style={secLabel}>Types d'enveloppe</div>
@@ -418,38 +516,48 @@ export default function Modals({ T, data }) {
                 </div>
               </div>
             )}
-            {/* Résultats API */}
-            <div>
-              <div style={secLabel}>Actifs financiers</div>
-              {addInvLoading && (
-                <div style={{ color: T.textMuted, fontSize: 12, textAlign: 'center', padding: '10px 0' }}>Recherche…</div>
-              )}
-              {!addInvLoading && addInvResults.length === 0 && (
-                <div style={{ color: T.textMuted, fontSize: 12, padding: '6px 0' }}>Aucun actif trouvé</div>
-              )}
-              {!addInvLoading && addInvResults.map((asset, i) => (
-                <button key={i} onClick={() => { setAddInvAsset(asset); setAddInvStep(1); }}
-                  style={{ background: T.bg2, border: '1px solid rgba(255,255,255,.06)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', marginBottom: 4 }}
-                  onMouseEnter={e => e.currentTarget.style.background = T.bg3}
-                  onMouseLeave={e => e.currentTarget.style.background = T.bg2}>
-                  {asset._kind === 'crypto' && asset.thumb
-                    ? <img src={asset.thumb} alt="" style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0 }} />
-                    : <div style={{ width: 24, height: 24, borderRadius: 6, background: asset._kind === 'crypto' ? '#F59E0B22' : '#60A5FA22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>
-                        {asset._kind === 'crypto' ? '🪙' : '📈'}
-                      </div>
-                  }
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.name}</div>
-                    <div style={{ fontSize: 11, color: T.textMuted }}>
-                      {asset.symbol || asset.id}{asset.exchange ? ` · ${asset.exchange}` : ''}
-                    </div>
+            {/* 2. Matières premières */}
+            {commodityMatches.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={secLabel}>Matières premières</div>
+                {commodityMatches.map((a, i) => renderAssetRow(a, `com-${i}`))}
+              </div>
+            )}
+            {/* 3. SCPI */}
+            {scpiMatches.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={secLabel}>SCPI</div>
+                {scpiMatches.map((a, i) => renderAssetRow(a, `scpi-${i}`))}
+              </div>
+            )}
+            {/* 4+5. API results */}
+            {addInvLoading ? (
+              <div style={{ color: T.textMuted, fontSize: 12, textAlign: 'center', padding: '10px 0' }}>Recherche…</div>
+            ) : (
+              <>
+                {apiStocks.length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={secLabel}>Actions & ETF</div>
+                    {apiStocks.map((a, i) => renderAssetRow(a, `stock-${i}`))}
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: asset._kind === 'crypto' ? '#F59E0B22' : '#60A5FA22', color: asset._kind === 'crypto' ? '#F59E0B' : '#60A5FA', flexShrink: 0 }}>
-                    {asset._kind === 'crypto' ? 'Crypto' : (asset.type === 'ETF' ? 'ETF' : 'Action')}
-                  </span>
+                )}
+                {cryptosToShow.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={secLabel}>Crypto</div>
+                    {cryptosToShow.map((a, i) => renderAssetRow(a, `crypto-${i}`))}
+                  </div>
+                )}
+              </>
+            )}
+            {/* 6. Fallback */}
+            {showFallback && (
+              <div style={{ textAlign: 'center', paddingTop: 14, borderTop: '1px solid rgba(255,255,255,.07)' }}>
+                <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 10 }}>Vous ne trouvez pas ce que vous cherchez ?</div>
+                <button onClick={() => onSearchChange('')} style={{ ...S.btnG, fontSize: 12, padding: '8px 18px' }}>
+                  Ajouter manuellement
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
