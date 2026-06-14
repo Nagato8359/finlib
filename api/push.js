@@ -27,12 +27,31 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Missing subscription or user_id' });
     }
     try {
-      const { error } = await supabaseAdmin
+      const endpoint = subscription.endpoint;
+      const { data: existing } = await supabaseAdmin
         .from('push_subscriptions')
-        .upsert({ user_id, subscription }, { onConflict: 'user_id,subscription->>endpoint', ignoreDuplicates: true });
-      if (error) {
-        console.error('[push] subscribe supabase error:', error.message, error);
-        return res.status(500).json({ error: error.message, details: error });
+        .select('id')
+        .eq('user_id', user_id)
+        .eq('subscription->>endpoint', endpoint)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabaseAdmin
+          .from('push_subscriptions')
+          .update({ subscription })
+          .eq('id', existing.id);
+        if (error) {
+          console.error('[push] subscribe update error:', error.message, error);
+          return res.status(500).json({ error: error.message, details: error });
+        }
+      } else {
+        const { error } = await supabaseAdmin
+          .from('push_subscriptions')
+          .insert({ user_id, subscription });
+        if (error) {
+          console.error('[push] subscribe insert error:', error.message, error);
+          return res.status(500).json({ error: error.message, details: error });
+        }
       }
       return res.json({ ok: true });
     } catch (e) {
