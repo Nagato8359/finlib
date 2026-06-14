@@ -41,7 +41,7 @@ async function fetchAllTransfers(address) {
   } while (nextParams && page < maxPages);
 
   console.log(`[realt-rents] fetched ${all.length} transfers in ${page} page(s)`);
-  return all;
+  return { items: all, pagesScanned: page };
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ module.exports = async function handler(req, res) {
     const cached = await getCached(cacheKey);
     if (cached) return res.json({ ...cached, cached: true });
 
-    const [transfers, eurusd] = await Promise.all([fetchAllTransfers(addr), getEURUSD()]);
+    const [{ items: transfers, pagesScanned }, eurusd] = await Promise.all([fetchAllTransfers(addr), getEURUSD()]);
 
     // Keep only USDC transfers from DisperseV2 (= RealT rent payments)
     const rentTransfers = transfers.filter(item => {
@@ -70,6 +70,14 @@ module.exports = async function handler(req, res) {
       const fromAddr  = (item.from?.hash   || '').toLowerCase();
       return tokenAddr === USDC_ADDR && fromAddr === DISPERSE_V2;
     });
+
+    const debug = {
+      pagesScanned,
+      rawTransfersCount:    transfers.length,
+      disperseV2Transfers:  transfers.filter(i => (i.from?.hash || '').toLowerCase() === DISPERSE_V2).length,
+      usdcTransfers:        transfers.filter(i => (i.token?.address || '').toLowerCase() === USDC_ADDR).length,
+      sample:               transfers.slice(0, 3),
+    };
 
     console.log(`[realt-rents] ${addr}: ${rentTransfers.length} rent transfers (USDC from DisperseV2)`);
 
@@ -114,6 +122,7 @@ module.exports = async function handler(req, res) {
       last12MonthsUSD, last12MonthsEUR,
       byMonth, allRents,
       eurusd, count: allRents.length,
+      debug,
     };
 
     if (allRents.length > 0) await setCached(cacheKey, result, 1800);
