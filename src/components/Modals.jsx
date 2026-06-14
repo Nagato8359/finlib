@@ -90,6 +90,7 @@ export default function Modals({ T, data }) {
   const BUDGET_ICONS   = ['🛒','🍔','🚗','🏠','💊','🎮','✈️','👔','📚','🎵','💆','🐾','🏋️','🍷','☕','🎁','📱','💻','🔧','🌿','🛍️','🎬','⚽','🎨','🎂'];
   const BUDGET_COLORS  = ['#10b981','#f87171','#fb923c','#fbbf24','#a78bfa','#60a5fa','#34d399','#f472b6','#94a3b8','#f59e0b','#06b6d4','#84cc16'];
 
+  const [addInvSearch, setAddInvSearch]         = useState('');
   const [realtAddr, setRealtAddr]               = useState('');
   const [realtLoading, setRealtLoading]         = useState(false);
   const [realtErr, setRealtErr]                 = useState('');
@@ -186,6 +187,68 @@ export default function Modals({ T, data }) {
           <CBtn color={c} onClick={saveTx}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
           <button onClick={() => close(() => setTxForm(mkTx()))} style={S.btnS}>{t('btn_cancel')}</button>
         </div>
+      </CMShell>
+    );
+  }
+
+  // ── Sélecteur de type d'investissement (style Finary) ────────────────────────
+  if (modal === 'addInvestment') {
+    const INVEST_GROUPS = [
+      { label: 'Marchés financiers',          types: ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Épargne salariale', 'Matières premières'] },
+      { label: 'Immobilier physique',         types: ['Immobilier'] },
+      { label: 'Immobilier fractionné',       types: ['RealT', 'La Première Brique', 'Tantiem', 'Bricks.co', 'Crowdfunding immobilier'] },
+      { label: 'Pierre-papier',               types: ['SCPI', 'OPCI', 'SCI'] },
+      { label: 'Investissements alternatifs', types: ['Private Equity', 'Crowdfunding entreprise', 'Obligations', 'Art & Collections', 'Forêts / GFI', 'Vignes / GFV'] },
+      { label: 'Épargne long terme',          types: ['PER', 'Assurance-vie fonds euros'] },
+      { label: 'Autre',                       types: ['Autre'] },
+    ];
+    const q = addInvSearch.toLowerCase();
+    const filtered = q ? PORTFOLIO_TYPES.filter(pt => pt.toLowerCase().includes(q)) : null;
+    const selectType = pt => {
+      setPortfolioForm({ ...mkPortfolio(), type: pt });
+      setEditItem(null);
+      setAddInvSearch('');
+      setModal('portfolio');
+    };
+    const renderTile = pt => {
+      const icon = PORTFOLIO_TYPE_ICON[pt] || '📦';
+      const color = PORTFOLIO_MODAL_COLOR[pt] || '#94A3B8';
+      return (
+        <button key={pt} onClick={() => selectType(pt)}
+          style={{ background: T.bg2, border: `1px solid ${color}30`, borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+          onMouseEnter={e => { e.currentTarget.style.background = color + '18'; e.currentTarget.style.borderColor = color + '60'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = T.bg2; e.currentTarget.style.borderColor = color + '30'; }}>
+          <span style={{ fontSize: 20, width: 28, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{pt}</span>
+        </button>
+      );
+    };
+    return (
+      <CMShell T={T} title="Ajouter un investissement" icon="✨" color="#10B981" onClose={() => { setAddInvSearch(''); close(); }} maxWidth={640}>
+        <input
+          autoFocus
+          type="text"
+          placeholder="Rechercher un type d'investissement…"
+          value={addInvSearch}
+          onChange={e => setAddInvSearch(e.target.value)}
+          style={{ ...S.inp, marginBottom: 20, fontSize: 14 }}
+        />
+        {filtered ? (
+          filtered.length === 0
+            ? <div style={{ color: T.textMuted, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucun résultat pour « {addInvSearch} »</div>
+            : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>{filtered.map(renderTile)}</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {INVEST_GROUPS.map(g => (
+              <div key={g.label}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>{g.label}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {g.types.map(renderTile)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CMShell>
     );
   }

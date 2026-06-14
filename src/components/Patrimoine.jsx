@@ -471,7 +471,7 @@ export default function Patrimoine({ T, data }) {
             {priceStatus === 'error' && <span style={{ fontSize: 11, color: '#f87171' }}>{t('inv_live_error')}</span>}
             <button onClick={fetchPrices} style={{ ...S.btnS, fontSize: 12, padding: '4px 10px' }}>⟳</button>
           </div>
-          <button onClick={() => { setEditItem(null); data.setPortfolioForm && data.setPortfolioForm(data.mkPortfolio()); setModal('portfolio'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>{t('inv_add_envelope')}</button>
+          <button onClick={() => setModal('addInvestment')} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Ajouter un investissement</button>
         </div>
 
         <div className="g4">
