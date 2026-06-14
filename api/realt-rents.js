@@ -65,17 +65,18 @@ module.exports = async function handler(req, res) {
     const [{ items: transfers, pagesScanned }, eurusd] = await Promise.all([fetchAllTransfers(addr), getEURUSD()]);
 
     // Keep only USDC transfers from DisperseV2 (= RealT rent payments)
+    // Blockscout returns token.address_hash (not token.address) — check both.
+    const tokenAddrOf = item => (item.token?.address_hash || item.token?.address || '').toLowerCase();
     const rentTransfers = transfers.filter(item => {
-      const tokenAddr = (item.token?.address || '').toLowerCase();
-      const fromAddr  = (item.from?.hash   || '').toLowerCase();
-      return tokenAddr === USDC_ADDR && fromAddr === DISPERSE_V2;
+      const fromAddr = (item.from?.hash || '').toLowerCase();
+      return tokenAddrOf(item) === USDC_ADDR && fromAddr === DISPERSE_V2;
     });
 
     const debug = {
       pagesScanned,
       rawTransfersCount:    transfers.length,
       disperseV2Transfers:  transfers.filter(i => (i.from?.hash || '').toLowerCase() === DISPERSE_V2).length,
-      usdcTransfers:        transfers.filter(i => (i.token?.address || '').toLowerCase() === USDC_ADDR).length,
+      usdcTransfers:        transfers.filter(i => tokenAddrOf(i) === USDC_ADDR).length,
       sample:               transfers.slice(0, 3),
     };
 
