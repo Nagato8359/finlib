@@ -143,12 +143,12 @@ export default function App() {
   }).current;
 
   // Recompute TABS after each render so labels reflect current language
+  // Note: 'investir' is now inside the Outils section (sidebar sub-menu + mobile drawer)
   const TABS = [
     { id: 'accueil',    label: t('nav_accueil'),    short: t('nav_accueil'),    icon: '🏠' },
     { id: 'patrimoine', label: t('nav_patrimoine'), short: t('nav_patrimoine'), icon: '◈'  },
     { id: 'budget',     label: t('nav_budget'),     short: t('nav_budget'),     icon: '📊' },
     { id: 'flux',       label: t('nav_flux'),       short: t('nav_flux'),       icon: '↕'  },
-    { id: 'investir',   label: t('nav_investir'),   short: t('nav_investir'),   icon: '🚀' },
     { id: 'ia',         label: t('nav_ia'),         short: t('nav_ia'),         icon: '🤖' },
   ];
 

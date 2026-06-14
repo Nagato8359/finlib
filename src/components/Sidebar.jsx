@@ -2,6 +2,7 @@ import { useState } from 'react';
 import logo from '../logo.png';
 
 const OUTILS = [
+  { id: 'investir',             label: 'Investir',              icon: '💸' },
   { id: 'projection',           label: 'Projection',            icon: '📊' },
   { id: 'calendrier-dividendes',label: 'Calendrier dividendes', icon: '📅' },
   { id: 'recap-fiscal',         label: 'Récap fiscal',          icon: '📋' },
