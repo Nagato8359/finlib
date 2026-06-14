@@ -143,16 +143,18 @@ const CRYPTO_LOCAL = [
 ];
 
 // ── Asset logo helpers ────────────────────────────────────────────────────────
-const AssetLogo = ({ src, letter, color, size = 32 }) => {
-  const [err, setErr] = useState(false);
-  if (!src || err) return (
+// sources: ordered array of URLs to try — onError advances to the next, then falls back to letter circle
+const AssetLogo = ({ sources = [], letter, color, size = 32 }) => {
+  const [idx, setIdx] = useState(0);
+  if (idx >= sources.length) return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: color || '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.44), fontWeight: 700, color: '#fff', flexShrink: 0 }}>
       {letter}
     </div>
   );
-  return <img src={src} alt="" onError={() => setErr(true)} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'contain', background: '#fff', padding: 2, boxSizing: 'border-box', flexShrink: 0 }} />;
+  return <img src={sources[idx]} alt="" onError={() => setIdx(i => i + 1)} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'contain', background: '#fff', padding: 2, boxSizing: 'border-box', flexShrink: 0 }} />;
 };
 
+// Ticker → company domain (used for Google favicons fallback)
 const TICKER_DOMAIN = {
   // CAC40 / SBF120
   TTE: 'totalenergies.com', AI: 'airbus.com', BNP: 'bnpparibas.com',
@@ -178,34 +180,38 @@ const TICKER_DOMAIN = {
   SHOP: 'shopify.com', SNAP: 'snap.com', T: 'att.com', VZ: 'verizon.com',
 };
 
-// Prefix → domain for SCPI management companies (used with Google favicons, very reliable)
-const SCPI_DOMAIN = [
-  ['Corum', 'corum.eu'],
-  ['Immorente', 'sofidy.com'], ['Sofidy', 'sofidy.com'], ['Efimmo', 'sofidy.com'],
-  ['PFO', 'perial.com'], ['PF ', 'perial.com'], ['Euro Caralis', 'perial.com'],
-  ['Primopierre', 'primonial-reim.fr'], ['Primovie', 'primonial-reim.fr'],
-  ['Iroko', 'iroko.eu'],
-  ['LF ', 'la-francaise.com'], ['Praemia', 'praemia-reim.com'],
-  ['Pierre 48', 'bnpparibas.com'], ['Accimmo', 'bnpparibas.com'], ['France Investipierre', 'bnpparibas.com'],
-  ['Épargne Foncière', 'swisslife.fr'], ['Capimmo', 'swisslife.fr'], ['Pierre Expansion', 'swisslife.fr'], ['Swisslife', 'swisslife.fr'],
-  ['Novapierre', 'paref-gestion.com'], ['Interpierre', 'paref-gestion.com'],
-  ['Vendôme', 'normacapital.fr'], ['Fair Invest', 'normacapital.fr'],
-  ['Remake', 'remake.fr'],
-  ['Cœur', 'sogenial.fr'], ['Coeur', 'sogenial.fr'],
-  ['Rivoli', 'rivoli-patrimoine.com'],
-  ['Altixia', 'altixia.fr'],
-];
-
-const stockLogoUrl = sym => {
-  if (!sym) return null;
-  const base = sym.split('.')[0].toUpperCase();
-  const domain = TICKER_DOMAIN[base];
-  return `https://logo.clearbit.com/${domain || (base.toLowerCase() + '.com')}`;
+// SCPI: keyword (lowercase substring) → management company domain
+const SCPI_DOMAINS = {
+  'corum':         'corum.eu',
+  'sofidy':        'sofidy.com',
+  'primonial':     'primonial-reim.fr',
+  'perial':        'perial.com',
+  'iroko':         'iroko.eu',
+  'remake':        'remake.immo',
+  'inter gestion': 'inter-gestion.com',
+  'theoreim':      'theoreim.com',
 };
 
-const scpiLogoUrl = name => {
-  const entry = SCPI_DOMAIN.find(([prefix]) => name.startsWith(prefix));
-  return entry ? `https://www.google.com/s2/favicons?domain=${entry[1]}&sz=64` : null;
+// Returns ordered logo sources for stocks/ETF:
+//   1. asset.logoUrl if provided (future API field, prioritised)
+//   2. Parqet CDN — dedicated finance logos, covers most US/EU tickers
+//   3. Google favicons — universal fallback via TICKER_DOMAIN map
+const stockLogoSources = (sym, logoUrl) => {
+  const srcs = [];
+  if (logoUrl) srcs.push(logoUrl);
+  if (!sym) return srcs;
+  const base = sym.split('.')[0].toUpperCase();
+  srcs.push(`https://assets.parqet.com/logos/symbol/${base}?format=svg`);
+  const domain = TICKER_DOMAIN[base];
+  if (domain) srcs.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
+  return srcs;
+};
+
+// Returns logo sources for SCPI: Google favicon if manager keyword matched, empty otherwise
+const scpiLogoSources = name => {
+  const lower = name.toLowerCase();
+  const key   = Object.keys(SCPI_DOMAINS).find(k => lower.includes(k));
+  return key ? [`https://www.google.com/s2/favicons?domain=${SCPI_DOMAINS[key]}&sz=64`] : [];
 };
 
 // ── Color maps for modals ─────────────────────────────────────────────────────
@@ -655,10 +661,10 @@ export default function Modals({ T, data }) {
       const logoNode = isCom
         ? <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#EAB30818', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{asset.icon}</div>
         : isCr
-          ? <AssetLogo src={asset.thumb || null} letter={(asset.symbol || '?')[0]} color="#F59E0B" />
+          ? <AssetLogo sources={asset.thumb ? [asset.thumb] : []} letter={(asset.symbol || '?')[0]} color="#F59E0B" />
           : isSc
-            ? <AssetLogo src={scpiLogoUrl(asset.name)} letter="🏬" color="#D97706" />
-            : <AssetLogo src={stockLogoUrl(asset.symbol)} letter={(asset.symbol || '?').split('.')[0][0]} color="#60A5FA" />;
+            ? <AssetLogo sources={scpiLogoSources(asset.name)} letter="🏬" color="#D97706" />
+            : <AssetLogo sources={stockLogoSources(asset.symbol, asset.logoUrl)} letter={(asset.symbol || '?').split('.')[0][0]} color="#60A5FA" />;
       return (
         <button key={key} onClick={onClick}
           style={{ background: T.bg2, border: '1px solid rgba(255,255,255,.06)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', marginBottom: 4 }}
