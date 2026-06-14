@@ -58,7 +58,6 @@ export const registerPush = async (userId) => {
   if (!publicKey) return;
 
   try {
-    await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
     const reg = await navigator.serviceWorker.ready;
     const permission = await Notification.requestPermission();
     console.log('4. Permission:', permission);
