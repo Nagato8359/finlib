@@ -1,6 +1,7 @@
 // GET /api/dividends?tickers=AAPL,TTE,BNP
-// Returns Yahoo Finance dividend history + projected next dividend per ticker
-// Cache: Redis 24h per ticker
+// Reads from dividend_events Supabase table.
+// Falls back to immediate Yahoo Finance fetch (cached 24h) if ticker has no rows.
+const { supabaseAdmin } = require('./_supabase');
 const { getCached, setCached } = require('./_cache');
 const { yfGetWithFallback } = require('./_priceUtils');
 
@@ -35,77 +36,114 @@ module.exports = async function handler(req, res) {
   if (!tickers) return res.status(400).json({ error: 'Missing tickers param' });
 
   const tickerList = tickers.split(',').map(t => t.trim().toUpperCase()).filter(Boolean).slice(0, 25);
-  const eurusd = await getEURUSD();
+  const output = {};
 
-  const settled = await Promise.allSettled(tickerList.map(async ticker => {
-    const cacheKey = `div2:${ticker}`;
-    const cached = await getCached(cacheKey);
-    if (cached) return [ticker, cached];
+  // 1. Read from Supabase dividend_events
+  try {
+    const { data: rows, error: dbErr } = await supabaseAdmin
+      .from('dividend_events')
+      .select('ticker, ex_date, payment_date, amount, currency, amount_eur, status, source')
+      .in('ticker', tickerList)
+      .order('ex_date', { ascending: true });
 
-    const data = await yfGetWithFallback(
-      `/v8/finance/chart/${encodeURIComponent(ticker)}?events=dividends&range=2y&interval=1mo`
-    );
-    const result = data?.chart?.result?.[0];
-    if (!result) {
-      return [ticker, { dividends: [], nextDividend: null, frequency: null, annualYield: null }];
-    }
-
-    const currency = result.meta?.currency || 'USD';
-    const currentPrice = result.meta?.regularMarketPrice || null;
-    const toEUR = currency === 'EUR' ? 1 : 1 / eurusd;
-
-    const divEvents = result.events?.dividends || {};
-    const dividends = Object.values(divEvents)
-      .sort((a, b) => a.date - b.date)
-      .map(e => ({
-        exDate:    new Date(e.date * 1000).toISOString().slice(0, 10),
-        payDate:   null,
-        amount:    Math.round(e.amount * 1e6) / 1e6,
-        amountEUR: Math.round(e.amount * toEUR * 1e6) / 1e6,
-        currency,
-      }));
-
-    const sortedDates = dividends.map(d => new Date(d.exDate));
-    const frequency = detectFrequency(sortedDates);
-
-    // Trailing-12-month yield
-    const cutoffMs = Date.now() - 365 * 86400000;
-    const annualAmt = Object.values(divEvents)
-      .filter(e => e.date * 1000 > cutoffMs)
-      .reduce((s, e) => s + e.amount, 0);
-    const annualYield = currentPrice && annualAmt > 0
-      ? Math.round((annualAmt / currentPrice) * 10000) / 100
-      : null;
-
-    // Projected next dividend from last known + frequency gap
-    let nextDividend = null;
-    if (dividends.length > 0) {
-      const last = dividends[dividends.length - 1];
-      const nextMs = new Date(last.exDate).getTime() + FREQ_DAYS[frequency] * 86400000;
-      if (nextMs > Date.now()) {
-        nextDividend = {
-          exDate:    new Date(nextMs).toISOString().slice(0, 10),
-          payDate:   null,
-          amount:    last.amount,
-          amountEUR: last.amountEUR,
-          currency,
-          estimated: true,
+    if (!dbErr && rows?.length) {
+      const byTicker = {};
+      for (const row of rows) {
+        (byTicker[row.ticker] = byTicker[row.ticker] || []).push(row);
+      }
+      for (const ticker of tickerList) {
+        const events = byTicker[ticker];
+        if (!events?.length) continue;
+        const confirmedDates = events
+          .filter(e => e.status === 'confirmed')
+          .map(e => new Date(e.ex_date));
+        const frequency = detectFrequency(confirmedDates);
+        output[ticker] = {
+          events: events.map(e => ({
+            exDate:    e.ex_date,
+            payDate:   e.payment_date || null,
+            amount:    e.amount,
+            amountEUR: e.amount_eur ?? e.amount,
+            currency:  e.currency || 'USD',
+            status:    e.status,
+            source:    e.source || 'yahoo',
+          })),
+          frequency,
+          annualYield: null,
         };
       }
     }
+  } catch (e) {
+    console.error('[dividends] Supabase read:', e.message);
+  }
 
-    const payload = { dividends, nextDividend, frequency, annualYield };
-    await setCached(cacheKey, payload, 86400);
-    return [ticker, payload];
-  }));
+  // 2. Fallback to Yahoo Finance for tickers with no Supabase data
+  const missing = tickerList.filter(t => !output[t]);
+  if (missing.length) {
+    const eurusd = await getEURUSD();
+    await Promise.allSettled(missing.map(async ticker => {
+      try {
+        const cacheKey = `div2:${ticker}`;
+        const cached = await getCached(cacheKey);
+        if (cached) { output[ticker] = cached; return; }
 
-  const output = {};
-  settled.forEach(r => {
-    if (r.status === 'fulfilled' && Array.isArray(r.value)) {
-      const [ticker, payload] = r.value;
-      output[ticker] = payload;
-    }
-  });
+        const data = await yfGetWithFallback(
+          `/v8/finance/chart/${encodeURIComponent(ticker)}?events=dividends&range=2y&interval=1mo`
+        );
+        const result = data?.chart?.result?.[0];
+        if (!result) {
+          output[ticker] = { events: [], frequency: null, annualYield: null };
+          return;
+        }
+
+        const currency = result.meta?.currency || 'USD';
+        const currentPrice = result.meta?.regularMarketPrice || null;
+        const toEUR = currency === 'EUR' ? 1 : 1 / eurusd;
+        const divEvents = result.events?.dividends || {};
+        const sorted = Object.values(divEvents).sort((a, b) => a.date - b.date);
+
+        const events = sorted.map(e => ({
+          exDate:    new Date(e.date * 1000).toISOString().slice(0, 10),
+          payDate:   null,
+          amount:    Math.round(e.amount * 1e6) / 1e6,
+          amountEUR: Math.round(e.amount * toEUR * 1e6) / 1e6,
+          currency,
+          status:    'confirmed',
+          source:    'yahoo',
+        }));
+
+        const frequency = detectFrequency(events.map(e => new Date(e.exDate)));
+
+        if (events.length > 0) {
+          const last = events[events.length - 1];
+          const nextMs = new Date(last.exDate).getTime() + FREQ_DAYS[frequency] * 86400000;
+          if (nextMs > Date.now()) {
+            events.push({
+              exDate:    new Date(nextMs).toISOString().slice(0, 10),
+              payDate:   null,
+              amount:    last.amount,
+              amountEUR: last.amountEUR,
+              currency,
+              status:    'estimated',
+              source:    'estimated',
+            });
+          }
+        }
+
+        const cutoffMs = Date.now() - 365 * 86400000;
+        const annualAmt = sorted.filter(e => e.date * 1000 > cutoffMs).reduce((s, e) => s + e.amount, 0);
+        const annualYield = currentPrice && annualAmt > 0
+          ? Math.round((annualAmt / currentPrice) * 10000) / 100
+          : null;
+
+        const payload = { events, frequency, annualYield };
+        await setCached(cacheKey, payload, 86400);
+        output[ticker] = payload;
+      } catch (e) {
+        console.error(`[dividends] Yahoo fallback ${ticker}:`, e.message);
+      }
+    }));
+  }
 
   return res.json(output);
 };

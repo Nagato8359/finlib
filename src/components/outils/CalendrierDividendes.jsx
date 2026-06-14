@@ -93,7 +93,7 @@ export default function CalendrierDividendes({ T, data }) {
       });
     });
 
-    // 2. Yahoo Finance dividends per stock/ETF position
+    // 2. Supabase/Yahoo dividend events per stock/ETF position
     if (apiData) {
       (investments || []).forEach(inv => {
         (inv.positions || [])
@@ -105,12 +105,12 @@ export default function CalendrierDividendes({ T, data }) {
             const shareKey = `${inv.id}:${base}`;
             const shares   = customShares[shareKey] ?? pos.shares;
 
-            // Past / known dividends
-            (info.dividends || []).filter(d => d.exDate?.startsWith(monthPrefix)).forEach(d => {
+            (info.events || []).filter(d => d.exDate?.startsWith(monthPrefix)).forEach(d => {
+              const isEst = d.status === 'estimated';
               events.push({
-                id:        `a:${base}:${d.exDate}:${inv.id}`,
+                id:        `a:${base}:${d.exDate}:${inv.id}${isEst ? ':est' : ''}`,
                 date:      d.exDate,
-                source:    'api',
+                source:    isEst ? 'api_projected' : 'api',
                 invId:     inv.id,
                 invName:   inv.name,
                 ticker:    pos.ticker,
@@ -119,36 +119,13 @@ export default function CalendrierDividendes({ T, data }) {
                 amount:    d.amount * shares,
                 amountEUR: (d.amountEUR || d.amount) * shares,
                 currency:  d.currency || 'USD',
-                estimated: false,
+                estimated: isEst,
                 perShare:  d.amount,
                 shares,
                 shareKey,
                 frequency: info.frequency,
               });
             });
-
-            // Projected next dividend
-            const nd = info.nextDividend;
-            if (nd?.exDate?.startsWith(monthPrefix)) {
-              events.push({
-                id:        `a:${base}:${nd.exDate}:${inv.id}:est`,
-                date:      nd.exDate,
-                source:    'api_projected',
-                invId:     inv.id,
-                invName:   inv.name,
-                ticker:    pos.ticker,
-                posType:   pos.posType,
-                name:      pos.name,
-                amount:    nd.amount * shares,
-                amountEUR: (nd.amountEUR || nd.amount) * shares,
-                currency:  nd.currency || 'USD',
-                estimated: true,
-                perShare:  nd.amount,
-                shares,
-                shareKey,
-                frequency: info.frequency,
-              });
-            }
           });
       });
     }
@@ -352,7 +329,11 @@ export default function CalendrierDividendes({ T, data }) {
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: T.text, display: 'flex', alignItems: 'center', gap: 5 }}>
                         {e.ticker || e.invName}
-                        {e.estimated && <span style={{ fontSize: 9, color: '#fb923c', fontStyle: 'italic', background: '#fb923c18', padding: '1px 5px', borderRadius: 3 }}>Estimé</span>}
+                        {e.estimated
+                          ? <span style={{ fontSize: 9, color: '#fb923c', fontStyle: 'italic', background: '#fb923c18', padding: '1px 5px', borderRadius: 3 }}>Estimé</span>
+                          : e.source === 'api' || e.source === 'yahoo'
+                            ? <span style={{ fontSize: 9, color: '#4ade80', background: '#4ade8018', padding: '1px 5px', borderRadius: 3 }}>Confirmé</span>
+                            : null}
                       </div>
                       <div style={{ fontSize: 10, color: T.textFaint }}>
                         {e.invName}{e.frequency ? ` · ${e.frequency}` : ''}{e.currency && e.currency !== 'EUR' ? ` · ${e.currency}` : ''}

@@ -15,6 +15,21 @@ const UNSUPPORTED_TICKERS = [
   'PER',                                 // Plan Épargne Retraite
 ];
 
+function detectDivFrequency(sortedDates) {
+  if (sortedDates.length < 2) return 'annuel';
+  const gaps = [];
+  for (let i = 1; i < sortedDates.length; i++) {
+    gaps.push((sortedDates[i].getTime() - sortedDates[i - 1].getTime()) / 86400000);
+  }
+  const avg = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+  if (avg < 45)  return 'mensuel';
+  if (avg < 110) return 'trimestriel';
+  if (avg < 250) return 'semestriel';
+  return 'annuel';
+}
+
+const DIV_FREQ_DAYS = { mensuel: 30, trimestriel: 91, semestriel: 183, annuel: 365 };
+
 async function getEURUSD() {
   try {
     const d = await yfGetWithFallback('/v8/finance/chart/EURUSD=X?interval=1d&range=1d');
@@ -241,7 +256,84 @@ module.exports = async function handler(req, res) {
     }
     if (realtWallets.size) console.log(`[cron-prices] RealT rents: ${rentsInvalidated}/${realtWallets.size} cache(s) invalidated`);
 
-    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length, rentsInvalidated });
+    // 8. Fetch and upsert dividend events for stock/ETF tickers
+    const divTickerSet = new Set();
+    for (const row of rows || []) {
+      for (const inv of row.investments || []) {
+        for (const pos of inv.positions || []) {
+          if (['stock', 'etf'].includes(pos.posType) && pos.ticker && !ISIN_RE.test(pos.ticker.toUpperCase())) {
+            divTickerSet.add(pos.ticker.split('.')[0].toUpperCase());
+          }
+        }
+      }
+    }
+    const divTickers = [...divTickerSet];
+    let divUpserted = 0;
+    if (divTickers.length) {
+      await Promise.allSettled(divTickers.map(async ticker => {
+        try {
+          const data = await yfGetWithFallback(
+            `/v8/finance/chart/${encodeURIComponent(ticker)}?events=dividends&range=3y&interval=1mo`
+          );
+          const result = data?.chart?.result?.[0];
+          if (!result) return;
+
+          const currency = result.meta?.currency || 'USD';
+          const toEUR = currency === 'EUR' ? 1 : 1 / eurusd;
+          const divEvents = result.events?.dividends || {};
+          const sorted = Object.values(divEvents).sort((a, b) => a.date - b.date);
+          if (!sorted.length) return;
+
+          const confirmed = sorted.map(e => ({
+            ticker,
+            ex_date:    new Date(e.date * 1000).toISOString().slice(0, 10),
+            amount:     Math.round(e.amount * 1e6) / 1e6,
+            currency,
+            amount_eur: Math.round(e.amount * toEUR * 1e6) / 1e6,
+            status:     'confirmed',
+            source:     'yahoo',
+            updated_at: new Date().toISOString(),
+          }));
+
+          const { error: confErr } = await supabaseAdmin
+            .from('dividend_events')
+            .upsert(confirmed, { onConflict: 'ticker,ex_date' });
+          if (confErr) { console.error(`[cron] div upsert ${ticker}:`, confErr.message); return; }
+          divUpserted += confirmed.length;
+
+          // Project up to 4 estimated future dividends (don't overwrite confirmed)
+          const frequency = detectDivFrequency(sorted.map(e => new Date(e.date * 1000)));
+          const gapMs = DIV_FREQ_DAYS[frequency] * 86400000;
+          const last = confirmed[confirmed.length - 1];
+          let baseMs = new Date(last.ex_date).getTime();
+          const estimated = [];
+          for (let i = 0; i < 4; i++) {
+            baseMs += gapMs;
+            if (baseMs <= Date.now()) continue;
+            estimated.push({
+              ticker,
+              ex_date:    new Date(baseMs).toISOString().slice(0, 10),
+              amount:     last.amount,
+              currency,
+              amount_eur: last.amount_eur,
+              status:     'estimated',
+              source:     'estimated',
+              updated_at: new Date().toISOString(),
+            });
+          }
+          if (estimated.length) {
+            await supabaseAdmin
+              .from('dividend_events')
+              .upsert(estimated, { onConflict: 'ticker,ex_date', ignoreDuplicates: true });
+          }
+        } catch (e) {
+          console.error(`[cron] dividends ${ticker}:`, e.message);
+        }
+      }));
+      console.log(`[cron-prices] dividends: ${divUpserted} confirmed events upserted for ${divTickers.length} tickers`);
+    }
+
+    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length, rentsInvalidated, divTickers: divTickers.length, divUpserted });
   } catch (err) {
     console.error('[cron-prices] fatal:', err.message);
     res.status(500).json({ error: err.message });
