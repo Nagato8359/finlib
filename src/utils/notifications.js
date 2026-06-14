@@ -51,18 +51,18 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export const registerPush = async (userId) => {
-  const swSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
-  console.log('[push] SW supported:', swSupported);
-  if (!swSupported) return;
+  console.log('1. SW support:', 'serviceWorker' in navigator);
+  console.log('2. PushManager support:', 'PushManager' in window);
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
+  console.log('3. VAPID KEY:', process.env.REACT_APP_VAPID_PUBLIC_KEY?.slice(0, 10));
   const publicKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
-  console.log('[push] VAPID KEY:', publicKey?.slice(0, 20));
   if (!publicKey) return;
 
   try {
     const reg = await navigator.serviceWorker.ready;
     const permission = await Notification.requestPermission();
-    console.log('[push] Permission:', permission);
+    console.log('4. Permission:', permission);
     if (permission !== 'granted') return;
 
     const existing = await reg.pushManager.getSubscription();
@@ -70,7 +70,7 @@ export const registerPush = async (userId) => {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
-    console.log('[push] Subscription created:', sub.endpoint?.slice(0, 60));
+    console.log('5. Subscription:', sub);
 
     const apiRes = await fetch('/api/push?action=subscribe', {
       method: 'POST',
@@ -78,7 +78,7 @@ export const registerPush = async (userId) => {
       body: JSON.stringify({ subscription: sub.toJSON(), user_id: userId }),
     });
     const apiData = await apiRes.json().catch(() => ({}));
-    console.log('[push] Push subscribe API response:', apiRes.status, apiData);
+    console.log('6. API response:', apiRes.status, apiData);
   } catch (err) {
     console.error('[push] registerPush error:', err);
   }
