@@ -2,11 +2,13 @@ const CACHE = 'capitaly-v1';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
+  console.log('[SW] installed');
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE).catch(() => {})));
 });
 
 self.addEventListener('activate', e => {
+  console.log('[SW] activated');
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
