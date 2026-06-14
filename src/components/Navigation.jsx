@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const OUTILS_MOBILE = [
   { id: 'investir',              label: 'Investir',        icon: '💸' },
@@ -16,6 +16,12 @@ const OUTIL_IDS = new Set(OUTILS_MOBILE.map(o => o.id));
 export default function Navigation({ T, tab, setTab, TABS }) {
   const [outilsOpen, setOutilsOpen] = useState(false);
   const toolActive = OUTIL_IDS.has(tab);
+
+  // Block background scroll while drawer is open
+  useEffect(() => {
+    document.body.style.overflow = outilsOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [outilsOpen]);
 
   const btnStyle = (active) => ({
     flex: 1, border: 'none', background: 'none',
@@ -61,12 +67,9 @@ export default function Navigation({ T, tab, setTab, TABS }) {
         </button>
       </nav>
 
-      {/* Backdrop */}
+      {/* Backdrop — visual only, no close on tap */}
       {outilsOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.52)', zIndex: 98 }}
-          onClick={() => setOutilsOpen(false)}
-        />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.52)', zIndex: 98 }} />
       )}
 
       {/* Drawer — glisse au-dessus de la barre du bas */}
@@ -81,9 +84,26 @@ export default function Navigation({ T, tab, setTab, TABS }) {
         padding: '14px 14px 10px',
         boxShadow: '0 -8px 32px rgba(0,0,0,.4)',
         transition: 'bottom .25s cubic-bezier(.4,0,.2,1)',
+        overflowY: 'auto',
+        maxHeight: '70vh',
       }}>
-        {/* Poignée */}
-        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.15)', margin: '0 auto 14px' }} />
+        {/* Poignée + bouton X */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, position: 'relative' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.15)' }} />
+          <button
+            onClick={() => setOutilsOpen(false)}
+            style={{
+              position: 'absolute', top: '50%', right: 0, transform: 'translateY(-50%)',
+              width: 32, height: 32, borderRadius: '50%',
+              background: 'rgba(255,255,255,.12)', border: 'none',
+              color: 'rgba(255,255,255,.8)', fontSize: 18, lineHeight: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', fontFamily: 'inherit',
+              WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
+            }}>
+            ✕
+          </button>
+        </div>
 
         <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10, paddingLeft: 2 }}>
           🔧 Outils
