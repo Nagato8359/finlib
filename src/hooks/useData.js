@@ -361,7 +361,9 @@ export function useData() {
 
   const fetchPrices = useCallback(async () => {
     const stockKeys = invRef.current.flatMap(inv =>
-      (inv.positions || []).map(p => p.isin || p.ticker).filter(Boolean)
+      (inv.positions || [])
+        .filter(p => p.posType !== 'other' && p.posType !== 'realestate')
+        .map(p => p.isin || p.ticker).filter(Boolean)
     );
     const commodityKeys = invRef.current.flatMap(inv =>
       (inv.positions || [])
@@ -409,6 +411,12 @@ export function useData() {
         if (rawPrice != null) {
           return s + p.shares * rawPrice * commodityUnitFactor(p.commodityType, p.unit);
         }
+      }
+      // posType 'other' (RealT wallet tokens) and 'realestate': currentPrice is already
+      // the per-token EUR price — never override with a live feed that would cause
+      // double-multiplication (shares × totalEUR instead of shares × priceEUR).
+      if (p.posType === 'other' || p.posType === 'realestate') {
+        return s + p.shares * p.currentPrice;
       }
       return s + p.shares * (prices[p.isin || p.ticker] ?? p.currentPrice);
     }, 0);
