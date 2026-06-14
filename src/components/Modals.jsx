@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { makeS, fEur, fDate, today, uid, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 // modal === 'drill' (position form) is handled by PositionFormModal in App.js
@@ -199,6 +199,44 @@ export default function Modals({ T, data }) {
   const [addInvForm, setAddInvForm]             = useState({ shares: '', buyPrice: '', currentPrice: '', purchaseDate: today() });
   const [addInvPriceFetching, setAddInvPriceFetching] = useState(false);
   const addInvTimerRef                          = useRef(null);
+  const addInvPendingAssetRef                   = useRef(null);  // asset kept alive during portfolio creation detour
+  const invCountRef                             = useRef(0);     // snapshot of investments.length before portfolio creation
+  const prevModalRef                            = useRef(null);
+
+  // After portfolio creation: if we had a pending asset, auto-resume at step 2 with the new envelope
+  useEffect(() => {
+    const prev = prevModalRef.current;
+    prevModalRef.current = modal;
+    if (prev !== 'portfolio' || modal || !addInvPendingAssetRef.current) return;
+    const asset = addInvPendingAssetRef.current;
+    const currentEnvs = investments || [];
+    if (currentEnvs.length > invCountRef.current) {
+      // A new envelope was saved — jump straight to asset form
+      const newEnv = currentEnvs[currentEnvs.length - 1];
+      const ticker = asset._kind === 'commodity' ? asset.ticker : (asset.symbol || asset.id || '');
+      addInvPendingAssetRef.current = null;
+      setAddInvAsset(asset);
+      setAddInvEnvId(newEnv.id);
+      setAddInvStep(2);
+      setAddInvForm({ shares: '', buyPrice: '', currentPrice: '', purchaseDate: today() });
+      if (ticker) {
+        setAddInvPriceFetching(true);
+        fetch(`/api/price/${encodeURIComponent(ticker)}`)
+          .then(r => r.json())
+          .then(d => { if (d.price != null) setAddInvForm(p => ({ ...p, currentPrice: String(parseFloat(d.price.toFixed(4))) })); })
+          .catch(() => {})
+          .finally(() => setAddInvPriceFetching(false));
+      }
+      setModal('addInvestment');
+    } else {
+      // User cancelled portfolio creation — clear pending state
+      addInvPendingAssetRef.current = null;
+      setAddInvStep(0);
+      setAddInvAsset(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal, investments]);
+
   const [realtAddr, setRealtAddr]               = useState('');
   const [realtLoading, setRealtLoading]         = useState(false);
   const [realtErr, setRealtErr]                 = useState('');
@@ -337,17 +375,20 @@ export default function Modals({ T, data }) {
       resetAddInv(); setModal('portfolio');
     };
 
-    const ENV_COMPAT = {
-      stock:     ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
-      etf:       ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
-      commodity: ['Matières premières'],
+    const isCryptoEnv = inv => {
+      const t = (inv.type || '').toLowerCase().trim();
+      return t.includes('crypto') || t === 'bitcoin' || t === 'ethereum';
     };
-    const isCryptoEnv = inv => ['crypto', 'cryptomonnaies', 'cryptomonnaie'].includes((inv.type || '').toLowerCase());
+    const isStockEnv = inv => {
+      const t = (inv.type || '').toLowerCase().trim();
+      return ['pea', 'cto', 'compte-titres', 'compte titres',
+              'assurance-vie', 'assurance vie', 'épargne salariale',
+              'epargne salariale'].some(k => t.includes(k));
+    };
     const compatEnvs = asset => {
-      if (asset._kind === 'crypto') return (investments || []).filter(isCryptoEnv);
-      if (asset._kind === 'commodity') return (investments || []).filter(inv => inv.type === 'Matières premières');
-      const allowed = asset.type === 'ETF' ? ENV_COMPAT.etf : ENV_COMPAT.stock;
-      return (investments || []).filter(inv => allowed.includes(inv.type));
+      if (asset._kind === 'crypto')    return (investments || []).filter(isCryptoEnv);
+      if (asset._kind === 'commodity') return (investments || []).filter(inv => (inv.type || '').toLowerCase().includes('matière') || inv.type === 'Matières premières');
+      return (investments || []).filter(isStockEnv);
     };
 
     const selectEnv = async (envId, ticker) => {
@@ -503,7 +544,12 @@ export default function Modals({ T, data }) {
             </div>
           )}
           <button
-            onClick={() => { setPortfolioForm({ ...mkPortfolio(), type: defEnvType }); resetAddInv(); setModal('portfolio'); }}
+            onClick={() => {
+              addInvPendingAssetRef.current = addInvAsset;
+              invCountRef.current = (investments || []).length;
+              setPortfolioForm({ ...mkPortfolio(), type: defEnvType });
+              setModal('portfolio');
+            }}
             style={{ ...S.btnG, fontSize: 12, padding: '8px 16px' }}>
             + Créer une nouvelle enveloppe
           </button>
