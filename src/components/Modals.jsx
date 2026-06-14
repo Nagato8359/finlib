@@ -52,11 +52,78 @@ const COMMODITY_KEYWORDS = [
   { keywords: ['pétrole', 'petrol', 'oil'], name: 'Pétrole',   ticker: 'CL=F', commodityType: 'Pétrole',   icon: '🛢️' },
   { keywords: ['cuivre', 'copper'],         name: 'Cuivre',    ticker: 'HG=F', commodityType: 'Cuivre',    icon: '🔶' },
 ];
+const normalizeStr = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const SCPI_LIST = [
-  'Corum Origin', 'Corum XL', 'Corum Eurion', 'Immorente', 'PFO2', 'Efimmo',
-  'Rivoli Avenir Patrimoine', 'Pierre 48', 'Épargne Foncière',
-  'Primopierre', 'Interpierre', 'Novapierre', 'Sofidy Europe Invest',
-  'Remake Live', 'Transitions Europe', 'Vendôme Régions',
+  // Corum
+  'Corum Origin', 'Corum XL', 'Corum Eurion', 'Corum USA',
+  // Sofidy
+  'Immorente', 'Immorente 2', 'Sofidy Europe Invest', 'Sofidy Pierre Europe',
+  // Perial
+  'PFO', 'PFO2', 'PF Grand Paris',
+  // Efimmo / Iroko
+  'Efimmo 1', 'Iroko Zen',
+  // Rivoli
+  'Rivoli Avenir Patrimoine',
+  // Primonial
+  'Primopierre', 'Primovie', 'Coeur de Régions', 'Coeur de Ville',
+  // BNP Paribas REIM
+  'Pierre 48', 'France Investipierre', 'Accimmo Pierre',
+  // Swiss Life REIM
+  'Épargne Foncière', 'Pierre Expansion Santé', 'Capimmo', 'Swisslife ESG Immobi Invest',
+  // Amundi
+  'Interpierre France', 'Interpierre Europe', 'Novapierre Résidentiel', 'Novapierre Allemagne', 'Novapierre Allemagne 2',
+  // Norma Capital
+  'Vendôme Régions', 'Fair Invest',
+  // Praemia (ex-La Française)
+  'LF Grand Paris Patrimoine', 'LF Opportunité Immo', 'Praemia Convictions',
+  // Altixia
+  'Altixia Cadence XII', 'Altixia Commerces',
+  // Atland Voisin
+  'Foncière Rémusat', 'Opus Real Estate',
+  // Arkéa REIM
+  'Territoires Durables', 'Patrimmo Commerce', 'Patrimmo Croissance',
+  // Advenis REIM
+  'Elialys', 'Eurovalys',
+  // Remake
+  'Remake Live',
+  // Transitions
+  'Transitions Europe',
+  // Sogenial
+  'Cœur de Ville', 'Cœur d\'Europe',
+  // Fiducial
+  'Fiducial Gérance', 'Fiducial Retraite',
+  // MNK Partners
+  'MNK One',
+  // Keys REIM
+  'Keys Eurozone', 'Keys Impact',
+  // Groupama REIM
+  'Groupama Gan Pierre 1',
+  // Paref Gestion
+  'Interpierre Europe', 'Novapierre 1',
+  // Perial
+  'Euro Caralis', 'PF Hospitalité Europe',
+  // Theoreim
+  'Theoreim Logistique',
+  // Consultim
+  'Cœur de Régions',
+  // Sofidy
+  'Efimmo Santé',
+  // Aestiam
+  'Aestiam Pierre Rendement', 'Aestiam Placement Pierre', 'Aestiam Cap Santé',
+  // Alderan
+  'Alderan Commerces', 'Commerces Régions',
+  // Fiducial Gerance
+  'Selectinvest 1', 'Selectinvest 2',
+  // Patrimmo
+  'Patrimmo Commerces',
+  // Générations Pierre
+  'Générations Pierre',
+  // Greenman Arth
+  'Greenman Arth',
+  // Log In
+  'Log In',
+  // Idéal Résidence
+  'Idéal Résidence',
 ];
 const CRYPTO_LOCAL = [
   { symbol: 'BTC',   name: 'Bitcoin',    id: 'bitcoin',            thumb: '' },
@@ -273,13 +340,13 @@ export default function Modals({ T, data }) {
     const ENV_COMPAT = {
       stock:     ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
       etf:       ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
-      crypto:    ['Crypto'],
       commodity: ['Matières premières'],
     };
+    const isCryptoEnv = inv => ['crypto', 'cryptomonnaies', 'cryptomonnaie'].includes((inv.type || '').toLowerCase());
     const compatEnvs = asset => {
-      const allowed = asset._kind === 'crypto' ? ENV_COMPAT.crypto
-        : asset._kind === 'commodity' ? ENV_COMPAT.commodity
-        : (asset.type === 'ETF' ? ENV_COMPAT.etf : ENV_COMPAT.stock);
+      if (asset._kind === 'crypto') return (investments || []).filter(isCryptoEnv);
+      if (asset._kind === 'commodity') return (investments || []).filter(inv => inv.type === 'Matières premières');
+      const allowed = asset.type === 'ETF' ? ENV_COMPAT.etf : ENV_COMPAT.stock;
       return (investments || []).filter(inv => allowed.includes(inv.type));
     };
 
@@ -451,8 +518,9 @@ export default function Modals({ T, data }) {
       ? COMMODITY_KEYWORDS.filter(c => c.keywords.some(kw => qWords.includes(kw)))
           .map(c => ({ _kind: 'commodity', name: c.name, ticker: c.ticker, commodityType: c.commodityType, icon: c.icon }))
       : [];
+    const qNorm = normalizeStr(addInvSearch);
     const scpiMatches = addInvSearch.length >= 2
-      ? SCPI_LIST.filter(s => s.toLowerCase().includes(qLow)).map(s => ({ _kind: 'scpi', name: s }))
+      ? SCPI_LIST.filter(s => normalizeStr(s).includes(qNorm)).map(s => ({ _kind: 'scpi', name: s }))
       : [];
     const apiStocks  = addInvResults.filter(r => r._kind === 'stock');
     const apiCryptos = addInvResults.filter(r => r._kind === 'crypto');
