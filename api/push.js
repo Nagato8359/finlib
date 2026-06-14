@@ -1,5 +1,6 @@
-// GET/POST /api/push?action=subscribe  — upsert web push subscription
-// POST     /api/push?action=send       — internal send (requires Authorization: Bearer CRON_SECRET)
+// GET/POST /api/push?action=subscribe        — upsert web push subscription
+// POST     /api/push?action=send             — internal send (requires Authorization: Bearer CRON_SECRET)
+// GET      /api/push?action=test&user_id=XXX — send a test notification (requires Authorization: Bearer CRON_SECRET)
 const { supabaseAdmin } = require('./_supabase');
 const { sendPushToUser } = require('./_push');
 
@@ -38,5 +39,22 @@ module.exports = async function handler(req, res) {
     return res.json({ ok: true });
   }
 
-  return res.status(400).json({ error: 'action must be subscribe or send' });
+  if (action === 'test') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const auth = req.headers.authorization;
+    if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { user_id } = req.query;
+    if (!user_id) return res.status(400).json({ error: 'Missing user_id' });
+    await sendPushToUser(
+      user_id,
+      '🎉 Capitaly - Test notification',
+      'Les notifications fonctionnent sur votre appareil !',
+      '/'
+    );
+    return res.json({ ok: true });
+  }
+
+  return res.status(400).json({ error: 'action must be subscribe, send or test' });
 };
