@@ -116,7 +116,7 @@ export default function Accueil({ T, data, setTab }) {
       const isCrypto = /crypto/i.test(inv.type || '');
       (inv.positions || []).forEach(p => {
         const key = (p.isin || p.ticker || '').toUpperCase();
-        if (!key || seen.has(key)) return;
+        if (!key || seen.has(key) || key.startsWith('REALTOKEN')) return;
         seen.add(key);
         const cacheKey = `${key}__${perfTf}`;
         if (cacheKey in perfPricesCache.current) return;
