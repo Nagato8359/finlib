@@ -66,6 +66,10 @@ module.exports = async function handler(req, res) {
   try {
     const upperKey = key.toUpperCase();
 
+    if (upperKey.startsWith('REALTOKEN') || key.startsWith('realtoken')) {
+      return res.status(200).json({ change_pct: 0, price: null, skipped: true });
+    }
+
     if (UNSUPPORTED_TICKERS.includes(upperKey)) {
       return res.json({ changePct: 0, key, tf, unsupported: true });
     }
