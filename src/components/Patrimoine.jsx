@@ -38,6 +38,7 @@ export default function Patrimoine({ T, data }) {
   const { t } = useTranslation();
   const [section, setSection] = useState('invest');
   const [loanSim, setLoanSim] = useState({});
+  const [confirmDel, setConfirmDel] = useState(null);
   const [rentData, setRentData]       = useState(null);
   const [rentLoading, setRentLoading] = useState(false);
   const [rentError, setRentError]     = useState('');
@@ -126,7 +127,7 @@ export default function Patrimoine({ T, data }) {
             <span style={{ fontSize: 11, background: typeColor + '22', color: typeColor, padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>{typeIcon} {type}</span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button onClick={() => openEditPortfolio(cur)} style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}>{t('inv_edit')}</button>
-              <button onClick={() => setDrillInv(null) || delInv(cur.id)} style={{ ...S.btnD, fontSize: 11, padding: '4px 10px' }}>✕</button>
+              <button onClick={() => setConfirmDel({ msg: `Supprimer l'enveloppe "${cur.name}" ? Cette action est irréversible et supprimera tous les actifs associés.`, fn: () => { setDrillInv(null); delInv(cur.id); } })} style={{ ...S.btnD, fontSize: 11, padding: '4px 10px' }}>✕</button>
             </div>
           </div>
 
@@ -339,7 +340,7 @@ export default function Patrimoine({ T, data }) {
                         </div>
                         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                           <button onClick={() => { setEditItem({ posId: pos.id }); setPosForm({ ...mkPos(), posType: invFormType(cur), ticker: pos.ticker || '', name: pos.name || '', shares: pos.shares, buyPrice: pos.buyPrice, currentPrice: pos.currentPrice, divYield: pos.divYield ?? '', isin: pos.isin || '', exchange: pos.exchange || '', currency: pos.currency || 'EUR', platform: pos.platform || '', notes: pos.notes || '', divRate: pos.divRate || '', exDivDate: pos.exDivDate || '', divFrequency: pos.divFrequency || '' }); setModal('drill'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
-                          <button onClick={() => setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, positions: inv.positions.filter(x => x.id !== pos.id) }))} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
+                          <button onClick={() => setConfirmDel({ msg: `Supprimer "${pos.name || pos.ticker}" de cette enveloppe ? Cette action est irréversible.`, fn: () => setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, positions: inv.positions.filter(x => x.id !== pos.id) })) })} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
                         </div>
                       </div>
                     );
@@ -444,7 +445,7 @@ export default function Patrimoine({ T, data }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontWeight: 700, color: '#4ade80' }}>+{fEur(d.amount)}</span>
                         <span style={{ fontSize: 10, color: d.gross ? '#fb923c' : '#a78bfa', background: d.gross ? 'rgba(251,146,60,.12)' : 'rgba(167,139,250,.12)', padding: '1px 6px', borderRadius: 4 }}>{d.gross ? t('gross') : t('net')}</span>
-                        <button onClick={() => delDividend(cur.id, d.id)} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
+                        <button onClick={() => setConfirmDel({ msg: `Supprimer ce dividende de ${fEur(d.amount)} ? Cette action est irréversible.`, fn: () => delDividend(cur.id, d.id) })} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
                       </div>
                     </div>
                   ))}
@@ -558,7 +559,7 @@ export default function Patrimoine({ T, data }) {
                       </div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                         <button onClick={e => { e.stopPropagation(); openEditPortfolio(inv); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
-                        <button onClick={e => { e.stopPropagation(); delInv(inv.id); }} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
+                        <button onClick={e => { e.stopPropagation(); setConfirmDel({ msg: `Supprimer l'enveloppe "${inv.name}" ? Cette action est irréversible et supprimera tous les actifs associés.`, fn: () => delInv(inv.id) }); }} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
                         <button onClick={e => { e.stopPropagation(); setDivInvId(inv.id); setModal('div'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10, color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>{t('inv_add_dividend')}</button>
                       </div>
                     </div>
@@ -652,7 +653,7 @@ export default function Patrimoine({ T, data }) {
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <button onClick={() => openEditCash(c)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 11 }}>✎</button>
-                        <button onClick={() => delCash(c.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 11 }}>✕</button>
+                        <button onClick={() => setConfirmDel({ msg: `Supprimer le compte "${c.name}" ? Cette action est irréversible.`, fn: () => delCash(c.id) })} style={{ ...S.btnD, padding: '3px 8px', fontSize: 11 }}>✕</button>
                       </div>
                     </div>
                   </div>
@@ -773,7 +774,7 @@ export default function Patrimoine({ T, data }) {
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={() => openEditHealth(h)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 10 }}>✎</button>
-                          <button onClick={() => delHealth(h.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 10 }}>✕</button>
+                          <button onClick={() => setConfirmDel({ msg: `Supprimer "${h.name}" du patrimoine matériel ? Cette action est irréversible.`, fn: () => delHealth(h.id) })} style={{ ...S.btnD, padding: '3px 8px', fontSize: 10 }}>✕</button>
                         </div>
                       </div>
                     );
@@ -819,7 +820,7 @@ export default function Patrimoine({ T, data }) {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                           <button onClick={() => openEditListing(l)} style={{ ...S.btnS, padding: '2px 7px', fontSize: 10 }}>✎</button>
-                          <button onClick={() => delListing(l.id)} style={{ ...S.btnD, padding: '2px 7px', fontSize: 10 }}>✕</button>
+                          <button onClick={() => setConfirmDel({ msg: `Supprimer l'annonce "${l.name}" ? Cette action est irréversible.`, fn: () => delListing(l.id) })} style={{ ...S.btnD, padding: '2px 7px', fontSize: 10 }}>✕</button>
                           <button onClick={() => markSold(l)} style={{ ...S.btnG, padding: '2px 7px', fontSize: 10 }}>{t('mat_sell_btn')}</button>
                         </div>
                       </div>
@@ -862,7 +863,7 @@ export default function Patrimoine({ T, data }) {
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: x.profit >= 0 ? '#4ade80' : '#f87171' }}>{x.profit >= 0 ? '+' : ''}{fEur(x.profit)}</div>
                         </div>
-                        <button onClick={() => setSoldHistory(p => p.filter(s => s.id !== x.id))} style={{ ...S.btnD, padding: '2px 6px', fontSize: 10 }}>✕</button>
+                        <button onClick={() => setConfirmDel({ msg: `Supprimer "${x.name}" de l'historique des ventes ? Cette action est irréversible.`, fn: () => setSoldHistory(p => p.filter(s => s.id !== x.id)) })} style={{ ...S.btnD, padding: '2px 6px', fontSize: 10 }}>✕</button>
                       </div>
                     </div>
                   </div>
@@ -912,7 +913,7 @@ export default function Patrimoine({ T, data }) {
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => openEditLoan(l)} style={{ ...S.btnS, padding: '3px 8px', fontSize: 11 }}>✎</button>
-                      <button onClick={() => delLoan(l.id)} style={{ ...S.btnD, padding: '3px 8px', fontSize: 11 }}>✕</button>
+                      <button onClick={() => setConfirmDel({ msg: `Supprimer le crédit "${l.name}" ? Cette action est irréversible.`, fn: () => delLoan(l.id) })} style={{ ...S.btnD, padding: '3px 8px', fontSize: 11 }}>✕</button>
                     </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 14 }}>
@@ -1098,29 +1099,43 @@ export default function Patrimoine({ T, data }) {
   };
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>{t('nav_patrimoine')}</h1>
-          <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>
-            {linkedLoanDebt > 0 ? (
-              <>
-                {t('gross')} : <strong style={{ color: T.accent }}>{fEur(patrimoine)}</strong>
-                {' · '}{t('net')} : <strong style={{ color: '#4ade80' }}>{fEur(patrimoine - linkedLoanDebt)}</strong>
-                <span style={{ fontSize: 11, color: T.textFaint }}> {t('pat_after_immo')}</span>
-              </>
-            ) : (
-              <>{t('pat_total_label')} : <strong style={{ color: T.accent }}>{fEur(patrimoine)}</strong></>
-            )}
-          </p>
+    <>
+      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>{t('nav_patrimoine')}</h1>
+            <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>
+              {linkedLoanDebt > 0 ? (
+                <>
+                  {t('gross')} : <strong style={{ color: T.accent }}>{fEur(patrimoine)}</strong>
+                  {' · '}{t('net')} : <strong style={{ color: '#4ade80' }}>{fEur(patrimoine - linkedLoanDebt)}</strong>
+                  <span style={{ fontSize: 11, color: T.textFaint }}> {t('pat_after_immo')}</span>
+                </>
+              ) : (
+                <>{t('pat_total_label')} : <strong style={{ color: T.accent }}>{fEur(patrimoine)}</strong></>
+              )}
+            </p>
+          </div>
         </div>
+        <SubNav />
+        {section === 'invest' && renderInvest()}
+        {section === 'cash' && renderCash()}
+        {section === 'materiel' && renderMateriel()}
+        {section === 'loans' && renderLoans()}
+        {section === 'projection' && renderProjection()}
       </div>
-      <SubNav />
-      {section === 'invest' && renderInvest()}
-      {section === 'cash' && renderCash()}
-      {section === 'materiel' && renderMateriel()}
-      {section === 'loans' && renderLoans()}
-      {section === 'projection' && renderProjection()}
-    </div>
+      {confirmDel && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: T.bg3, border: '1px solid rgba(248,113,113,.35)', borderRadius: 16, padding: '26px 28px', maxWidth: 400, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,.6)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10, textAlign: 'center' }}>Confirmer la suppression</div>
+            <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 22, textAlign: 'center', lineHeight: 1.55 }}>{confirmDel.msg}</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button onClick={() => setConfirmDel(null)} style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, color: T.textMuted, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
+              <button onClick={() => { confirmDel.fn(); setConfirmDel(null); }} style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 10, color: '#fff', padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

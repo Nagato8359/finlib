@@ -6,7 +6,6 @@ import { useTranslation } from '../hooks/useTranslation';
 // ── Local atoms ───────────────────────────────────────────────────────────────
 const CMShell = ({ T, title, icon, color, onClose, maxWidth = 560, children }) => (
   <div
-    onClick={e => e.target === e.currentTarget && onClose()}
     style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: 24, paddingBottom: 24, overflowY: 'auto' }}
   >
     <div style={{ background: T.bg3, border: `1px solid ${color}30`, borderRadius: 20, width: '100%', maxWidth, margin: '0 16px', overflow: 'hidden', boxShadow: `0 32px 80px rgba(0,0,0,.65), 0 0 0 1px ${color}18`, animation: 'slideUp .2s ease' }}>
@@ -198,6 +197,7 @@ export default function Modals({ T, data }) {
   const [addInvStep, setAddInvStep]             = useState(0);
   const [addInvForm, setAddInvForm]             = useState({ shares: '', buyPrice: '', currentPrice: '', purchaseDate: today() });
   const [addInvPriceFetching, setAddInvPriceFetching] = useState(false);
+  const [confirmDel, setConfirmDel]             = useState(null);
   const addInvTimerRef                          = useRef(null);
   const addInvPendingAssetRef                   = useRef(null);  // asset kept alive during portfolio creation detour
   const invCountRef                             = useRef(0);     // snapshot of investments.length before portfolio creation
@@ -258,7 +258,7 @@ export default function Modals({ T, data }) {
   };
 
   if (!modal) return null;
-  const close = reset => { setModal(null); setEditItem(null); reset && reset(); };
+  const close = reset => { setModal(null); setEditItem(null); setConfirmDel(null); reset && reset(); };
 
   // ── Transaction ──────────────────────────────────────────────────────────────
   if (modal === 'tx') {
@@ -1229,8 +1229,21 @@ export default function Modals({ T, data }) {
     const c   = '#10B981';
     const f   = fa(c);
     const inv = investments.find(i => i.id === divInvId);
-    const closeDiv = () => { setModal(null); setDivForm({ date: today(), amount: '', gross: true, note: '' }); };
+    const closeDiv = () => { setModal(null); setDivForm({ date: today(), amount: '', gross: true, note: '' }); setConfirmDel(null); };
+    const ConfirmDialog = () => confirmDel ? (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ background: T.bg3, border: '1px solid rgba(248,113,113,.35)', borderRadius: 16, padding: '26px 28px', maxWidth: 380, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,.6)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10, textAlign: 'center' }}>Confirmer la suppression</div>
+          <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 22, textAlign: 'center', lineHeight: 1.55 }}>{confirmDel.msg}</div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button onClick={() => setConfirmDel(null)} style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, color: T.textMuted, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
+            <button onClick={() => { confirmDel.fn(); setConfirmDel(null); }} style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 10, color: '#fff', padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Supprimer</button>
+          </div>
+        </div>
+      </div>
+    ) : null;
     return (
+      <>
       <CMShell T={T} title={`${t('modal_div_title')} — ${inv?.name || ''}`} icon="💸" color={c} onClose={closeDiv}>
         <FRow cols={2}>
           <FField style={f} label={t('div_date')}><input type="date" style={S.inp} value={divForm.date} onChange={e => setDivForm(p => ({ ...p, date: e.target.value }))} /></FField>
@@ -1260,7 +1273,7 @@ export default function Modals({ T, data }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ color: '#4ade80', fontWeight: 600 }}>+{fEur(d.amount)}</span>
                     <span style={{ fontSize: 10, color: d.gross ? '#fb923c' : '#a78bfa', background: d.gross ? 'rgba(251,146,60,.12)' : 'rgba(167,139,250,.12)', padding: '1px 6px', borderRadius: 4 }}>{d.gross ? t('gross') : t('net')}</span>
-                    <button onClick={() => data.delDividend(divInvId, d.id)} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
+                    <button onClick={() => setConfirmDel({ msg: `Supprimer ce dividende de ${fEur(d.amount)} ? Cette action est irréversible.`, fn: () => data.delDividend(divInvId, d.id) })} style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}>✕</button>
                   </div>
                 </div>
               ))}
@@ -1272,6 +1285,8 @@ export default function Modals({ T, data }) {
           <button onClick={closeDiv} style={S.btnS}>{t('btn_close')}</button>
         </div>
       </CMShell>
+      <ConfirmDialog />
+      </>
     );
   }
 
