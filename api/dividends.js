@@ -1,6 +1,6 @@
 // GET /api/dividends?tickers=AAPL,TTE,BNP
 // Reads from dividend_events Supabase table.
-// Falls back to immediate Yahoo Finance fetch (cached 24h) if ticker has no rows.
+// Falls back to Yahoo Finance (with auto-resolved suffix via search API) if ticker has no rows.
 const { supabaseAdmin } = require('./_supabase');
 const { getCached, setCached } = require('./_cache');
 const { yfGetWithFallback } = require('./_priceUtils');
@@ -26,6 +26,30 @@ function detectFrequency(sortedDates) {
 }
 
 const FREQ_DAYS = { mensuel: 30, trimestriel: 91, semestriel: 183, annuel: 365 };
+
+// Resolve the canonical Yahoo Finance symbol (with exchange suffix) via search API.
+// BNP → BNP.PA, TTE → TTE.PA, ASML → ASML.AS, etc.
+// Cached 30 days. Empty string cached as negative (use raw ticker).
+async function resolveYahooSymbol(ticker) {
+  const cacheKey = `yticker:${ticker}`;
+  try {
+    const cached = await getCached(cacheKey);
+    if (cached !== null) return cached || ticker;
+
+    const data = await yfGetWithFallback(
+      `/v1/finance/search?q=${encodeURIComponent(ticker)}&quotesCount=1&newsCount=0&enableFuzzyQuery=false`
+    );
+    const symbol = data?.quotes?.[0]?.symbol;
+    if (symbol) {
+      await setCached(cacheKey, symbol, 30 * 86400);
+      return symbol;
+    }
+    await setCached(cacheKey, '', 30 * 86400);
+    return ticker;
+  } catch {
+    return ticker;
+  }
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -81,14 +105,18 @@ module.exports = async function handler(req, res) {
   const missing = tickerList.filter(t => !output[t]);
   if (missing.length) {
     const eurusd = await getEURUSD();
-    await Promise.allSettled(missing.map(async ticker => {
+
+    // Resolve all missing tickers to their canonical Yahoo symbols in parallel
+    const resolved = await Promise.all(missing.map(async t => [t, await resolveYahooSymbol(t)]));
+
+    await Promise.allSettled(resolved.map(async ([ticker, yfSymbol]) => {
       try {
         const cacheKey = `div2:${ticker}`;
         const cached = await getCached(cacheKey);
         if (cached) { output[ticker] = cached; return; }
 
         const data = await yfGetWithFallback(
-          `/v8/finance/chart/${encodeURIComponent(ticker)}?events=dividends&range=2y&interval=1mo`
+          `/v8/finance/chart/${encodeURIComponent(yfSymbol)}?events=dividends&range=2y&interval=1mo`
         );
         const result = data?.chart?.result?.[0];
         if (!result) {
@@ -140,7 +168,7 @@ module.exports = async function handler(req, res) {
         await setCached(cacheKey, payload, 86400);
         output[ticker] = payload;
       } catch (e) {
-        console.error(`[dividends] Yahoo fallback ${ticker}:`, e.message);
+        console.error(`[dividends] Yahoo fallback ${ticker} (${yfSymbol}):`, e.message);
       }
     }));
   }
