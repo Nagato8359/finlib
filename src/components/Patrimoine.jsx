@@ -372,10 +372,21 @@ export default function Patrimoine({ T, data }) {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <AssetLogo sources={posLogoSrcs} letter={posLogoLetter} color={posLogoColor} size={32} />
                             <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3, flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{pos.ticker}</span>
                                 <span style={{ color: T.textMuted, fontSize: 12 }}>{pos.name}</span>
                                 {hasLiveFeed && data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: T.accent + '33', color: T.accent, padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
+                                {pos.exDivDate && (() => {
+                                  const dUntil = Math.round((new Date(pos.exDivDate) - new Date()) / 86400000);
+                                  if (dUntil < -7 || dUntil > 30) return null;
+                                  const [, exM, exD] = pos.exDivDate.split('-');
+                                  const estAmt = pos.divRate && pos.shares ? parseFloat((parseFloat(pos.divRate) * pos.shares).toFixed(2)) : null;
+                                  return (
+                                    <span style={{ fontSize: 9, background: '#F59E0B22', color: '#F59E0B', padding: '1px 6px', borderRadius: 4, fontWeight: 600, flexShrink: 0 }}>
+                                      📅 {dUntil <= 0 ? `ex-div ${exD}/${exM}` : `div dans ${dUntil}j`}{estAmt ? ` · ~${fEur(estAmt)}` : ''}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <div style={{ fontSize: 11, color: T.textFaint }}>
                                 {isCryptoType ? `Qté ${+parseFloat(pos.shares).toFixed(4)}` : `${+parseFloat(pos.shares).toFixed(4)} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
