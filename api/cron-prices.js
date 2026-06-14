@@ -1,3 +1,4 @@
+const { Redis } = require('@upstash/redis');
 const { supabaseAdmin } = require('./_supabase');
 const { yfGetWithFallback, CRYPTO_MAP, isinToTicker } = require('./_priceUtils');
 const { getCached, setCached, delCached } = require('./_cache');
@@ -83,6 +84,34 @@ async function fetchCryptoEntry(coinId) {
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
+
+  // ── action=clear-cache : purge all realt:* keys from Redis ──────────────────
+  if (req.query.action === 'clear-cache') {
+    if (!process.env.CRON_SECRET || req.query.key !== process.env.CRON_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      return res.status(500).json({ error: 'Redis not configured' });
+    }
+    const redis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
+    try {
+      const found = [];
+      let cursor = 0;
+      do {
+        const [next, keys] = await redis.scan(cursor, { match: 'realt:*', count: 100 });
+        cursor = parseInt(next, 10);
+        found.push(...keys);
+      } while (cursor !== 0);
+      const extra = ['realt:csv:v1', 'realt:v3:tokenlist', 'realt:tokenlist:xdai:v2'];
+      const toDelete = [...new Set([...found, ...extra])];
+      const deleted = toDelete.length > 0 ? await redis.del(...toDelete) : 0;
+      console.log(`[cron-prices] clear-cache: deleted ${deleted} realt: keys`);
+      return res.json({ ok: true, deleted, keys: toDelete });
+    } catch (err) {
+      console.error('[cron-prices] clear-cache error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  }
 
   // Vercel injects CRON_SECRET automatically for scheduled invocations
   const auth = req.headers.authorization;

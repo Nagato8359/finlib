@@ -86,7 +86,7 @@ export default function Patrimoine({ T, data }) {
   const loadRents = useCallback((inv, forceRefresh = false) => {
     if (!inv || inv.type !== 'RealT' || !/^0x[0-9a-fA-F]{40}$/i.test(inv.platform || '')) return;
     setRentLoading(true); setRentData(null); setRentError('');
-    const url = `/api/realt-rents?address=${inv.platform}${forceRefresh ? '&refresh=true' : ''}`;
+    const url = `/api/realt?action=rents&address=${inv.platform}${forceRefresh ? '&refresh=true' : ''}`;
     fetch(url)
       .then(r => r.json())
       .then(d => { if (d.error) { setRentError(d.error); } else { setRentData(d); } })

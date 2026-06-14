@@ -352,7 +352,7 @@ export default function Modals({ T, data }) {
     if (!/^0x[0-9a-fA-F]{40}$/i.test(a)) { setRealtErr('Adresse invalide — format 0x + 40 hex'); return; }
     setRealtLoading(true); setRealtErr(''); setRealtTokens(null);
     try {
-      const res = await fetch(`/api/realt-wallet?address=${a}`);
+      const res = await fetch(`/api/realt?action=wallet&address=${a}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
       setRealtTokens(d.tokens || []);

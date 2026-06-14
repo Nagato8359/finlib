@@ -63,7 +63,7 @@ export const registerPush = async (userId) => {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
-    await fetch('/api/push-subscribe', {
+    await fetch('/api/push?action=subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription: sub.toJSON(), user_id: userId }),
