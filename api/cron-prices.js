@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('./_supabase');
 const { yfGetWithFallback, CRYPTO_MAP, isinToTicker } = require('./_priceUtils');
+const { getCached, delCached } = require('./_cache');
 
 const COMMODITY_TICKER_MAP = {
   'Or': 'GC=F', 'Argent': 'SI=F', 'Platine': 'PL=F',
@@ -219,7 +220,28 @@ module.exports = async function handler(req, res) {
       else console.log(`[cron-prices] patrimoine_history: ${historyEntries.length} snapshots`);
     }
 
-    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length });
+    // 7. Invalidate stale RealT rent caches (last cached rent older than 7 days)
+    let rentsInvalidated = 0;
+    for (const wallet of realtWallets) {
+      try {
+        const cacheKey = `realt:rents:${wallet}`;
+        const cached = await getCached(cacheKey);
+        if (!cached || !cached.allRents?.length) continue;
+        const lastRentDate = cached.allRents[0]?.date;
+        if (!lastRentDate) continue;
+        const daysSince = (Date.now() - new Date(lastRentDate).getTime()) / 86400000;
+        if (daysSince > 7) {
+          await delCached(cacheKey);
+          rentsInvalidated++;
+          console.log(`[cron-prices] RealT rents: invalidated cache for ${wallet} (last rent ${Math.round(daysSince)}d ago)`);
+        }
+      } catch (e) {
+        console.error(`[cron-prices] RealT rent cache check ${wallet}:`, e.message);
+      }
+    }
+    if (realtWallets.size) console.log(`[cron-prices] RealT rents: ${rentsInvalidated}/${realtWallets.size} cache(s) invalidated`);
+
+    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length, rentsInvalidated });
   } catch (err) {
     console.error('[cron-prices] fatal:', err.message);
     res.status(500).json({ error: err.message });

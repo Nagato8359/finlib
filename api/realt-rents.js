@@ -57,10 +57,11 @@ module.exports = async function handler(req, res) {
 
   const addr = address.toLowerCase();
   const cacheKey = `realt:rents:${addr}`;
+  const forceRefresh = req.query.refresh === 'true';
 
   try {
     const cached = await getCached(cacheKey);
-    if (cached) return res.json({ ...cached, cached: true });
+    if (cached && !forceRefresh) return res.json({ ...cached, cached: true });
 
     const [{ items: transfers, pagesScanned }, eurusd] = await Promise.all([fetchAllTransfers(addr), getEURUSD()]);
 
@@ -126,7 +127,12 @@ module.exports = async function handler(req, res) {
       debug,
     };
 
-    if (allRents.length > 0) await setCached(cacheKey, result, 1800);
+    const prevCount = cached?.count ?? 0;
+    if (allRents.length !== prevCount) {
+      console.log(`[realt-rents] ${addr}: rent count ${prevCount} → ${allRents.length}`);
+    }
+
+    if (allRents.length > 0) await setCached(cacheKey, result, 604800); // 7 days
     res.json(result);
   } catch (err) {
     console.error('[realt-rents] fatal:', err.message);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { KPI, TT, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
@@ -66,18 +66,23 @@ export default function Patrimoine({ T, data }) {
     setPosForm, mkPos, setInvestments,
   } = data;
 
-  // Fetch rent history when drilling into a RealT portfolio with a wallet address
-  useEffect(() => {
-    if (!drillInv) { setRentData(null); setRentError(''); return; }
-    const inv = data.investments?.find(i => i.id === drillInv.id) || drillInv;
-    if (inv.type !== 'RealT' || !/^0x[0-9a-fA-F]{40}$/i.test(inv.platform || '')) return;
+  const loadRents = useCallback((inv, forceRefresh = false) => {
+    if (!inv || inv.type !== 'RealT' || !/^0x[0-9a-fA-F]{40}$/i.test(inv.platform || '')) return;
     setRentLoading(true); setRentData(null); setRentError('');
-    fetch(`/api/realt-rents?address=${inv.platform}`)
+    const url = `/api/realt-rents?address=${inv.platform}${forceRefresh ? '&refresh=true' : ''}`;
+    fetch(url)
       .then(r => r.json())
       .then(d => { if (d.error) { setRentError(d.error); } else { setRentData(d); } })
       .catch(e => setRentError(e.message))
       .finally(() => setRentLoading(false));
-  }, [drillInv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch rent history when drilling into a RealT portfolio with a wallet address
+  useEffect(() => {
+    if (!drillInv) { setRentData(null); setRentError(''); return; }
+    const inv = data.investments?.find(i => i.id === drillInv.id) || drillInv;
+    loadRents(inv);
+  }, [drillInv?.id, loadRents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const SubNav = () => (
     <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
@@ -348,11 +353,23 @@ export default function Patrimoine({ T, data }) {
           {cur.type === 'RealT' && /^0x[0-9a-fA-F]{40}$/i.test(cur.platform || '') && (
             <div style={{ ...S.card }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Loyers reçus</h3>
-                <div style={{ display: 'flex', gap: 4 }}>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Loyers reçus</h3>
+                  {rentData?.allRents?.[0]?.date && (
+                    <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                      Dernier loyer : {rentData.allRents[0].date}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   {['3M', '6M', '12M', 'TOUT'].map(tf => (
                     <button key={tf} onClick={() => setRentTf(tf)} style={{ background: rentTf === tf ? 'rgba(74,222,128,.12)' : T.cardBg, border: `1px solid ${rentTf === tf ? '#4ade80' : T.cardBorder}`, color: rentTf === tf ? '#4ade80' : T.textMuted, borderRadius: 8, padding: '3px 9px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>{tf}</button>
                   ))}
+                  <button
+                    onClick={() => loadRents(cur, true)}
+                    disabled={rentLoading}
+                    style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, color: T.textMuted, borderRadius: 8, padding: '3px 9px', fontSize: 10, cursor: rentLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: rentLoading ? 0.5 : 1 }}
+                  >⟳ Actualiser</button>
                 </div>
               </div>
               {rentLoading && <div style={{ textAlign: 'center', padding: '14px 0', color: T.textMuted, fontSize: 12 }}>Chargement…</div>}

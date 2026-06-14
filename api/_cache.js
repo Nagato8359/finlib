@@ -24,4 +24,11 @@ async function setCached(key, value, ttl) {
   } catch {}
 }
 
-module.exports = { getCached, setCached };
+async function delCached(key) {
+  if (!redis) return;
+  try {
+    await redis.del(key);
+  } catch {}
+}
+
+module.exports = { getCached, setCached, delCached };
