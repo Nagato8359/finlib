@@ -15,6 +15,10 @@ import Budget from './components/Budget';
 import Flux from './components/Flux';
 import Investir from './components/Investir';
 import IATab from './components/IATab';
+import Projection from './components/outils/Projection';
+import CalendrierDividendes from './components/outils/CalendrierDividendes';
+import RecapFiscal from './components/outils/RecapFiscal';
+import Simulateur from './components/outils/Simulateur';
 import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
 import Tutorial from './components/Tutorial';
@@ -194,13 +198,30 @@ export default function App() {
     );
   }
 
+  const ComingSoon = ({ icon, title, desc }) => (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16, textAlign: 'center' }}>
+      <div style={{ fontSize: 52 }}>{icon}</div>
+      <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text }}>{title}</h1>
+      <p style={{ fontSize: 13, color: T.textMuted, maxWidth: 360, lineHeight: 1.6 }}>{desc || 'Fonctionnalité en cours de développement. Disponible prochainement.'}</p>
+      <div style={{ fontSize: 11, color: T.textFaint, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: '6px 14px' }}>🚧 En construction</div>
+    </div>
+  );
+
   const tabContent = {
-    accueil: <Accueil T={T} data={data} setTab={setTab} />,
+    accueil:    <Accueil T={T} data={data} setTab={setTab} />,
     patrimoine: <Patrimoine T={T} data={data} />,
-    budget: <Budget T={T} data={data} />,
-    flux: <Flux T={T} data={data} />,
-    investir: <Investir T={T} />,
-    ia: <IATab T={T} data={data} />,
+    budget:     <Budget T={T} data={data} />,
+    flux:       <Flux T={T} data={data} />,
+    investir:   <Investir T={T} />,
+    ia:         <IATab T={T} data={data} />,
+    // ── Outils ──────────────────────────────────────────────────────────────
+    'projection':            <Projection T={T} data={data} />,
+    'calendrier-dividendes': <CalendrierDividendes T={T} data={data} />,
+    'recap-fiscal':          <RecapFiscal T={T} data={data} />,
+    'simulateur':            <Simulateur T={T} />,
+    'rebalancing':           <ComingSoon icon="🎯" title="Rebalancing" desc="Analysez les écarts entre votre allocation cible et votre allocation actuelle, et recevez des suggestions de rééquilibrage." />,
+    'veille-marche':         <ComingSoon icon="📰" title="Veille marché" desc="Suivez les actualités financières et les indicateurs de marché clés pour vos actifs." />,
+    'optimisation-fiscale':  <ComingSoon icon="💰" title="Optimisation fiscale" desc="Découvrez les stratégies pour optimiser votre fiscalité : enveloppes fiscales, PEA, assurance-vie, PER…" />,
   };
 
   return (
