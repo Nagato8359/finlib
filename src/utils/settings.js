@@ -19,17 +19,10 @@ export const updateSettings = (prefs) => {
 
 export const getSettings = () => ({ ..._s });
 
-export const fEur = (n, compact = false) => {
+export const fEur = (n) => {
   if (n == null || isNaN(n)) return '—';
   const rate = RATES[_s.currency] || 1;
-  const sym  = SYMBOLS[_s.currency] || '€';
   const converted = n * rate;
-  if (compact) {
-    const abs = Math.abs(converted);
-    if (abs >= 1_000_000) return (converted / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M' + sym;
-    if (abs >= 1_000)     return (converted / 1_000).toFixed(1).replace(/\.0$/, '') + 'k' + sym;
-    return Math.round(converted) + sym;
-  }
   const decimals = _s.currency === 'JPY' ? 0 : 2;
   return new Intl.NumberFormat(LOCALES[_s.currency] || 'fr-FR', {
     style: 'currency',

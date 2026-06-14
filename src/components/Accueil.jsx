@@ -482,7 +482,7 @@ export default function Accueil({ T, data, setTab }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} vertical={false} />
               <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={xTickInterval} />
-              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k€` : `${Math.round(v)}€`} width={52} domain={([dMin, dMax]) => { const pad = (dMax - dMin) * 0.1 || 1000; return [Math.floor(dMin - pad), Math.ceil(dMax + pad * 0.2)]; }} />
+              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v)} width={80} domain={([dMin, dMax]) => { const pad = (dMax - dMin) * 0.1 || 1000; return [Math.floor(dMin - pad), Math.ceil(dMax + pad * 0.2)]; }} />
               <Tooltip content={chartTf === '1J' ? intradayTooltip : patrimoineTooltip} />
               <Area type="monotone" dataKey="Patrimoine" stroke={chartColor} fill="url(#patG)" strokeWidth={2.5} dot={false} />
             </AreaChart>
