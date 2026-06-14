@@ -154,31 +154,56 @@ const AssetLogo = ({ sources = [], letter, color, size = 32 }) => {
   return <img src={sources[idx]} alt="" onError={() => setIdx(i => i + 1)} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'contain', background: '#fff', padding: 2, boxSizing: 'border-box', flexShrink: 0 }} />;
 };
 
-// Ticker → company domain (used for Google favicons fallback)
-const TICKER_DOMAIN = {
-  // CAC40 / SBF120
-  TTE: 'totalenergies.com', AI: 'airbus.com', BNP: 'bnpparibas.com',
-  BN: 'danone.com', SAN: 'sanofi.com', MC: 'lvmh.com',
-  OR: 'loreal.com', RMS: 'hermes.com', SU: 'schneider-electric.com',
-  CAP: 'capgemini.com', DSY: 'dassault-systemes.com',
-  EL: 'essilorluxottica.com', KER: 'kering.com', LR: 'legrand.com',
-  ACA: 'credit-agricole.com', GLE: 'societegenerale.com', AXA: 'axa.com',
-  VIE: 'veolia.com', DG: 'vinci.com', SAF: 'safran.com',
-  STM: 'st.com', RNO: 'renault.com', AC: 'accor.com',
-  ALO: 'alstom.com', ORA: 'orange.com', PUB: 'publicis.com',
-  SGO: 'saint-gobain.com', TEP: 'teleperformance.com', RI: 'pernod-ricard.com',
-  // US majeurs
+// Ticker (base, no exchange suffix) → company domain
+// Used by Logo.dev (primary) and Google favicons (fallback)
+const TICKER_TO_DOMAIN = {
+  // ── France CAC40 / SBF120 ─────────────────────────────────────────────────
+  TTE: 'totalenergies.com', FP: 'totalenergies.com',
+  AI: 'airbus.com', BNP: 'bnpparibas.com',
+  SAN: 'sanofi.com', MC: 'lvmh.com', OR: 'loreal.com',
+  RMS: 'hermes.com', TFI: 'tf1.fr', ORA: 'orange.com',
+  VIE: 'veolia.com', DG: 'vinci.com', RI: 'pernod-ricard.com',
+  CA: 'carrefour.com', BN: 'danone.com', ENGI: 'engie.com',
+  SGO: 'saint-gobain.com', ML: 'michelin.com', ACA: 'credit-agricole.com',
+  GLE: 'societegenerale.com', KER: 'kering.com', CAP: 'capgemini.com',
+  DSY: 'dassault-systemes.com', STM: 'st.com', PUB: 'publicis.com',
+  RNO: 'renault.com', SU: 'schneider-electric.com', SW: 'schneider-electric.com',
+  LR: 'legrand.com', EL: 'essilorluxottica.com', TEP: 'teleperformance.com',
+  HO: 'thalesgroup.com', AXA: 'axa.com', CS: 'axa.com',
+  SAF: 'safran.com', AC: 'accor.com', ALO: 'alstom.com',
+  NK: 'nexans.com', WLN: 'worldline.com',
+  // ── Europe ────────────────────────────────────────────────────────────────
+  ASML: 'asml.com', SAP: 'sap.com', NESN: 'nestle.com',
+  NOVN: 'novartis.com', ROG: 'roche.com', SHELL: 'shell.com',
+  BP: 'bp.com', SIE: 'siemens.com', ALV: 'allianz.com',
+  BMW: 'bmw.com', VOW3: 'volkswagen.com', ADS: 'adidas.com',
+  BAS: 'basf.com', DTE: 'telekom.com', MUV2: 'munichre.com',
+  BAYN: 'bayer.com', DBK: 'db.com', MBG: 'mercedes-benz.com',
+  ENEL: 'enel.com', ENI: 'eni.com', ISP: 'intesasanpaolo.com',
+  UCG: 'unicredit.com', PRY: 'prysmiangroup.com', NOKIA: 'nokia.com',
+  // ── États-Unis ────────────────────────────────────────────────────────────
   AAPL: 'apple.com', MSFT: 'microsoft.com', GOOGL: 'google.com', GOOG: 'google.com',
   AMZN: 'amazon.com', META: 'meta.com', TSLA: 'tesla.com', NVDA: 'nvidia.com',
-  NFLX: 'netflix.com', AMD: 'amd.com', INTC: 'intel.com',
-  JPM: 'jpmorganchase.com', BAC: 'bankofamerica.com', GS: 'goldmansachs.com',
-  MS: 'morganstanley.com', WMT: 'walmart.com', V: 'visa.com', MA: 'mastercard.com',
-  DIS: 'disney.com', PFE: 'pfizer.com', JNJ: 'jnj.com',
+  JPM: 'jpmorganchase.com', V: 'visa.com', MA: 'mastercard.com',
+  JNJ: 'jnj.com', WMT: 'walmart.com', PG: 'pg.com',
+  UNH: 'unitedhealthgroup.com', HD: 'homedepot.com', BAC: 'bankofamerica.com',
+  DIS: 'disney.com', NFLX: 'netflix.com', PYPL: 'paypal.com',
+  ADBE: 'adobe.com', CRM: 'salesforce.com', INTC: 'intel.com',
+  AMD: 'amd.com', ORCL: 'oracle.com', UBER: 'uber.com',
+  SPOT: 'spotify.com', COIN: 'coinbase.com', SQ: 'block.xyz',
+  GS: 'goldmansachs.com', MS: 'morganstanley.com', PFE: 'pfizer.com',
   KO: 'coca-cola.com', PEP: 'pepsico.com', NKE: 'nike.com',
-  ADBE: 'adobe.com', CRM: 'salesforce.com', PYPL: 'paypal.com',
-  UBER: 'uber.com', SPOT: 'spotify.com', ABNB: 'airbnb.com',
-  SHOP: 'shopify.com', SNAP: 'snap.com', T: 'att.com', VZ: 'verizon.com',
+  ABNB: 'airbnb.com', SHOP: 'shopify.com', SNAP: 'snap.com',
+  T: 'att.com', VZ: 'verizon.com', AMGN: 'amgen.com',
+  COST: 'costco.com', AVGO: 'broadcom.com', LLY: 'lilly.com',
+  // ── ETF populaires ────────────────────────────────────────────────────────
+  SPY: 'ssga.com', QQQ: 'invesco.com', IWDA: 'ishares.com',
+  CSPX: 'ishares.com', VWCE: 'vanguard.com', WPEA: 'amundi.com',
+  CW8: 'amundi.com', ESE: 'etfsecurities.com', LCWD: 'lgim.com',
+  MEUD: 'lyxoretf.com', LQQ: 'lyxoretf.com',
 };
+
+const LOGO_DEV_TOKEN = 'pk_X4dPbXQbTBuiGqrJH9u8VA';
 
 // SCPI: keyword (lowercase substring) → management company domain
 const SCPI_DOMAINS = {
@@ -193,25 +218,32 @@ const SCPI_DOMAINS = {
 };
 
 // Returns ordered logo sources for stocks/ETF:
-//   1. asset.logoUrl if provided (future API field, prioritised)
-//   2. Parqet CDN — dedicated finance logos, covers most US/EU tickers
-//   3. Google favicons — universal fallback via TICKER_DOMAIN map
+//   1. asset.logoUrl — API-provided field (prioritised if present)
+//   2. Logo.dev — free CDN, covers companies worldwide by domain
+//   3. Parqet  — finance-focused CDN, good for US/EU tickers
+//   4. Google favicons — universal last resort (known domains only)
 const stockLogoSources = (sym, logoUrl) => {
   const srcs = [];
   if (logoUrl) srcs.push(logoUrl);
   if (!sym) return srcs;
-  const base = sym.split('.')[0].toUpperCase();
+  const base   = sym.split('.')[0].toUpperCase();
+  const domain = TICKER_TO_DOMAIN[base];
+  if (domain) srcs.push(`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`);
   srcs.push(`https://assets.parqet.com/logos/symbol/${base}?format=svg`);
-  const domain = TICKER_DOMAIN[base];
   if (domain) srcs.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
   return srcs;
 };
 
-// Returns logo sources for SCPI: Google favicon if manager keyword matched, empty otherwise
+// Returns logo sources for SCPI: Logo.dev then Google favicon if manager keyword matched
 const scpiLogoSources = name => {
-  const lower = name.toLowerCase();
-  const key   = Object.keys(SCPI_DOMAINS).find(k => lower.includes(k));
-  return key ? [`https://www.google.com/s2/favicons?domain=${SCPI_DOMAINS[key]}&sz=64`] : [];
+  const lower  = name.toLowerCase();
+  const key    = Object.keys(SCPI_DOMAINS).find(k => lower.includes(k));
+  if (!key) return [];
+  const domain = SCPI_DOMAINS[key];
+  return [
+    `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`,
+    `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
+  ];
 };
 
 // ── Color maps for modals ─────────────────────────────────────────────────────
