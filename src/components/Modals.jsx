@@ -144,7 +144,7 @@ const CRYPTO_LOCAL = [
 
 // ── Asset logo helpers ────────────────────────────────────────────────────────
 // sources: ordered array of URLs to try — onError advances to the next, then falls back to letter circle
-const AssetLogo = ({ sources = [], letter, color, size = 32 }) => {
+export const AssetLogo = ({ sources = [], letter, color, size = 32 }) => {
   const [idx, setIdx] = useState(0);
   if (idx >= sources.length) return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: color || '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.44), fontWeight: 700, color: '#fff', flexShrink: 0 }}>
@@ -156,7 +156,7 @@ const AssetLogo = ({ sources = [], letter, color, size = 32 }) => {
 
 // Ticker (base, no exchange suffix) → company domain
 // Used by Logo.dev (primary) and Google favicons (fallback)
-const TICKER_TO_DOMAIN = {
+export const TICKER_TO_DOMAIN = {
   // ── France CAC40 / SBF120 ─────────────────────────────────────────────────
   TTE: 'totalenergies.com', FP: 'totalenergies.com',
   AI: 'airbus.com', BNP: 'bnpparibas.com',
@@ -203,7 +203,7 @@ const TICKER_TO_DOMAIN = {
   MEUD: 'lyxoretf.com', LQQ: 'lyxoretf.com',
 };
 
-const LOGO_DEV_TOKEN = 'pk_X4dPbXQbTBuiGqrJH9u8VA';
+export const LOGO_DEV_TOKEN = 'pk_X4dPbXQbTBuiGqrJH9u8VA';
 
 // SCPI: keyword (lowercase substring) → management company domain
 const SCPI_DOMAINS = {
@@ -222,7 +222,7 @@ const SCPI_DOMAINS = {
 //   2. Logo.dev — free CDN, covers companies worldwide by domain
 //   3. Parqet  — finance-focused CDN, good for US/EU tickers
 //   4. Google favicons — universal last resort (known domains only)
-const stockLogoSources = (sym, logoUrl) => {
+export const stockLogoSources = (sym, logoUrl) => {
   const srcs = [];
   if (logoUrl) srcs.push(logoUrl);
   if (!sym) return srcs;
@@ -235,7 +235,7 @@ const stockLogoSources = (sym, logoUrl) => {
 };
 
 // Returns logo sources for SCPI: Logo.dev then Google favicon if manager keyword matched
-const scpiLogoSources = name => {
+export const scpiLogoSources = name => {
   const lower  = name.toLowerCase();
   const key    = Object.keys(SCPI_DOMAINS).find(k => lower.includes(k));
   if (!key) return [];

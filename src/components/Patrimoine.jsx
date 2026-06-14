@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { KPI, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
+import { AssetLogo, stockLogoSources, scpiLogoSources, LOGO_DEV_TOKEN } from './Modals';
 
 const mLeft = endDate => {
   if (!endDate) return 0;
@@ -31,6 +32,22 @@ const addMonths = (date, m) => {
   const d = new Date(date || Date.now());
   d.setMonth(d.getMonth() + m);
   return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+};
+
+const COMMODITY_EMOJI_MAP = {
+  or: '🥇', gold: '🥇', xau: '🥇',
+  argent: '🪙', silver: '🪙', xag: '🪙',
+  platine: '⬜', platinum: '⬜', xpt: '⬜',
+  palladium: '⬜', xpd: '⬜',
+  'pétrole': '🛢️', petrol: '🛢️', oil: '🛢️', brent: '🛢️', wti: '🛢️',
+  cuivre: '🔶', copper: '🔶',
+  gaz: '🔥', gas: '🔥',
+  blé: '🌾', wheat: '🌾',
+};
+const getCommodityEmoji = name => {
+  const lower = (name || '').toLowerCase();
+  const key = Object.keys(COMMODITY_EMOJI_MAP).find(k => lower.includes(k));
+  return key ? COMMODITY_EMOJI_MAP[key] : '⛏️';
 };
 
 export default function Patrimoine({ T, data }) {
@@ -319,17 +336,50 @@ export default function Patrimoine({ T, data }) {
                     const posPnl = posVal - posInv;
                     const posPct = posInv > 0 ? (posPnl / posInv) * 100 : 0;
                     const isCryptoType = type === 'Crypto';
+
+                    // ── Logo ──────────────────────────────────────────────────
+                    const posSymbol = (pos.ticker || pos.symbol || '').split('.')[0].toUpperCase();
+                    const isPosCommod = type === 'Matières premières' || pos.posType === 'commodity';
+                    const isPosRealt  = type === 'RealT';
+                    const isPosScpi   = ['SCPI', 'OPCI', 'SCI'].includes(type) || pos.posType === 'scpi';
+                    const isPosCrypto = isCryptoType || pos.posType === 'crypto';
+                    let posLogoSrcs, posLogoLetter, posLogoColor;
+                    if (isPosCommod) {
+                      posLogoSrcs   = [];
+                      posLogoLetter = getCommodityEmoji(pos.name || pos.ticker);
+                      posLogoColor  = '#EAB308';
+                    } else if (isPosRealt) {
+                      posLogoSrcs   = [`https://img.logo.dev/realt.co?token=${LOGO_DEV_TOKEN}&size=64`];
+                      posLogoLetter = '🏘';
+                      posLogoColor  = '#10b981';
+                    } else if (isPosScpi) {
+                      posLogoSrcs   = scpiLogoSources(pos.name || '');
+                      posLogoLetter = '🏬';
+                      posLogoColor  = '#D97706';
+                    } else if (isPosCrypto) {
+                      posLogoSrcs   = [`https://assets.parqet.com/logos/symbol/${posSymbol}?format=svg`];
+                      posLogoLetter = posSymbol[0] || '?';
+                      posLogoColor  = '#F59E0B';
+                    } else {
+                      posLogoSrcs   = stockLogoSources(pos.ticker || pos.symbol, null);
+                      posLogoLetter = posSymbol[0] || '?';
+                      posLogoColor  = '#60A5FA';
+                    }
+
                     return (
                       <div key={pos.id} style={{ padding: '12px 14px', background: T.bg2, borderRadius: 10 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-                              <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{pos.ticker}</span>
-                              <span style={{ color: T.textMuted, fontSize: 12 }}>{pos.name}</span>
-                              {hasLiveFeed && data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: T.accent + '33', color: T.accent, padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
-                            </div>
-                            <div style={{ fontSize: 11, color: T.textFaint }}>
-                              {isCryptoType ? `Qté ${+parseFloat(pos.shares).toFixed(4)}` : `${+parseFloat(pos.shares).toFixed(4)} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <AssetLogo sources={posLogoSrcs} letter={posLogoLetter} color={posLogoColor} size={32} />
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                                <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{pos.ticker}</span>
+                                <span style={{ color: T.textMuted, fontSize: 12 }}>{pos.name}</span>
+                                {hasLiveFeed && data.prices[pos.ticker] !== undefined && <span style={{ fontSize: 9, background: T.accent + '33', color: T.accent, padding: '1px 5px', borderRadius: 3 }}>{t('inv_live_ok')}</span>}
+                              </div>
+                              <div style={{ fontSize: 11, color: T.textFaint }}>
+                                {isCryptoType ? `Qté ${+parseFloat(pos.shares).toFixed(4)}` : `${+parseFloat(pos.shares).toFixed(4)} parts`} · {isCryptoType ? 'DCA' : 'PRU'} {fEur(pos.buyPrice)} · Actuel {fEur(livePrice)}
+                              </div>
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
