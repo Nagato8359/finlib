@@ -142,6 +142,72 @@ const CRYPTO_LOCAL = [
   { symbol: 'EGLD',  name: 'MultiversX', id: 'elrond-erd-2',       thumb: '' },
 ];
 
+// ── Asset logo helpers ────────────────────────────────────────────────────────
+const AssetLogo = ({ src, letter, color, size = 32 }) => {
+  const [err, setErr] = useState(false);
+  if (!src || err) return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: color || '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.44), fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+      {letter}
+    </div>
+  );
+  return <img src={src} alt="" onError={() => setErr(true)} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'contain', background: '#fff', padding: 2, boxSizing: 'border-box', flexShrink: 0 }} />;
+};
+
+const TICKER_DOMAIN = {
+  // CAC40 / SBF120
+  TTE: 'totalenergies.com', AI: 'airbus.com', BNP: 'bnpparibas.com',
+  BN: 'danone.com', SAN: 'sanofi.com', MC: 'lvmh.com',
+  OR: 'loreal.com', RMS: 'hermes.com', SU: 'schneider-electric.com',
+  CAP: 'capgemini.com', DSY: 'dassault-systemes.com',
+  EL: 'essilorluxottica.com', KER: 'kering.com', LR: 'legrand.com',
+  ACA: 'credit-agricole.com', GLE: 'societegenerale.com', AXA: 'axa.com',
+  VIE: 'veolia.com', DG: 'vinci.com', SAF: 'safran.com',
+  STM: 'st.com', RNO: 'renault.com', AC: 'accor.com',
+  ALO: 'alstom.com', ORA: 'orange.com', PUB: 'publicis.com',
+  SGO: 'saint-gobain.com', TEP: 'teleperformance.com', RI: 'pernod-ricard.com',
+  // US majeurs
+  AAPL: 'apple.com', MSFT: 'microsoft.com', GOOGL: 'google.com', GOOG: 'google.com',
+  AMZN: 'amazon.com', META: 'meta.com', TSLA: 'tesla.com', NVDA: 'nvidia.com',
+  NFLX: 'netflix.com', AMD: 'amd.com', INTC: 'intel.com',
+  JPM: 'jpmorganchase.com', BAC: 'bankofamerica.com', GS: 'goldmansachs.com',
+  MS: 'morganstanley.com', WMT: 'walmart.com', V: 'visa.com', MA: 'mastercard.com',
+  DIS: 'disney.com', PFE: 'pfizer.com', JNJ: 'jnj.com',
+  KO: 'coca-cola.com', PEP: 'pepsico.com', NKE: 'nike.com',
+  ADBE: 'adobe.com', CRM: 'salesforce.com', PYPL: 'paypal.com',
+  UBER: 'uber.com', SPOT: 'spotify.com', ABNB: 'airbnb.com',
+  SHOP: 'shopify.com', SNAP: 'snap.com', T: 'att.com', VZ: 'verizon.com',
+};
+
+// Prefix → domain for SCPI management companies (used with Google favicons, very reliable)
+const SCPI_DOMAIN = [
+  ['Corum', 'corum.eu'],
+  ['Immorente', 'sofidy.com'], ['Sofidy', 'sofidy.com'], ['Efimmo', 'sofidy.com'],
+  ['PFO', 'perial.com'], ['PF ', 'perial.com'], ['Euro Caralis', 'perial.com'],
+  ['Primopierre', 'primonial-reim.fr'], ['Primovie', 'primonial-reim.fr'],
+  ['Iroko', 'iroko.eu'],
+  ['LF ', 'la-francaise.com'], ['Praemia', 'praemia-reim.com'],
+  ['Pierre 48', 'bnpparibas.com'], ['Accimmo', 'bnpparibas.com'], ['France Investipierre', 'bnpparibas.com'],
+  ['Épargne Foncière', 'swisslife.fr'], ['Capimmo', 'swisslife.fr'], ['Pierre Expansion', 'swisslife.fr'], ['Swisslife', 'swisslife.fr'],
+  ['Novapierre', 'paref-gestion.com'], ['Interpierre', 'paref-gestion.com'],
+  ['Vendôme', 'normacapital.fr'], ['Fair Invest', 'normacapital.fr'],
+  ['Remake', 'remake.fr'],
+  ['Cœur', 'sogenial.fr'], ['Coeur', 'sogenial.fr'],
+  ['Rivoli', 'rivoli-patrimoine.com'],
+  ['Altixia', 'altixia.fr'],
+];
+
+const stockLogoUrl = sym => {
+  if (!sym) return null;
+  const base = sym.split('.')[0].toUpperCase();
+  const domain = TICKER_DOMAIN[base];
+  return `https://logo.clearbit.com/${domain || (base.toLowerCase() + '.com')}`;
+};
+
+const scpiLogoUrl = name => {
+  const entry = SCPI_DOMAIN.find(([prefix]) => name.startsWith(prefix));
+  return entry ? `https://www.google.com/s2/favicons?domain=${entry[1]}&sz=64` : null;
+};
+
 // ── Color maps for modals ─────────────────────────────────────────────────────
 const PORTFOLIO_MODAL_COLOR = {
   PEA: '#10B981', CTO: '#10B981',
@@ -586,19 +652,19 @@ export default function Modals({ T, data }) {
       const badgeColor = isCom ? '#EAB308' : isSc ? '#D97706' : isCr ? '#F59E0B' : '#60A5FA';
       const badgeText  = isCom ? 'MATIÈRE 1ÈRE' : isSc ? 'SCPI' : isCr ? 'Crypto' : (asset.type === 'ETF' ? 'ETF' : 'Action');
       const onClick = isSc ? () => selectScpi(asset.name) : () => { setAddInvAsset(asset); setAddInvStep(1); };
+      const logoNode = isCom
+        ? <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#EAB30818', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{asset.icon}</div>
+        : isCr
+          ? <AssetLogo src={asset.thumb || null} letter={(asset.symbol || '?')[0]} color="#F59E0B" />
+          : isSc
+            ? <AssetLogo src={scpiLogoUrl(asset.name)} letter="🏬" color="#D97706" />
+            : <AssetLogo src={stockLogoUrl(asset.symbol)} letter={(asset.symbol || '?').split('.')[0][0]} color="#60A5FA" />;
       return (
         <button key={key} onClick={onClick}
           style={{ background: T.bg2, border: '1px solid rgba(255,255,255,.06)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', marginBottom: 4 }}
           onMouseEnter={e => e.currentTarget.style.background = T.bg3}
           onMouseLeave={e => e.currentTarget.style.background = T.bg2}>
-          {isCom
-            ? <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>{asset.icon}</span>
-            : isCr && asset.thumb
-              ? <img src={asset.thumb} alt="" style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0 }} />
-              : <div style={{ width: 24, height: 24, borderRadius: 6, background: badgeColor + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>
-                  {isCr ? '🪙' : isSc ? '🏬' : '📈'}
-                </div>
-          }
+          {logoNode}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.name}</div>
             <div style={{ fontSize: 11, color: T.textMuted }}>
