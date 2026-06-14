@@ -41,10 +41,6 @@ module.exports = async function handler(req, res) {
 
   if (action === 'test') {
     if (req.method !== 'GET') return res.status(405).end();
-    const auth = req.headers.authorization;
-    if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
     const { user_id } = req.query;
     if (!user_id) return res.status(400).json({ error: 'Missing user_id' });
     await sendPushToUser(
