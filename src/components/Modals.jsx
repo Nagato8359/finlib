@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { makeS, fEur, fDate, today, uid, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 // modal === 'drill' (position form) is handled by PositionFormModal in App.js
@@ -91,6 +91,14 @@ export default function Modals({ T, data }) {
   const BUDGET_COLORS  = ['#10b981','#f87171','#fb923c','#fbbf24','#a78bfa','#60a5fa','#34d399','#f472b6','#94a3b8','#f59e0b','#06b6d4','#84cc16'];
 
   const [addInvSearch, setAddInvSearch]         = useState('');
+  const [addInvResults, setAddInvResults]       = useState([]);
+  const [addInvLoading, setAddInvLoading]       = useState(false);
+  const [addInvAsset, setAddInvAsset]           = useState(null);
+  const [addInvEnvId, setAddInvEnvId]           = useState('');
+  const [addInvStep, setAddInvStep]             = useState(0);
+  const [addInvForm, setAddInvForm]             = useState({ shares: '', buyPrice: '', currentPrice: '', purchaseDate: today() });
+  const [addInvPriceFetching, setAddInvPriceFetching] = useState(false);
+  const addInvTimerRef                          = useRef(null);
   const [realtAddr, setRealtAddr]               = useState('');
   const [realtLoading, setRealtLoading]         = useState(false);
   const [realtErr, setRealtErr]                 = useState('');
@@ -193,6 +201,79 @@ export default function Modals({ T, data }) {
 
   // ── Sélecteur de type d'investissement (style Finary) ────────────────────────
   if (modal === 'addInvestment') {
+    const resetAddInv = () => {
+      setAddInvSearch(''); setAddInvResults([]); setAddInvLoading(false);
+      setAddInvAsset(null); setAddInvEnvId(''); setAddInvStep(0);
+      setAddInvForm({ shares: '', buyPrice: '', currentPrice: '', purchaseDate: today() });
+      setAddInvPriceFetching(false);
+      if (addInvTimerRef.current) clearTimeout(addInvTimerRef.current);
+    };
+
+    const doSearch = async q => {
+      if (!q || q.length < 2) { setAddInvResults([]); setAddInvLoading(false); return; }
+      setAddInvLoading(true);
+      try {
+        const [sr, cr] = await Promise.allSettled([
+          fetch(`/api/search?type=stock&q=${encodeURIComponent(q)}`).then(r => r.json()),
+          fetch(`/api/search?type=crypto&q=${encodeURIComponent(q)}`).then(r => r.json()),
+        ]);
+        const stocks  = (sr.status === 'fulfilled' && Array.isArray(sr.value))  ? sr.value.map(r => ({ ...r, _kind: 'stock'  })) : [];
+        const cryptos = (cr.status === 'fulfilled' && Array.isArray(cr.value))  ? cr.value.map(r => ({ ...r, _kind: 'crypto' })) : [];
+        setAddInvResults([...stocks, ...cryptos]);
+      } catch { setAddInvResults([]); }
+      setAddInvLoading(false);
+    };
+
+    const onSearchChange = val => {
+      setAddInvSearch(val);
+      if (addInvTimerRef.current) clearTimeout(addInvTimerRef.current);
+      if (val.length < 2) { setAddInvResults([]); return; }
+      addInvTimerRef.current = setTimeout(() => doSearch(val), 300);
+    };
+
+    const ENV_COMPAT = {
+      stock:  ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
+      etf:    ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale'],
+      crypto: ['Crypto'],
+    };
+    const compatEnvs = asset => {
+      const allowed = asset._kind === 'crypto' ? ENV_COMPAT.crypto
+        : (asset.type === 'ETF' ? ENV_COMPAT.etf : ENV_COMPAT.stock);
+      return (investments || []).filter(inv => allowed.includes(inv.type));
+    };
+
+    const selectEnv = async (envId, ticker) => {
+      setAddInvEnvId(envId); setAddInvStep(2);
+      if (!ticker) return;
+      setAddInvPriceFetching(true);
+      try {
+        const r = await fetch(`/api/price/${encodeURIComponent(ticker)}`);
+        const d = await r.json();
+        if (d.price != null) setAddInvForm(p => ({ ...p, currentPrice: String(parseFloat(d.price.toFixed(4))) }));
+      } catch {}
+      setAddInvPriceFetching(false);
+    };
+
+    const saveAsset = () => {
+      if (!addInvAsset || !addInvEnvId || !addInvForm.shares || !addInvForm.buyPrice) return;
+      const pos = {
+        id: uid(), isin: '',
+        ticker:       addInvAsset.symbol || addInvAsset.id || '',
+        name:         addInvAsset.name,
+        shares:       parseFloat(addInvForm.shares),
+        buyPrice:     parseFloat(addInvForm.buyPrice),
+        currentPrice: parseFloat(addInvForm.currentPrice) || parseFloat(addInvForm.buyPrice) || 0,
+        posType:      addInvAsset._kind === 'crypto' ? 'crypto' : 'stock',
+        purchaseDate: addInvForm.purchaseDate,
+        divYield: 0, exchange: addInvAsset.exchange || '', currency: 'EUR',
+        platform: '', notes: '', commodityType: '',
+      };
+      setInvestments(prev => prev.map(inv =>
+        inv.id !== addInvEnvId ? inv : { ...inv, positions: [...(inv.positions || []), pos] }
+      ));
+      resetAddInv(); close();
+    };
+
     const INVEST_GROUPS = [
       { label: 'Marchés financiers',          types: ['PEA', 'CTO', 'Assurance-vie', 'Crypto', 'Épargne salariale', 'Matières premières'] },
       { label: 'Immobilier physique',         types: ['Immobilier'] },
@@ -202,19 +283,16 @@ export default function Modals({ T, data }) {
       { label: 'Épargne long terme',          types: ['PER', 'Assurance-vie fonds euros'] },
       { label: 'Autre',                       types: ['Autre'] },
     ];
-    const q = addInvSearch.toLowerCase();
-    const filtered = q ? PORTFOLIO_TYPES.filter(pt => pt.toLowerCase().includes(q)) : null;
-    const selectType = pt => {
-      setPortfolioForm({ ...mkPortfolio(), type: pt });
-      setEditItem(null);
-      setAddInvSearch('');
-      setModal('portfolio');
-    };
+    const secLabel = { fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 };
+    const filteredTypes = addInvSearch.length >= 2
+      ? PORTFOLIO_TYPES.filter(pt => pt.toLowerCase().includes(addInvSearch.toLowerCase()))
+      : null;
     const renderTile = pt => {
-      const icon = PORTFOLIO_TYPE_ICON[pt] || '📦';
+      const icon  = PORTFOLIO_TYPE_ICON[pt] || '📦';
       const color = PORTFOLIO_MODAL_COLOR[pt] || '#94A3B8';
       return (
-        <button key={pt} onClick={() => selectType(pt)}
+        <button key={pt}
+          onClick={() => { setPortfolioForm({ ...mkPortfolio(), type: pt }); setEditItem(null); resetAddInv(); setModal('portfolio'); }}
           style={{ background: T.bg2, border: `1px solid ${color}30`, borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
           onMouseEnter={e => { e.currentTarget.style.background = color + '18'; e.currentTarget.style.borderColor = color + '60'; }}
           onMouseLeave={e => { e.currentTarget.style.background = T.bg2; e.currentTarget.style.borderColor = color + '30'; }}>
@@ -223,25 +301,161 @@ export default function Modals({ T, data }) {
         </button>
       );
     };
+
+    // ── Step 2: formulaire actif ───────────────────────────────────────────────
+    if (addInvStep === 2) {
+      const f = fa('#10B981');
+      return (
+        <CMShell T={T} title={addInvAsset?.name || 'Ajouter un actif'} icon="📊" color="#10B981"
+          onClose={() => { resetAddInv(); close(); }} maxWidth={480}>
+          <button
+            onClick={() => { setAddInvStep(1); setAddInvForm({ shares: '', buyPrice: '', currentPrice: '', purchaseDate: today() }); }}
+            style={{ ...S.btnS, fontSize: 12, marginBottom: 18 }}>← Retour</button>
+          <FRow cols={2}>
+            <FField style={f} label="Ticker / ID">
+              <input readOnly type="text" style={{ ...S.inp, opacity: .6 }}
+                value={addInvAsset?.symbol || addInvAsset?.id || ''} />
+            </FField>
+            <FField style={f} label={addInvPriceFetching ? 'Prix actuel (€) · chargement…' : 'Prix actuel (€)'}>
+              <input type="number" min="0" step="0.0001" placeholder="0.0000" style={S.inp}
+                value={addInvForm.currentPrice}
+                onChange={e => setAddInvForm(p => ({ ...p, currentPrice: e.target.value }))} />
+            </FField>
+          </FRow>
+          <FRow cols={2}>
+            <FField style={f} label="Quantité">
+              <input type="number" min="0" step="any" placeholder="0" style={S.inp} autoFocus
+                value={addInvForm.shares}
+                onChange={e => setAddInvForm(p => ({ ...p, shares: e.target.value }))} />
+            </FField>
+            <FField style={f} label="Prix d'achat unitaire (€)">
+              <input type="number" min="0" step="0.0001" placeholder="0.0000" style={S.inp}
+                value={addInvForm.buyPrice}
+                onChange={e => setAddInvForm(p => ({ ...p, buyPrice: e.target.value }))} />
+            </FField>
+          </FRow>
+          <FRow cols={1}>
+            <FField style={f} label="Date d'achat">
+              <input type="date" style={S.inp}
+                value={addInvForm.purchaseDate}
+                onChange={e => setAddInvForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+            </FField>
+          </FRow>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <CBtn color="#10B981" onClick={saveAsset} disabled={!addInvForm.shares || !addInvForm.buyPrice}>
+              ✓ Ajouter dans l'enveloppe
+            </CBtn>
+            <button onClick={() => { resetAddInv(); close(); }} style={S.btnS}>Annuler</button>
+          </div>
+        </CMShell>
+      );
+    }
+
+    // ── Step 1: choix de l'enveloppe ──────────────────────────────────────────
+    if (addInvStep === 1 && addInvAsset) {
+      const envs       = compatEnvs(addInvAsset);
+      const ticker     = addInvAsset.symbol || addInvAsset.id || '';
+      const defEnvType = addInvAsset._kind === 'crypto' ? 'Crypto' : 'CTO';
+      return (
+        <CMShell T={T} title="Dans quelle enveloppe ?" icon="🏦" color="#10B981"
+          onClose={() => { resetAddInv(); close(); }} maxWidth={520}>
+          <button onClick={() => { setAddInvStep(0); setAddInvAsset(null); }}
+            style={{ ...S.btnS, fontSize: 12, marginBottom: 16 }}>← Retour</button>
+          <div style={{ fontSize: 13, color: T.text, marginBottom: 16 }}>
+            Ajout de <span style={{ fontWeight: 700 }}>{addInvAsset.name}</span>
+            {ticker && <span style={{ color: T.textMuted }}> ({ticker})</span>}
+          </div>
+          {envs.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {envs.map(inv => {
+                const ic = PORTFOLIO_TYPE_ICON[inv.type] || '📦';
+                const cc = PORTFOLIO_MODAL_COLOR[inv.type] || '#94A3B8';
+                return (
+                  <button key={inv.id} onClick={() => selectEnv(inv.id, ticker)}
+                    style={{ background: T.bg2, border: `1px solid ${cc}30`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = cc + '18'; e.currentTarget.style.borderColor = cc + '60'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = T.bg2; e.currentTarget.style.borderColor = cc + '30'; }}>
+                    <span style={{ fontSize: 20 }}>{ic}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{inv.name}</div>
+                      <div style={{ fontSize: 11, color: T.textMuted }}>{inv.type}</div>
+                    </div>
+                    <span style={{ fontSize: 12, color: T.textMuted }}>→</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ color: T.textMuted, fontSize: 13, marginBottom: 16 }}>
+              Aucune enveloppe compatible. Créez-en une d'abord.
+            </div>
+          )}
+          <button
+            onClick={() => { setPortfolioForm({ ...mkPortfolio(), type: defEnvType }); resetAddInv(); setModal('portfolio'); }}
+            style={{ ...S.btnG, fontSize: 12, padding: '8px 16px' }}>
+            + Créer une nouvelle enveloppe
+          </button>
+        </CMShell>
+      );
+    }
+
+    // ── Step 0: recherche + grille de catégories ──────────────────────────────
     return (
-      <CMShell T={T} title="Ajouter un investissement" icon="✨" color="#10B981" onClose={() => { setAddInvSearch(''); close(); }} maxWidth={640}>
-        <input
-          autoFocus
-          type="text"
-          placeholder="Rechercher un type d'investissement…"
-          value={addInvSearch}
-          onChange={e => setAddInvSearch(e.target.value)}
-          style={{ ...S.inp, marginBottom: 20, fontSize: 14 }}
-        />
-        {filtered ? (
-          filtered.length === 0
-            ? <div style={{ color: T.textMuted, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Aucun résultat pour « {addInvSearch} »</div>
-            : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>{filtered.map(renderTile)}</div>
+      <CMShell T={T} title="Ajouter un investissement" icon="✨" color="#10B981"
+        onClose={() => { resetAddInv(); close(); }} maxWidth={640}>
+        <input autoFocus type="text" placeholder="Nom, ticker, ISIN ou type d'enveloppe…"
+          value={addInvSearch} onChange={e => onSearchChange(e.target.value)}
+          style={{ ...S.inp, marginBottom: 16, fontSize: 14 }} />
+
+        {addInvSearch.length >= 2 ? (
+          <div>
+            {/* Enveloppes filtrées — en premier */}
+            {filteredTypes.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={secLabel}>Types d'enveloppe</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {filteredTypes.map(renderTile)}
+                </div>
+              </div>
+            )}
+            {/* Résultats API */}
+            <div>
+              <div style={secLabel}>Actifs financiers</div>
+              {addInvLoading && (
+                <div style={{ color: T.textMuted, fontSize: 12, textAlign: 'center', padding: '10px 0' }}>Recherche…</div>
+              )}
+              {!addInvLoading && addInvResults.length === 0 && (
+                <div style={{ color: T.textMuted, fontSize: 12, padding: '6px 0' }}>Aucun actif trouvé</div>
+              )}
+              {!addInvLoading && addInvResults.map((asset, i) => (
+                <button key={i} onClick={() => { setAddInvAsset(asset); setAddInvStep(1); }}
+                  style={{ background: T.bg2, border: '1px solid rgba(255,255,255,.06)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', marginBottom: 4 }}
+                  onMouseEnter={e => e.currentTarget.style.background = T.bg3}
+                  onMouseLeave={e => e.currentTarget.style.background = T.bg2}>
+                  {asset._kind === 'crypto' && asset.thumb
+                    ? <img src={asset.thumb} alt="" style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0 }} />
+                    : <div style={{ width: 24, height: 24, borderRadius: 6, background: asset._kind === 'crypto' ? '#F59E0B22' : '#60A5FA22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>
+                        {asset._kind === 'crypto' ? '🪙' : '📈'}
+                      </div>
+                  }
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.name}</div>
+                    <div style={{ fontSize: 11, color: T.textMuted }}>
+                      {asset.symbol || asset.id}{asset.exchange ? ` · ${asset.exchange}` : ''}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: asset._kind === 'crypto' ? '#F59E0B22' : '#60A5FA22', color: asset._kind === 'crypto' ? '#F59E0B' : '#60A5FA', flexShrink: 0 }}>
+                    {asset._kind === 'crypto' ? 'Crypto' : (asset.type === 'ETF' ? 'ETF' : 'Action')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {INVEST_GROUPS.map(g => (
               <div key={g.label}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>{g.label}</div>
+                <div style={secLabel}>{g.label}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {g.types.map(renderTile)}
                 </div>
