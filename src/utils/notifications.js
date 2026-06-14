@@ -64,7 +64,12 @@ export const registerPush = async (userId) => {
     if (permission !== 'granted') return;
 
     const existing = await reg.pushManager.getSubscription();
-    const sub = existing || await reg.pushManager.subscribe({
+    if (existing) {
+      await existing.unsubscribe();
+      console.log('[push] unsubscribed old subscription');
+    }
+
+    const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
@@ -79,6 +84,7 @@ export const registerPush = async (userId) => {
     console.log('6. API response:', apiRes.status, apiData);
   } catch (err) {
     console.error('[push] registerPush error:', err);
+    console.log('[push] error details:', err.name, err.message, err.stack);
   }
 };
 
