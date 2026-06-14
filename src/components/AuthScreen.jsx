@@ -9,6 +9,18 @@ export default function AuthScreen({ onDemo }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+
+  const translateError = msg => {
+    if (!msg) return 'Une erreur est survenue';
+    const m = msg.toLowerCase();
+    if (m.includes('invalid login credentials'))         return 'Email ou mot de passe incorrect';
+    if (m.includes('email not confirmed'))               return 'Veuillez confirmer votre email avant de vous connecter';
+    if (m.includes('user not found'))                    return 'Aucun compte trouvé avec cet email';
+    if (m.includes('too many requests'))                 return 'Trop de tentatives, réessayez dans quelques minutes';
+    if (m.includes('network') || m.includes('fetch'))   return 'Erreur réseau, vérifiez votre connexion';
+    return msg;
+  };
 
   const handle = async e => {
     e.preventDefault();
@@ -22,7 +34,20 @@ export default function AuthScreen({ onDemo }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(translateError(err.message)); }
+    finally { setLoading(false); }
+  };
+
+  const handleForgot = async () => {
+    setError(''); setSuccess('');
+    if (!email) { setError('Entrez votre email ci-dessus pour réinitialiser votre mot de passe'); return; }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      setResetSent(true);
+      setSuccess(`Un email de réinitialisation a été envoyé à ${email}`);
+    } catch (err) { setError(translateError(err.message)); }
     finally { setLoading(false); }
   };
 
@@ -61,6 +86,14 @@ export default function AuthScreen({ onDemo }) {
             <button type="submit" disabled={loading} style={{ width: '100%', background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', borderRadius: 10, color: '#fff', padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: loading ? 0.7 : 1 }}>
               {loading ? '…' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
             </button>
+            {mode === 'login' && !resetSent && (
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <button type="button" onClick={handleForgot} disabled={loading}
+                  style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textDecoration: 'underline', padding: 0 }}>
+                  Mot de passe oublié ?
+                </button>
+              </div>
+            )}
           </form>
 
           <div style={{ textAlign: 'center', marginTop: 20, paddingTop: 18, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
