@@ -51,24 +51,37 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export const registerPush = async (userId) => {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const swSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
+  console.log('[push] SW supported:', swSupported);
+  if (!swSupported) return;
+
   const publicKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+  console.log('[push] VAPID KEY:', publicKey?.slice(0, 20));
   if (!publicKey) return;
+
   try {
     const reg = await navigator.serviceWorker.ready;
     const permission = await Notification.requestPermission();
+    console.log('[push] Permission:', permission);
     if (permission !== 'granted') return;
+
     const existing = await reg.pushManager.getSubscription();
     const sub = existing || await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
-    await fetch('/api/push?action=subscribe', {
+    console.log('[push] Subscription created:', sub.endpoint?.slice(0, 60));
+
+    const apiRes = await fetch('/api/push?action=subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription: sub.toJSON(), user_id: userId }),
     });
-  } catch {}
+    const apiData = await apiRes.json().catch(() => ({}));
+    console.log('[push] Push subscribe API response:', apiRes.status, apiData);
+  } catch (err) {
+    console.error('[push] registerPush error:', err);
+  }
 };
 
 // ── iOS detection ──────────────────────────────────────────────────────────────
