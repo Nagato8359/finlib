@@ -1,37 +1,7 @@
 // Proxy CORS-safe search: Yahoo Finance (stocks/ISIN) and CoinGecko (crypto)
 const { yfGetWithFallback } = require('./_priceUtils');
-const { getCached, setCached } = require('./_cache');
 
 const LOGO_DEV_TOKEN = 'pk_X4dPbXQbTBuiGqrJH9u8VA';
-
-// Fetch website domain from Yahoo Finance assetProfile, return Logo.dev URL
-// Cached 7 days per ticker base symbol
-async function fetchLogoUrl(symbol) {
-  const base = symbol.split('.')[0].toUpperCase();
-  const cacheKey = `logo:${base}`;
-  try {
-    const cached = await getCached(cacheKey);
-    if (cached !== null) return cached || null; // '' = cached miss
-
-    const data = await yfGetWithFallback(
-      `/v11/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=assetProfile`
-    );
-    const website = data?.quoteSummary?.result?.[0]?.assetProfile?.website;
-    if (website) {
-      const domain = website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-      if (domain) {
-        const url = `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`;
-        await setCached(cacheKey, url, 7 * 86400);
-        return url;
-      }
-    }
-    const yimgUrl = `https://s.yimg.com/lb/brands/150x150/${base}.png`;
-    await setCached(cacheKey, yimgUrl, 7 * 86400);
-    return yimgUrl;
-  } catch {
-    return null;
-  }
-}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -49,14 +19,16 @@ module.exports = async function handler(req, res) {
         .filter(r => r.quoteType !== 'OPTION' && r.quoteType !== 'FUTURE')
         .slice(0, 6);
 
-      // Enrich each result with logoUrl from assetProfile.website (parallel, cached)
-      const results = await Promise.all(quotes.map(async r => ({
-        symbol:   r.symbol,
-        name:     r.shortname || r.longname || r.symbol,
-        exchange: r.exchDisp || r.exchange || '',
-        type:     r.quoteType || '',
-        logoUrl:  await fetchLogoUrl(r.symbol),
-      })));
+      const results = quotes.map(r => {
+        const base = r.symbol.split('.')[0].toUpperCase();
+        return {
+          symbol:   r.symbol,
+          name:     r.shortname || r.longname || r.symbol,
+          exchange: r.exchDisp || r.exchange || '',
+          type:     r.quoteType || '',
+          logoUrl:  `https://img.logo.dev/?ticker=${base}&token=${LOGO_DEV_TOKEN}&size=64`,
+        };
+      });
 
       return res.json(results);
     }
