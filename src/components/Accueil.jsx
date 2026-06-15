@@ -150,6 +150,8 @@ export default function Accueil({ T, data, setTab }) {
     setHistoryLoading(true);
     const days = TF_DAYS[chartTf] || 30;
     const since = new Date(Date.now() - days * 86400000).toISOString();
+    // eslint-disable-next-line no-console
+    console.log('PATRIMOINE QUERY user:', data?.user?.id, 'since:', since);
     supabase
       .from('patrimoine_history')
       .select('valeur, recorded_at')
