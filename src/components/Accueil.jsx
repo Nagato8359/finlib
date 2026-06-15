@@ -150,8 +150,6 @@ export default function Accueil({ T, data, setTab }) {
     setHistoryLoading(true);
     const days = TF_DAYS[chartTf] || 30;
     const since = new Date(Date.now() - days * 86400000).toISOString();
-    // eslint-disable-next-line no-console
-    console.log('PATRIMOINE QUERY user:', data?.user?.id, 'since:', since);
     supabase
       .from('patrimoine_history')
       .select('valeur, recorded_at')
@@ -159,8 +157,6 @@ export default function Accueil({ T, data, setTab }) {
       .gte('recorded_at', since)
       .order('recorded_at', { ascending: true })
       .then(({ data: rows, error }) => {
-        // eslint-disable-next-line no-console
-        console.log('PATRIMOINE ROWS:', rows?.length, rows, error);
         setHistoryLoading(false);
         if (error || !rows?.length) { setHistoryData([]); return; }
         const byTs = new Map();
@@ -406,12 +402,7 @@ export default function Accueil({ T, data, setTab }) {
               <span style={{ fontSize: 11, color: T.textFaint }}>L'historique se construit automatiquement toutes les heures</span>
             </div>
           )}
-          {!historyLoading && historyData.length === 1 && (
-            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textFaint, fontSize: 12 }}>
-              Historique en cours de construction…
-            </div>
-          )}
-          {!historyLoading && historyData.length >= 2 && (
+          {!historyLoading && historyData.length >= 1 && (
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={historyData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                 <defs>
