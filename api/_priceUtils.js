@@ -77,7 +77,6 @@ async function resolveCoinGeckoId(symbol) {
   if (!coinId) throw new Error(`CoinGecko: symbol ${symbol} not found`);
 
   await setCached(redisKey, coinId, 86400);
-  console.log(`[prices] CoinGecko dynamic: ${symbol} → ${coinId}`);
   return coinId;
 }
 
@@ -125,7 +124,6 @@ async function isinToTicker(isin) {
     );
     const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
     if (price != null) {
-      console.log(`[prices] ISIN ${isin} resolved directly`);
       isinCache[isin] = { ticker: isin, ts: now };
       return isin;
     }
@@ -138,7 +136,6 @@ async function isinToTicker(isin) {
   const symbol = search?.quotes?.[0]?.symbol;
   if (!symbol) throw new Error(`ISIN ${isin} introuvable sur Yahoo Finance`);
 
-  console.log(`[prices] ISIN ${isin} → ${symbol}`);
   isinCache[isin] = { ticker: symbol, ts: now };
   return symbol;
 }

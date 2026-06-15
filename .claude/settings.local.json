@@ -46,7 +46,13 @@
       "Bash(xargs '-I{}' bash -c 'hash=$\\(echo \"{}\" | cut -d\" \" -f1\\); rest=$\\(echo \"{}\" | cut -d\" \" -f2-\\); result=$\\(git show $hash -- src/hooks/useData.js 2>/dev/null | grep -E \"^\\\\+.*savePreferences|^\\\\+.*preferences.*prefs\" | head -2\\); if [ -n \"$result\" ]; then echo \"=== $hash $rest ===\"; echo \"$result\"; fi')",
       "Bash(not exist *)",
       "Bash(npx vite *)",
-      "Bash(dir C:Usersalexafinlibpublic *)"
+      "Bash(dir C:Usersalexafinlibpublic *)",
+      "Bash(del *)",
+      "Bash(curl *)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(sed -n '4,10p' src/components/Budget.jsx)",
+      "Bash(sed -n '7,13p' src/components/Patrimoine.jsx)",
+      "Bash(sed -n '38,44p' src/components/Modals.jsx)"
     ]
   }
 }

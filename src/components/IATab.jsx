@@ -260,7 +260,6 @@ export default function IATab({ T, data }) {
     setAnalysisState('loading');
     setAnalysisError('');
     try {
-      console.log('=== CONTEXTE ENVOYÉ À L\'IA ===', ctx.current);
       const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(ctx.current) }] }], true);
       setAnalysis(text);
       setAnalysisState('done');

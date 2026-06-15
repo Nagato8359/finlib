@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { makeS, fEur, fDate, today, uid, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
+import { makeS, fEur, fDate, today, uid, mLeft, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 // modal === 'drill' (position form) is handled by PositionFormModal in App.js
 
@@ -35,12 +35,6 @@ const CBtn = ({ color, onClick, children, disabled }) => (
 );
 const fa = color => ({ paddingLeft: 10, borderLeft: `3px solid ${color}45`, borderRadius: '0 0 0 3px' });
 
-const mLeft = endDate => {
-  if (!endDate) return 0;
-  const end = new Date(endDate);
-  const now = new Date();
-  return Math.max(0, (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth()));
-};
 
 // ── Static data for universal search ─────────────────────────────────────────
 const COMMODITY_KEYWORDS = [

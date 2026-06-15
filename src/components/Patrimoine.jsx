@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType, uid, today } from '../utils/constants';
+import { KPI, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType, uid, today, mLeft } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 import { AssetLogo, stockLogoSources, scpiLogoSources } from './Modals';
-
-const mLeft = endDate => {
-  if (!endDate) return 0;
-  const end = new Date(endDate);
-  const now = new Date();
-  const months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
-  return Math.max(0, months);
-};
 
 // ── Loan simulator helpers ────────────────────────────────────────────────────
 const calcMonthsToPayoff = (capital, annualRate, monthlyPayment) => {

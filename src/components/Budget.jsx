@@ -1,13 +1,5 @@
-import { makeS, fEur, fDate, CAT_COLORS } from '../utils/constants';
+import { makeS, fEur, fDate, CAT_COLORS, mLeft } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
-
-const mLeft = endDate => {
-  if (!endDate) return 0;
-  const end = new Date(endDate);
-  const now = new Date();
-  const months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
-  return Math.max(0, months);
-};
 
 export default function Budget({ T, data }) {
   const { t } = useTranslation();

@@ -9,6 +9,12 @@ export const fPrice = n => {
 };
 export const today = () => new Date().toISOString().slice(0, 10);
 export const uid = () => Date.now() + Math.random().toString(36).slice(2);
+export const mLeft = endDate => {
+  if (!endDate) return 0;
+  const end = new Date(endDate);
+  const now = new Date();
+  return Math.max(0, (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth()));
+};
 export const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
 // ── Theme tokens ────────────────────────────────────────────────────────────
