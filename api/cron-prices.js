@@ -83,6 +83,26 @@ async function fetchCryptoEntry(coinId) {
 }
 
 module.exports = async function handler(req, res) {
+  // ── action=snapshot (POST from frontend) ─────────────────────────────────
+  if (req.method === 'POST' && req.query.action === 'snapshot') {
+    const token = (req.headers.authorization || '').replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
+    if (authErr || !user) return res.status(401).json({ error: 'Unauthorized' });
+    const valeur = Math.round(parseFloat(req.body?.valeur) || 0);
+    if (valeur <= 0) return res.status(400).json({ error: 'Invalid valeur' });
+    const recordedAt = new Date();
+    recordedAt.setMinutes(0, 0, 0);
+    const { error: insErr } = await supabaseAdmin
+      .from('patrimoine_history')
+      .insert({ user_id: user.id, valeur, recorded_at: recordedAt.toISOString() });
+    if (insErr) {
+      console.error('[snapshot] insert error:', insErr.message);
+      return res.status(500).json({ error: insErr.message });
+    }
+    return res.json({ ok: true });
+  }
+
   if (req.method !== 'GET') return res.status(405).end();
 
   // ── action=clear-cache ───────────────────────────────────────────────────
