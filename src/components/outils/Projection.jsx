@@ -1,6 +1,12 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { KPI, TT, makeS, fEur } from '../../utils/constants';
+import { KPI, TT, makeS } from '../../utils/constants';
 import { useTranslation } from '../../hooks/useTranslation';
+
+function formatCompact(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M€';
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'k€';
+  return n.toFixed(0) + '€';
+}
 
 export default function Projection({ T, data }) {
   const S = makeS(T);
@@ -23,7 +29,7 @@ export default function Projection({ T, data }) {
         }
         .proj-kpis {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: 1fr 1fr;
           gap: 14px;
         }
         .proj-milestones {
@@ -33,11 +39,7 @@ export default function Projection({ T, data }) {
         }
         @media (max-width: 768px) {
           .proj-sliders { grid-template-columns: 1fr; }
-          .proj-kpis    { grid-template-columns: 1fr 1fr; }
-          .proj-milestones { grid-template-columns: 1fr 1fr; }
-        }
-        @media (max-width: 400px) {
-          .proj-kpis    { grid-template-columns: 1fr 1fr; }
+          .proj-kpis    { grid-template-columns: 1fr; }
           .proj-milestones { grid-template-columns: 1fr 1fr; }
         }
       `}</style>
@@ -81,15 +83,15 @@ export default function Projection({ T, data }) {
         </div>
 
         <div className="proj-kpis">
-          <KPI T={T} label={t('proj_start')}                                value={fEur(patrimoine, true)}                          icon="💰" />
-          <KPI T={T} label={t('proj_in_n_years', projYears)}                value={fEur(fin.Projection, true)} accent={T.accent}   icon="🚀" />
-          <KPI T={T} label={t('proj_total_payments')}                       value={fEur(projMonthly * 12 * projYears, true)}        icon="📅" />
-          <KPI T={T} label={t('proj_interests')}                            value={fEur(interests, true)}       accent="#4ade80"    icon="✨" />
+          <KPI T={T} label={t('proj_start')}                                value={formatCompact(patrimoine)}                          icon="💰" />
+          <KPI T={T} label={t('proj_in_n_years', projYears)}                value={formatCompact(fin.Projection)} accent={T.accent} icon="🚀" />
+          <KPI T={T} label={t('proj_total_payments')}                       value={formatCompact(projMonthly * 12 * projYears)}     icon="📅" />
+          <KPI T={T} label={t('proj_interests')}                            value={formatCompact(interests)}      accent="#4ade80"  icon="✨" />
         </div>
 
         <div style={{ ...S.card, minWidth: 0 }}>
           <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>{t('proj_evolution')}</h3>
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={250}>
             <AreaChart data={projData}>
               <defs>
                 <linearGradient id="pG" x1="0" y1="0" x2="0" y2="1">
@@ -103,7 +105,7 @@ export default function Projection({ T, data }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
               <XAxis dataKey="year" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={55} />
+              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCompact(v)} width={55} />
               <Tooltip content={<TT />} />
               <Area type="monotone" dataKey="Base"       name={t('proj_no_return')}   stroke="#60a5fa" fill="url(#bG)" strokeWidth={1.5} strokeDasharray="4 3" />
               <Area type="monotone" dataKey="Projection" name={t('proj_with_return')} stroke={T.accent} fill="url(#pG)" strokeWidth={2.5} />
@@ -117,7 +119,7 @@ export default function Projection({ T, data }) {
             {[1, 2, 5, 10, 20, 30].filter(y => y <= projYears && projData[y]).map(y => (
               <div key={y} style={{ padding: 14, background: T.bg2, borderRadius: 12, textAlign: 'center', minWidth: 0 }}>
                 <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>{t('proj_in')} {y} {t('proj_years')}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fEur(projData[y].Projection, true)}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{formatCompact(projData[y].Projection)}</div>
                 <div style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>×{(projData[y].Projection / Math.max(1, patrimoine)).toFixed(1)}</div>
               </div>
             ))}
