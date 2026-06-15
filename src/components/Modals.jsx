@@ -372,6 +372,50 @@ export default function Modals({ T, data }) {
   const [realtTokens, setRealtTokens]           = useState(null);
   const [realtManualPrices, setRealtManualPrices] = useState({});
   const resetRealt = () => { setRealtAddr(''); setRealtLoading(false); setRealtErr(''); setRealtTokens(null); setRealtManualPrices({}); };
+
+  const [cwNetwork, setCwNetwork]   = useState('all');
+  const [cwLoading, setCwLoading]   = useState(false);
+  const [cwErr, setCwErr]           = useState('');
+  const [cwData, setCwData]         = useState(null);
+  const [cwSelected, setCwSelected] = useState(new Set());
+  const resetCw = () => { setCwNetwork('all'); setCwLoading(false); setCwErr(''); setCwData(null); setCwSelected(new Set()); };
+
+  const searchCwallet = async (addr) => {
+    if (!/^0x[0-9a-fA-F]{40}$/i.test(addr)) { setCwErr('Adresse invalide — format 0x + 40 hex'); return; }
+    setCwLoading(true); setCwErr(''); setCwData(null);
+    try {
+      const res = await fetch(`/api/crypto-wallet?address=${addr}&network=${cwNetwork}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      setCwData(d);
+      const allItems = [...(d.nativeBalances || []), ...(d.tokens || [])];
+      setCwSelected(new Set(allItems.map((_, i) => i)));
+    } catch (e) { setCwErr(e.message); }
+    finally { setCwLoading(false); }
+  };
+
+  const importCwSelection = (addr, portfolioName) => {
+    if (!cwData) return;
+    const allItems = [...(cwData.nativeBalances || []), ...(cwData.tokens || [])];
+    const selected = allItems.filter((_, i) => cwSelected.has(i));
+    if (!selected.length) return;
+    const shortAddr = `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+    const newInv = {
+      id: uid(), name: portfolioName || `Crypto ${shortAddr}`, type: 'Crypto', color: '#F59E0B',
+      platform: 'Wallet', walletType: '', adresse: addr,
+      openDate: '', devise: 'EUR', assureur: '', avType: '', immoBien: '', acquisitionDate: '',
+      loanId: '', loyerMensuel: 0, chargesMensuelles: 0, employeur: '', peType: '',
+      disponibiliteDate: '', value: 0, invested: 0, notes: '', cash: 0, courtier: '',
+      positions: selected.map(tk => ({
+        id: uid(), ticker: tk.symbol, name: tk.name,
+        shares: tk.amount, buyPrice: tk.priceEUR || 0, currentPrice: tk.priceEUR || 0,
+        posType: 'crypto', divYield: 0,
+        isin: '', exchange: tk.network || '', currency: 'EUR', platform: '', notes: '', commodityType: '',
+      })),
+      dividends: [],
+    };
+    setInvestments(prev => [...(prev || []), newInv]);
+  };
   const searchRealt = async () => {
     const a = realtAddr.trim();
     if (!/^0x[0-9a-fA-F]{40}$/i.test(a)) { setRealtErr('Adresse invalide — format 0x + 40 hex'); return; }
@@ -840,7 +884,7 @@ export default function Modals({ T, data }) {
     const isPER       = pt === 'PER';
     const isAVFE      = pt === 'Assurance-vie fonds euros';
     const isAutre     = pt === 'Autre';
-    const closePortfolio = () => close(() => { setPortfolioForm(mkPortfolio()); resetRealt(); });
+    const closePortfolio = () => close(() => { setPortfolioForm(mkPortfolio()); resetRealt(); resetCw(); });
     const importRealtAll = () => {
       if (!realtTokens?.length) return;
       const a = realtAddr.trim();
@@ -934,19 +978,101 @@ export default function Modals({ T, data }) {
 
         {/* ── Crypto ────────────────────────────────────────────────────────── */}
         {isCrypto && (
-          <FRow cols={2}>
-            <FField style={f} label={t('portfolio_platform')}>
-              <select style={S.inp} value={portfolioForm.platform} onChange={e => setPortfolioForm(p => ({ ...p, platform: e.target.value }))}>
-                <option value="">{t('tx_select')}</option>
-                {PORTFOLIO_CRYPTO_PLATFORMS.map(b => <option key={b}>{b}</option>)}
-              </select>
-            </FField>
-            <FField style={f} label={t('portfolio_wallet_type')}>
-              <select style={S.inp} value={portfolioForm.walletType} onChange={e => setPortfolioForm(p => ({ ...p, walletType: e.target.value }))}>
-                {PORTFOLIO_CRYPTO_TYPES.map(wt => <option key={wt}>{wt}</option>)}
-              </select>
-            </FField>
-          </FRow>
+          <>
+            <FRow cols={2}>
+              <FField style={f} label={t('portfolio_platform')}>
+                <select style={S.inp} value={portfolioForm.platform} onChange={e => setPortfolioForm(p => ({ ...p, platform: e.target.value }))}>
+                  <option value="">{t('tx_select')}</option>
+                  {PORTFOLIO_CRYPTO_PLATFORMS.map(b => <option key={b}>{b}</option>)}
+                </select>
+              </FField>
+              <FField style={f} label={t('portfolio_wallet_type')}>
+                <select style={S.inp} value={portfolioForm.walletType} onChange={e => setPortfolioForm(p => ({ ...p, walletType: e.target.value }))}>
+                  {PORTFOLIO_CRYPTO_TYPES.map(wt => <option key={wt}>{wt}</option>)}
+                </select>
+              </FField>
+            </FRow>
+            <FRow cols={1}>
+              <FField style={f} label="Adresse wallet EVM (optionnel — 0x...)">
+                <input type="text" placeholder="0x1234...abcd" style={S.inp}
+                  value={portfolioForm.adresse || ''}
+                  onChange={e => { setPortfolioForm(p => ({ ...p, adresse: e.target.value })); resetCw(); }}
+                />
+              </FField>
+            </FRow>
+            {/^0x[0-9a-fA-F]{40}$/i.test(portfolioForm.adresse || '') && (() => {
+              const addr = portfolioForm.adresse.trim();
+              const cwColor = '#F59E0B';
+              const allItems = cwData ? [...(cwData.nativeBalances || []), ...(cwData.tokens || [])] : [];
+              const totalSelected = allItems.filter((_, i) => cwSelected.has(i)).reduce((s, tk) => s + (tk.totalEUR || 0), 0);
+              return (
+                <div style={{ background: 'rgba(245,158,11,.06)', border: `1px solid rgba(245,158,11,.2)`, borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: cwColor }}>🔍 Import wallet EVM</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select style={{ ...S.inp, flex: 1, minWidth: 130 }} value={cwNetwork} onChange={e => { setCwNetwork(e.target.value); setCwData(null); }}>
+                      <option value="all">Tous les réseaux</option>
+                      <option value="ethereum">Ethereum</option>
+                      <option value="bsc">BSC</option>
+                      <option value="polygon">Polygon</option>
+                      <option value="arbitrum">Arbitrum</option>
+                      <option value="optimism">Optimism</option>
+                      <option value="gnosis">Gnosis</option>
+                    </select>
+                    <CBtn color={cwColor} onClick={() => searchCwallet(addr)} disabled={cwLoading}>
+                      {cwLoading ? '…' : '🔍 Scanner'}
+                    </CBtn>
+                  </div>
+                  {cwErr && <div style={{ color: '#f87171', fontSize: 11 }}>{cwErr}</div>}
+                  {cwData && allItems.length === 0 && (
+                    <div style={{ color: T.textMuted, fontSize: 12 }}>Aucun token trouvé.</div>
+                  )}
+                  {allItems.length > 0 && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, alignItems: 'center' }}>
+                        <span style={{ color: T.textMuted }}>
+                          {allItems.length} actif{allItems.length > 1 ? 's' : ''} trouvé{allItems.length > 1 ? 's' : ''}
+                          {cwData.networks?.length > 0 && <span style={{ color: T.textFaint }}> · {cwData.networks.join(', ')}</span>}
+                        </span>
+                        <span style={{ color: cwColor, fontWeight: 700 }}>
+                          {cwSelected.size} sélectionné{cwSelected.size > 1 ? 's' : ''} · {totalSelected.toFixed(2)} €
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 2 }}>
+                        <button onClick={() => setCwSelected(new Set(allItems.map((_, i) => i)))} style={{ ...S.btnS, fontSize: 10, padding: '2px 8px' }}>Tout</button>
+                        <button onClick={() => setCwSelected(new Set())} style={{ ...S.btnS, fontSize: 10, padding: '2px 8px' }}>Aucun</button>
+                      </div>
+                      <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {allItems.map((tk, i) => (
+                          <label key={i} style={{ padding: '7px 10px', background: T.bg2, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={cwSelected.has(i)}
+                              onChange={() => setCwSelected(prev => {
+                                const next = new Set(prev);
+                                next.has(i) ? next.delete(i) : next.add(i);
+                                return next;
+                              })}
+                              style={{ accentColor: cwColor, width: 14, height: 14, flexShrink: 0 }}
+                            />
+                            {tk.iconUrl
+                              ? <img src={tk.iconUrl} alt="" style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff', flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
+                              : <div style={{ width: 22, height: 22, borderRadius: '50%', background: cwColor + '33', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: cwColor, flexShrink: 0 }}>{(tk.symbol || '?')[0]}</div>
+                            }
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>{tk.symbol}</div>
+                              <div style={{ fontSize: 10, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tk.name} · {tk.network}</div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{tk.totalEUR?.toFixed(2)} €</div>
+                              <div style={{ fontSize: 10, color: T.textMuted }}>{+parseFloat(tk.amount).toFixed(4)} {tk.symbol}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </>
         )}
 
         {/* ── Matières premières ────────────────────────────────────────────── */}
@@ -1165,10 +1291,12 @@ export default function Modals({ T, data }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
           {isRealT && realtTokens?.length > 0
             ? <CBtn color="#EF4444" onClick={importRealtAll}>✓ Importer {realtTokens.length} token{realtTokens.length > 1 ? 's' : ''}</CBtn>
-            : <CBtn color={c} onClick={savePortfolio} disabled={!portfolioForm.name || (isRealT && !realtTokens)}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
+            : isCrypto && cwData && cwSelected.size > 0
+              ? <CBtn color="#F59E0B" onClick={() => { importCwSelection(portfolioForm.adresse, portfolioForm.name); closePortfolio(); }}>✓ Importer {cwSelected.size} actif{cwSelected.size > 1 ? 's' : ''}</CBtn>
+              : <CBtn color={c} onClick={savePortfolio} disabled={!portfolioForm.name || (isRealT && !realtTokens)}>{editItem ? t('btn_save') : t('btn_add')}</CBtn>
           }
           <button onClick={closePortfolio} style={S.btnS}>{t('btn_cancel')}</button>
         </div>

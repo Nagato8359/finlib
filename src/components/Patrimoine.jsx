@@ -63,6 +63,8 @@ export default function Patrimoine({ T, data }) {
   const [rentLoading, setRentLoading] = useState(false);
   const [rentError, setRentError]     = useState('');
   const [rentTf, setRentTf]           = useState('12M');
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncMsg, setSyncMsg]         = useState('');
 
   const SECTIONS = [
     { id: 'invest',   label: t('pat_invest')   },
@@ -85,6 +87,42 @@ export default function Patrimoine({ T, data }) {
     allDividends, divThisYear, divByMonth, delDividend,
     setPosForm, mkPos, setInvestments, setTransactions,
   } = data;
+
+  const syncCwallet = useCallback(async (inv) => {
+    const addr = (inv.adresse || '').trim();
+    if (!addr || !/^0x[0-9a-fA-F]{40}$/i.test(addr)) return;
+    setSyncLoading(true); setSyncMsg('');
+    try {
+      const res = await fetch(`/api/crypto-wallet?address=${addr}&network=all`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      const incoming = [...(d.nativeBalances || []), ...(d.tokens || [])];
+      setInvestments(prev => prev.map(env => {
+        if (env.id !== inv.id) return env;
+        const existing = [...(env.positions || [])];
+        let added = 0;
+        let updated = 0;
+        for (const tk of incoming) {
+          const idx = existing.findIndex(p => p.ticker?.toUpperCase() === tk.symbol?.toUpperCase());
+          if (idx >= 0) {
+            existing[idx] = { ...existing[idx], shares: tk.amount, currentPrice: tk.priceEUR || existing[idx].currentPrice };
+            updated++;
+          } else {
+            existing.push({
+              id: uid(), ticker: tk.symbol, name: tk.name,
+              shares: tk.amount, buyPrice: tk.priceEUR || 0, currentPrice: tk.priceEUR || 0,
+              posType: 'crypto', divYield: 0,
+              isin: '', exchange: tk.network || '', currency: 'EUR', platform: '', notes: '', commodityType: '',
+            });
+            added++;
+          }
+        }
+        setSyncMsg(`✓ ${updated} mis à jour, ${added} ajouté${added !== 1 ? 's' : ''}`);
+        return { ...env, positions: existing };
+      }));
+    } catch (e) { setSyncMsg(`✗ ${e.message}`); }
+    finally { setSyncLoading(false); }
+  }, [setInvestments]);
 
   const loadRents = useCallback((inv, forceRefresh = false) => {
     if (!inv || inv.type !== 'RealT' || !/^0x[0-9a-fA-F]{40}$/i.test(inv.platform || '')) return;
@@ -144,7 +182,16 @@ export default function Patrimoine({ T, data }) {
             <button onClick={() => setDrillInv(null)} style={{ ...S.btnS, fontSize: 12, padding: '5px 12px' }}>{t('inv_back')}</button>
             <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{cur.name}</span>
             <span style={{ fontSize: 11, background: typeColor + '22', color: typeColor, padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>{typeIcon} {type}</span>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              {cur.type === 'Crypto' && /^0x[0-9a-fA-F]{40}$/i.test(cur.adresse || '') && (
+                <>
+                  <button onClick={() => { setSyncMsg(''); syncCwallet(cur); }} disabled={syncLoading}
+                    style={{ ...S.btnS, fontSize: 11, padding: '4px 10px', color: '#F59E0B', borderColor: 'rgba(245,158,11,.4)', opacity: syncLoading ? 0.6 : 1 }}>
+                    {syncLoading ? '…' : '🔄 Sync wallet'}
+                  </button>
+                  {syncMsg && <span style={{ fontSize: 10, color: syncMsg.startsWith('✓') ? '#4ade80' : '#f87171' }}>{syncMsg}</span>}
+                </>
+              )}
               <button onClick={() => openEditPortfolio(cur)} style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}>{t('inv_edit')}</button>
               <button onClick={() => setConfirmDel({ msg: `Supprimer l'enveloppe "${cur.name}" ? Cette action est irréversible et supprimera tous les actifs associés.`, fn: () => { setDrillInv(null); delInv(cur.id); } })} style={{ ...S.btnD, fontSize: 11, padding: '4px 10px' }}>✕</button>
             </div>
