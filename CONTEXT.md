@@ -375,3 +375,63 @@ En production, les routes `/api/*` sont gérées par Vercel Functions (pas Expre
 - **Output dir** : `build/`
 - **Service Worker** : `/service-worker.js` — headers `no-cache` forcés via `vercel.json`
 - **CSP** : `vercel.json` applique une Content-Security-Policy sur toutes les routes
+
+---
+
+## Monétisation
+
+### Modèle freemium
+
+**FREE — 0€**
+- Max 3 enveloppes d'investissement
+- Max 5 objets matériels
+- Max 5 articles en vente
+- 1 profil utilisateur
+- Prix automatiques actions/ETF/crypto
+- Budget & Objectifs
+- Flux de transactions
+- Historique graphique illimité
+- Notifications push basiques (rappel inactivité uniquement)
+- IA — 3 questions/jour (pas d'analyse complète)
+
+**PRO MENSUEL — 7,99€/mois**
+**PRO ANNUEL — 59,99€/an (4,99€/mois, -37%)**
+**PRO À VIE — 149€ (une seule fois)**
+
+Fonctionnalités Pro :
+- Enveloppes illimitées
+- Objets matériels illimités
+- Articles en vente illimités
+- Profils multiples (conjoint, enfant...)
+- Import wallet crypto automatique
+- Import wallet RealT automatique
+- Notifications push avancées (dividendes, paliers, alertes cours)
+- Veille marché & actualités financières
+- Liens affiliés partenaires
+- Simulateur & Projection avancés
+- Récap fiscal annuel
+- Rebalancing avec calculs
+- Calendrier dividendes complet
+- IA illimitée + analyse complète patrimoine
+- Export PDF/Excel
+
+### Système de parrainage
+- Code unique par utilisateur (ex: ALEX2026)
+- Parrain → 1 mois Pro gratuit par filleul ayant souscrit
+- Filleul → 1 mois Pro gratuit à l'inscription
+- Pas de limite de parrainages cumulables
+
+### Paiement
+- Web (capitaly.fr) → Stripe
+- iOS App Store → Apple In-App Purchase (30% commission Apple)
+- Android Google Play → Google Play Billing (30% commission)
+- Stratégie : encourager l'abonnement via le web pour éviter les commissions
+
+### Publication stores
+- Google Play → TWA (Trusted Web Activity) — wrapper de la PWA
+- App Store → PWABuilder ou Capacitor
+- À implémenter quand l'app sera stable et sans bugs majeurs
+
+### Tables Supabase à créer
+- `subscriptions` : `user_id, plan (free/pro_monthly/pro_annual/pro_lifetime), status, stripe_customer_id, stripe_subscription_id, current_period_end, referral_code, referred_by`
+- `referrals` : `referrer_id, referred_id, bonus_months, created_at`
