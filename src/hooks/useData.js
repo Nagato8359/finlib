@@ -939,7 +939,7 @@ export function useData() {
     income, expense, balance, savingsRate, pnlTotal,
     totalLoanDebt, totalConsumerDebt, totalDebt, monthlyDebtPayments, endettementRate,
     score, alerts, budgetProgress, monthlyData, catData, projData,
-    invLiveValue, invLiveInvested, setInvestments,
+    invLiveValue, invLiveInvested, setInvestments, setTransactions,
     computeForecast, importTransactions,
     saveTx, delTx, openEditTx,
     saveInv, delInv, openEditInv,

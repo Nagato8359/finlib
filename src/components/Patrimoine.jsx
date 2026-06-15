@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { KPI, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType } from '../utils/constants';
+import { KPI, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType, uid, today } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 import { AssetLogo, stockLogoSources, scpiLogoSources } from './Modals';
 
@@ -56,6 +56,9 @@ export default function Patrimoine({ T, data }) {
   const [section, setSection] = useState('invest');
   const [loanSim, setLoanSim] = useState({});
   const [confirmDel, setConfirmDel] = useState(null);
+  const [cashModal, setCashModal] = useState(null);
+  const [cashOpMode, setCashOpMode] = useState('add');
+  const [cashOpAmt, setCashOpAmt] = useState('');
   const [rentData, setRentData]       = useState(null);
   const [rentLoading, setRentLoading] = useState(false);
   const [rentError, setRentError]     = useState('');
@@ -80,7 +83,7 @@ export default function Patrimoine({ T, data }) {
     openEditListing, delListing, markSold,
     openEditLoan, delLoan,
     allDividends, divThisYear, divByMonth, delDividend,
-    setPosForm, mkPos, setInvestments,
+    setPosForm, mkPos, setInvestments, setTransactions,
   } = data;
 
   const loadRents = useCallback((inv, forceRefresh = false) => {
@@ -621,6 +624,7 @@ export default function Patrimoine({ T, data }) {
                         <button onClick={e => { e.stopPropagation(); openEditPortfolio(inv); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
                         <button onClick={e => { e.stopPropagation(); setConfirmDel({ msg: `Supprimer l'enveloppe "${inv.name}" ? Cette action est irréversible et supprimera tous les actifs associés.`, fn: () => delInv(inv.id) }); }} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
                         <button onClick={e => { e.stopPropagation(); setDivInvId(inv.id); setModal('div'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10, color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>{t('inv_add_dividend')}</button>
+                        <button onClick={e => { e.stopPropagation(); setCashModal(inv); setCashOpMode('add'); setCashOpAmt(''); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10, color: '#60a5fa', borderColor: 'rgba(96,165,250,.3)' }}>💰 Liquidités</button>
                       </div>
                     </div>
                   );
@@ -1108,6 +1112,81 @@ export default function Patrimoine({ T, data }) {
         {section === 'materiel' && renderMateriel()}
         {section === 'loans' && renderLoans()}
       </div>
+      {cashModal && (() => {
+        const cur = investments.find(i => i.id === cashModal.id) || cashModal;
+        const curCash = parseFloat(cur.cash) || 0;
+        const amt = parseFloat(cashOpAmt) || 0;
+        const isWithdraw = cashOpMode === 'remove';
+        const overWithdraw = isWithdraw && amt > curCash;
+        const canConfirm = amt > 0 && !overWithdraw;
+        const confirm = () => {
+          const delta = isWithdraw ? -amt : amt;
+          setInvestments(p => p.map(inv =>
+            inv.id === cur.id
+              ? { ...inv, cash: parseFloat(((parseFloat(inv.cash) || 0) + delta).toFixed(2)) }
+              : inv
+          ));
+          setTransactions(p => [{
+            id: uid(), date: today(), recurrent: false, accountId: '', destAccountId: '', loanId: '',
+            type: isWithdraw ? 'expense' : 'income',
+            category: isWithdraw ? 'Retrait' : 'Dépôt',
+            label: isWithdraw ? `Retrait depuis ${cur.name}` : `Dépôt sur ${cur.name}`,
+            amount: isWithdraw ? -amt : amt,
+          }, ...p]);
+          setCashModal(null); setCashOpAmt('');
+        };
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.82)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: T.bg3, border: '1px solid rgba(96,165,250,.25)', borderRadius: 20, width: '100%', maxWidth: 400, boxShadow: '0 32px 80px rgba(0,0,0,.65)', overflow: 'hidden' }}>
+              <div style={{ background: 'rgba(96,165,250,.08)', borderBottom: '1px solid rgba(96,165,250,.2)', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>💰 Gérer les liquidités</div>
+                  <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{cur.name}</div>
+                </div>
+                <button onClick={() => { setCashModal(null); setCashOpAmt(''); }} style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: T.textMuted, padding: '5px 12px', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>×</button>
+              </div>
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.2)', borderRadius: 12, padding: '12px 16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Solde actuel</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#4ade80' }}>{fEur(curCash)}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[{ id: 'add', label: '+ Ajouter' }, { id: 'remove', label: '− Retirer' }].map(m => (
+                    <button key={m.id} onClick={() => { setCashOpMode(m.id); setCashOpAmt(''); }}
+                      style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `1px solid ${cashOpMode === m.id ? '#60a5fa' : 'rgba(255,255,255,.08)'}`, background: cashOpMode === m.id ? 'rgba(96,165,250,.12)' : T.bg2, color: cashOpMode === m.id ? '#60a5fa' : T.textMuted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.04em' }}>Montant (€)</label>
+                  <input
+                    autoFocus type="number" min="0" step="0.01" placeholder="0.00"
+                    value={cashOpAmt}
+                    onChange={e => setCashOpAmt(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && canConfirm && confirm()}
+                    style={{ width: '100%', boxSizing: 'border-box', background: T.bg2, border: `1px solid ${overWithdraw ? '#f87171' : 'rgba(255,255,255,.1)'}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, color: T.text, fontFamily: 'inherit', outline: 'none' }}
+                  />
+                  {overWithdraw && <div style={{ fontSize: 11, color: '#f87171', marginTop: 5 }}>Montant supérieur au solde ({fEur(curCash)})</div>}
+                </div>
+                {amt > 0 && !overWithdraw && (
+                  <div style={{ background: isWithdraw ? 'rgba(248,113,113,.08)' : 'rgba(74,222,128,.08)', border: `1px solid ${isWithdraw ? 'rgba(248,113,113,.2)' : 'rgba(74,222,128,.2)'}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, color: isWithdraw ? '#f87171' : '#4ade80' }}>
+                    Nouveau solde : {fEur(curCash + (isWithdraw ? -amt : amt))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={confirm} disabled={!canConfirm} style={{ flex: 1, background: canConfirm ? 'linear-gradient(135deg,#60a5fa,#3b82f6)' : '#4b5563', border: 'none', borderRadius: 10, color: '#fff', padding: '10px 0', fontSize: 13, fontWeight: 600, cursor: canConfirm ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                    Confirmer
+                  </button>
+                  <button onClick={() => { setCashModal(null); setCashOpAmt(''); }} style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: T.textMuted, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {confirmDel && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ background: T.bg3, border: '1px solid rgba(248,113,113,.35)', borderRadius: 16, padding: '26px 28px', maxWidth: 400, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,.6)' }}>
