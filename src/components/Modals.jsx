@@ -219,9 +219,8 @@ const SCPI_DOMAINS = {
 
 // Returns ordered logo sources for stocks/ETF:
 //   1. asset.logoUrl — API-provided field (prioritised if present)
-//   2. Logo.dev — free CDN, covers companies worldwide by domain
-//   3. Parqet  — finance-focused CDN, good for US/EU tickers
-//   4. Google favicons — universal last resort (known domains only)
+//   2. Logo.dev by domain — covers companies worldwide (known domains only)
+//   3. Google favicons — universal last resort (known domains only)
 export const stockLogoSources = (sym, logoUrl) => {
   const srcs = [];
   if (logoUrl) srcs.push(logoUrl);
@@ -229,7 +228,6 @@ export const stockLogoSources = (sym, logoUrl) => {
   const base   = sym.split('.')[0].toUpperCase();
   const domain = TICKER_TO_DOMAIN[base];
   if (domain) srcs.push(`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`);
-  srcs.push(`https://assets.parqet.com/logos/symbol/${base}?format=svg`);
   if (domain) srcs.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
   return srcs;
 };

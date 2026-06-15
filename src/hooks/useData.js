@@ -375,16 +375,10 @@ export function useData() {
     if (!keys.length) return;
     setPriceStatus('loading');
     try {
-      const { data: rows, error } = await supabase
-        .from('prices_cache')
-        .select('ticker, price')
-        .in('ticker', keys);
-      if (error) throw new Error(error.message);
-      // eslint-disable-next-line no-console
-      console.log('PRICES FROM CACHE:', rows?.map(p => ({ ticker: p.ticker, price: p.price })));
-      const priceObj = {};
-      for (const row of rows || []) priceObj[row.ticker] = row.price;
-      setPrices(priceObj); setLastUpdated(new Date()); setPriceStatus('ok');
+      const res = await fetch(`${API_BASE}/api/prices?tickers=${keys.join(',')}`);
+      if (!res.ok) throw new Error('server');
+      const data = await res.json();
+      setPrices(data); setLastUpdated(new Date()); setPriceStatus('ok');
     } catch { setPriceStatus('error'); }
   }, []);
 
