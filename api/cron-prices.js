@@ -138,6 +138,49 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // ── action=snapshot-all ───────────────────────────────────────────────────
+  if (req.query.action === 'snapshot-all') {
+    try {
+      const { data: users, error: usersErr } = await supabaseAdmin
+        .from('user_data')
+        .select('user_id');
+      if (usersErr) throw new Error(usersErr.message);
+
+      const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+      const { data: recentRows } = await supabaseAdmin
+        .from('patrimoine_history')
+        .select('user_id')
+        .gte('recorded_at', oneHourAgo);
+      const recentSet = new Set((recentRows || []).map(r => r.user_id));
+
+      const nowHour = new Date();
+      nowHour.setMinutes(0, 0, 0);
+      const recordedAt = nowHour.toISOString();
+
+      let snapshotted = 0;
+      for (const { user_id } of users || []) {
+        if (recentSet.has(user_id)) continue;
+        const { data: last } = await supabaseAdmin
+          .from('patrimoine_history')
+          .select('valeur')
+          .eq('user_id', user_id)
+          .order('recorded_at', { ascending: false })
+          .limit(1);
+        if (!last?.length) continue;
+        const { error: insErr } = await supabaseAdmin
+          .from('patrimoine_history')
+          .insert({ user_id, valeur: last[0].valeur, recorded_at: recordedAt });
+        if (!insErr) snapshotted++;
+        else console.error(`[snapshot-all] ${user_id}:`, insErr.message);
+      }
+      console.log(`[snapshot-all] snapshotted ${snapshotted} users`);
+      return res.json({ ok: true, snapshotted });
+    } catch (e) {
+      console.error('[snapshot-all] error:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // Outer variables — declared here so all steps and the final res.json can access them
   let rows = [];
   let keys = [];
