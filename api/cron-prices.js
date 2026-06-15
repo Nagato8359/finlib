@@ -280,10 +280,22 @@ module.exports = async function handler(req, res) {
         total += parseFloat(pos.currentValue) || parseFloat(pos.buyPrice) || 0;
         continue;
       }
-      const key = pos.posType === 'commodity'
-        ? (COMMODITY_TICKER_MAP[pos.commodityType] || '').toUpperCase()
-        : (pos.isin || pos.ticker || '').toUpperCase();
-      const livePrice = (key && priceMap[key] != null) ? priceMap[key] : (parseFloat(pos.currentPrice) || 0);
+      let livePrice;
+      if (pos.posType === 'commodity') {
+        const key = (COMMODITY_TICKER_MAP[pos.commodityType] || '').toUpperCase();
+        livePrice = (key && priceMap[key] != null) ? priceMap[key] : (parseFloat(pos.currentPrice) || 0);
+      } else {
+        const tk = pos.ticker ? pos.ticker.toUpperCase() : null;
+        const sy = pos.symbol ? pos.symbol.toUpperCase() : null;
+        const is = pos.isin   ? pos.isin.toUpperCase()   : null;
+        if      (tk && priceMap[tk] != null) livePrice = priceMap[tk];
+        else if (sy && priceMap[sy] != null) livePrice = priceMap[sy];
+        else if (is && priceMap[is] != null) livePrice = priceMap[is];
+        else {
+          if (tk || sy || is) console.log('NO PRICE for:', pos.ticker, pos.symbol, pos.isin);
+          livePrice = parseFloat(pos.currentPrice) || 0;
+        }
+      }
       total += (parseFloat(pos.shares) || 0) * livePrice;
     }
     return total;
