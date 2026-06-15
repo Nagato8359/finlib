@@ -330,9 +330,6 @@ export default function Patrimoine({ T, data }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(cur.positions || []).map(pos => {
                     const hasLiveFeed = ['stock', 'etf', 'crypto', 'commodity'].includes(pos.posType);
-                    console.log('POS DEBUG:', pos.name, 'isin:', pos.isin, 'ticker:', pos.ticker,
-                      'prices[isin]:', pos.isin ? data.prices[pos.isin?.toUpperCase()] : 'no isin',
-                      'prices[ticker]:', data.prices[pos.ticker?.toUpperCase()]);
                     const livePrice = (hasLiveFeed ? (data.prices[pos.isin?.toUpperCase()] || data.prices[pos.ticker?.toUpperCase()] || null) : null) ?? pos.currentPrice;
                     const posVal = pos.shares * livePrice;
                     const posInv = pos.shares * pos.buyPrice;
