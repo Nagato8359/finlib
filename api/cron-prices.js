@@ -296,6 +296,8 @@ module.exports = async function handler(req, res) {
           livePrice = parseFloat(pos.currentPrice) || 0;
         }
       }
+      // eslint-disable-next-line no-console
+      console.log('POS:', pos.name, '| ticker:', pos.ticker, '| shares:', pos.shares, '| priceMap keys tried:', pos.ticker, pos.symbol, pos.isin, '| price found:', priceMap[pos.ticker] || priceMap[pos.symbol] || priceMap[pos.isin] || pos.currentPrice || 0);
       total += (parseFloat(pos.shares) || 0) * livePrice;
     }
     return total;
