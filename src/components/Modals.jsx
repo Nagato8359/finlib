@@ -153,8 +153,86 @@ export const AssetLogo = ({ sources = [], letter, color, size = 32 }) => {
   return <img src={sources[idx]} alt="" onError={() => setIdx(i => i + 1)} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'contain', background: '#fff', padding: 2, boxSizing: 'border-box', flexShrink: 0 }} />;
 };
 
-const LOGO_DEV_TOKEN = 'pk_X4dPbXQbTBuiGqrJH9u8VA';
-export { LOGO_DEV_TOKEN };
+export const TICKER_TO_DOMAIN = {
+  // France CAC40/SBF120
+  TTE: 'totalenergies.com', 'TTE.PA': 'totalenergies.com', FP: 'totalenergies.com',
+  AI: 'airbus.com', BNP: 'bnpparibas.com',
+  SAN: 'sanofi.com', MC: 'lvmh.com', OR: 'loreal.com',
+  RMS: 'hermes.com', TFI: 'tf1.fr', ORA: 'orange.com',
+  VIE: 'veolia.com', DG: 'vinci.com', RI: 'pernod-ricard.com',
+  CA: 'carrefour.com', BN: 'danone.com', ENGI: 'engie.com',
+  SGO: 'saint-gobain.com', ML: 'michelin.com', ACA: 'credit-agricole.com',
+  GLE: 'societegenerale.com', KER: 'kering.com', CAP: 'capgemini.com',
+  DSY: 'dassault-systemes.com', STM: 'st.com', PUB: 'publicis.com',
+  RNO: 'renault.com', SU: 'schneider-electric.com', SW: 'schneider-electric.com',
+  LR: 'legrand.com', EL: 'essilorluxottica.com', TEP: 'teleperformance.com',
+  HO: 'thalesgroup.com', AXA: 'axa.com', CS: 'axa.com',
+  SAF: 'safran.com', AC: 'accor.com', ALO: 'alstomgroup.com', 'ALO.PA': 'alstomgroup.com',
+  NK: 'nexans.com', WLN: 'worldline.com',
+  // ETF Amundi/BNP/FDJ/NN
+  TNO: 'amundi.com', 'TNO.MI': 'amundi.com',
+  AWAT: 'amundi.com', 'AWAT.PA': 'amundi.com',
+  PCEU: 'amundi.com', 'PCEU.PA': 'amundi.com',
+  PAEEM: 'amundi.com', 'PAEEM.PA': 'amundi.com',
+  PLEM: 'amundi.com', 'PLEM.PA': 'amundi.com',
+  ETZD: 'bnpparibas.com', 'ETZD.PA': 'bnpparibas.com',
+  FDJU: 'groupefdj.com', 'FDJU.PA': 'groupefdj.com',
+  NN: 'nn-group.com', 'NN.AS': 'nn-group.com',
+  // Crypto
+  BTC: 'bitcoin.org', ETH: 'ethereum.org',
+  // Europe
+  ASML: 'asml.com', SAP: 'sap.com', NESN: 'nestle.com',
+  NOVN: 'novartis.com', ROG: 'roche.com', SHELL: 'shell.com',
+  BP: 'bp.com', SIE: 'siemens.com', ALV: 'allianz.com',
+  BMW: 'bmw.com', VOW3: 'volkswagen.com', ADS: 'adidas.com',
+  BAS: 'basf.com', DTE: 'telekom.com', MUV2: 'munichre.com',
+  BAYN: 'bayer.com', DBK: 'db.com', MBG: 'mercedes-benz.com',
+  ENEL: 'enel.com', ENI: 'eni.com', ISP: 'intesasanpaolo.com',
+  UCG: 'unicredit.com', PRY: 'prysmiangroup.com', NOKIA: 'nokia.com',
+  // USA
+  AAPL: 'apple.com', MSFT: 'microsoft.com', GOOGL: 'google.com', GOOG: 'google.com',
+  AMZN: 'amazon.com', META: 'meta.com', TSLA: 'tesla.com', NVDA: 'nvidia.com',
+  JPM: 'jpmorganchase.com', V: 'visa.com', MA: 'mastercard.com',
+  JNJ: 'jnj.com', WMT: 'walmart.com', PG: 'pg.com',
+  UNH: 'unitedhealthgroup.com', HD: 'homedepot.com', BAC: 'bankofamerica.com',
+  DIS: 'disney.com', NFLX: 'netflix.com', PYPL: 'paypal.com',
+  ADBE: 'adobe.com', CRM: 'salesforce.com', INTC: 'intel.com',
+  AMD: 'amd.com', ORCL: 'oracle.com', UBER: 'uber.com',
+  SPOT: 'spotify.com', COIN: 'coinbase.com', SQ: 'block.xyz',
+  GS: 'goldmansachs.com', MS: 'morganstanley.com', PFE: 'pfizer.com',
+  KO: 'coca-cola.com', PEP: 'pepsico.com', NKE: 'nike.com',
+  ABNB: 'airbnb.com', SHOP: 'shopify.com', SNAP: 'snap.com',
+  T: 'att.com', VZ: 'verizon.com', AMGN: 'amgen.com',
+  COST: 'costco.com', AVGO: 'broadcom.com', LLY: 'lilly.com',
+  // Popular ETFs
+  SPY: 'ssga.com', QQQ: 'invesco.com', IWDA: 'ishares.com',
+  CSPX: 'ishares.com', VWCE: 'vanguard.com', WPEA: 'amundi.com',
+  CW8: 'amundi.com', ESE: 'etfsecurities.com', LCWD: 'lgim.com',
+  MEUD: 'lyxoretf.com', LQQ: 'lyxoretf.com',
+  // Exchange suffixes .PA
+  'MC.PA': 'lvmh.com', 'OR.PA': 'loreal.com', 'SAN.PA': 'sanofi.com',
+  'BNP.PA': 'bnpparibas.com', 'AI.PA': 'airbus.com', 'RMS.PA': 'hermes.com',
+  'KER.PA': 'kering.com', 'CAP.PA': 'capgemini.com', 'DSY.PA': 'dassault-systemes.com',
+  'ORA.PA': 'orange.com', 'ENGI.PA': 'engie.com', 'SGO.PA': 'saint-gobain.com',
+  'DG.PA': 'vinci.com', 'ACA.PA': 'credit-agricole.com', 'GLE.PA': 'societegenerale.com',
+  'CS.PA': 'axa.com', 'HO.PA': 'thalesgroup.com', 'PUB.PA': 'publicis.com',
+  'RNO.PA': 'renault.com', 'SW.PA': 'schneider-electric.com', 'SU.PA': 'schneider-electric.com',
+  'ML.PA': 'michelin.com', 'BN.PA': 'danone.com', 'CA.PA': 'carrefour.com',
+  'RI.PA': 'pernod-ricard.com', 'VIE.PA': 'veolia.com', 'STM.PA': 'st.com',
+  'TEP.PA': 'teleperformance.com', 'LR.PA': 'legrand.com', 'EL.PA': 'essilorluxottica.com',
+  'SAF.PA': 'safran.com', 'NK.PA': 'nexans.com',
+  // .DE
+  'SAP.DE': 'sap.com', 'SIE.DE': 'siemens.com', 'ALV.DE': 'allianz.com',
+  'BMW.DE': 'bmw.com', 'VOW3.DE': 'volkswagen.com', 'ADS.DE': 'adidas.com',
+  'BAS.DE': 'basf.com', 'BAYN.DE': 'bayer.com', 'MBG.DE': 'mercedes-benz.com',
+  'DTE.DE': 'telekom.com',
+  // .AS / .SW / .L
+  'ASML.AS': 'asml.com',
+  'NESN.SW': 'nestle.com', 'NOVN.SW': 'novartis.com', 'ROG.SW': 'roche.com',
+  HSBA: 'hsbc.com', 'HSBA.L': 'hsbc.com',
+};
+
+export const LOGO_DEV_TOKEN = 'pk_X4dPbXQbTBuiGqrJH9u8VA';
 
 // SCPI: keyword (lowercase substring) → management company domain
 const SCPI_DOMAINS = {
@@ -172,8 +250,12 @@ export const stockLogoSources = (sym, logoUrl) => {
   const srcs = [];
   if (logoUrl) srcs.push(logoUrl);
   if (!sym) return srcs;
-  const base = sym.split('.')[0].toUpperCase();
+  const full   = sym.toUpperCase();
+  const base   = sym.split('.')[0].toUpperCase();
+  const domain = TICKER_TO_DOMAIN[full] || TICKER_TO_DOMAIN[base];
+  if (domain) srcs.push(`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`);
   srcs.push(`https://img.logo.dev/?ticker=${base}&token=${LOGO_DEV_TOKEN}&size=64`);
+  if (domain) srcs.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
   return srcs;
 };
 
