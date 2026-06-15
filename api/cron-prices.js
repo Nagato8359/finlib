@@ -116,16 +116,18 @@ module.exports = async function handler(req, res) {
     const redis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
     try {
       const found = [];
-      let cursor = 0;
-      do {
-        const [next, keys] = await redis.scan(cursor, { match: 'realt:*', count: 100 });
-        cursor = parseInt(next, 10);
-        found.push(...keys);
-      } while (cursor !== 0);
+      for (const pattern of ['realt:*', 'price:*']) {
+        let cursor = 0;
+        do {
+          const [next, ks] = await redis.scan(cursor, { match: pattern, count: 100 });
+          cursor = parseInt(next, 10);
+          found.push(...ks);
+        } while (cursor !== 0);
+      }
       const extra = ['realt:csv:v1', 'realt:v3:tokenlist', 'realt:tokenlist:xdai:v2'];
       const toDelete = [...new Set([...found, ...extra])];
       const deleted = toDelete.length > 0 ? await redis.del(...toDelete) : 0;
-      console.log(`[cron-prices] clear-cache: deleted ${deleted} realt: keys`);
+      console.log(`[cron-prices] clear-cache: deleted ${deleted} keys`);
       return res.json({ ok: true, deleted, keys: toDelete });
     } catch (err) {
       console.error('[cron-prices] clear-cache error:', err.message);
