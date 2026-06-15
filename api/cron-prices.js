@@ -281,7 +281,14 @@ module.exports = async function handler(req, res) {
             return s + (parseFloat(loan?.capitalRemaining) || 0);
           }, 0);
         const valeur = Math.round(invTotal_ + cashTotal_ + healthTotal_ - linkedDebt);
-        console.log(`[cron-prices] patrimoine user=${row.user_id}: inv=${Math.round(invTotal_)} cash=${Math.round(cashTotal_)} health=${Math.round(healthTotal_)} debt=${Math.round(linkedDebt)} → total=${valeur}`);
+        console.log('PATRIMOINE DETAIL:', {
+          user_id: row.user_id,
+          investments: Math.round(invTotal_),
+          cash: Math.round(cashTotal_),
+          health: Math.round(healthTotal_),
+          debts: Math.round(linkedDebt),
+          total: valeur,
+        });
         return { user_id: row.user_id, valeur, recorded_at: recordedAt };
       })
       .filter(e => e.valeur > 0);
