@@ -418,7 +418,7 @@ export function useData() {
       if (p.posType === 'other' || p.posType === 'realestate') {
         return s + p.shares * p.currentPrice;
       }
-      return s + p.shares * (prices[p.isin || p.ticker] ?? p.currentPrice);
+      return s + p.shares * (prices[(p.isin || p.ticker)?.toUpperCase()] ?? p.currentPrice);
     }, 0);
     return (v > 0 ? Math.round(v) : (parseFloat(inv.value) || 0)) + cash;
   };
@@ -754,7 +754,7 @@ export function useData() {
     const rawShares = noIdNeeded && !posForm.shares ? '1' : posForm.shares;
     if (!rawShares || !posForm.buyPrice) return;
     const liveKey = posForm.isin || posForm.ticker;
-    const livePrc = liveKey ? prices[liveKey] : undefined;
+    const livePrc = liveKey ? prices[liveKey.toUpperCase()] : undefined;
     const currentPrice = parseFloat(posForm.currentPrice) || livePrc || 0;
     const pos = { ...posForm, id: editItem?.posId || uid(), shares: parseFloat(rawShares), buyPrice: parseFloat(posForm.buyPrice), currentPrice, divYield: parseFloat(posForm.divYield) || 0 };
     setInvestments(p => p.map(inv => {

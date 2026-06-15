@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
   const { data: cached } = await supabaseAdmin
     .from('prices_cache')
     .select('ticker, price, updated_at')
-    .in('ticker', keys);
+    .or(keys.map(k => `ticker.ilike.${k}`).join(','));
 
   const now = Date.now();
   const out = {};
