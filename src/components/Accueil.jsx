@@ -158,21 +158,34 @@ export default function Accueil({ T, data, setTab }) {
       .then(({ data: rows, error }) => {
         setHistoryLoading(false);
         if (error || !rows?.length) { setHistoryData([]); return; }
-        setHistoryData(rows.map(row => {
-          const date = new Date(row.recorded_at);
-          let label;
-          if (days <= 7) {
-            const h = date.getHours();
-            label = h === 0
-              ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
-              : `${date.toLocaleDateString('fr-FR', { weekday: 'short' })} ${h}h`;
-          } else if (days <= 90) {
-            label = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-          } else {
-            label = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-          }
-          return { label, Patrimoine: Math.round(parseFloat(row.valeur)), ts: date.getTime() };
-        }));
+        const byTs = new Map();
+        for (const row of rows) {
+          const ts = new Date(row.recorded_at).getTime();
+          const valeur = Math.round(parseFloat(row.valeur));
+          const prev = byTs.get(ts);
+          if (prev === undefined || valeur > prev) byTs.set(ts, valeur);
+        }
+        setHistoryData(
+          [...byTs.entries()]
+            .sort(([a], [b]) => a - b)
+            .map(([ts, valeur]) => {
+              const date = new Date(ts);
+              let label;
+              if (days < 2) {
+                label = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+              } else if (days <= 7) {
+                const h = date.getHours();
+                label = h === 0
+                  ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
+                  : `${date.toLocaleDateString('fr-FR', { weekday: 'short' })} ${h}h`;
+              } else if (days <= 90) {
+                label = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+              } else {
+                label = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+              }
+              return { label, Patrimoine: valeur, ts };
+            })
+        );
       });
   }, [chartTf, data.user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -403,7 +416,7 @@ export default function Accueil({ T, data, setTab }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(historyData.length / 6) - 1)} />
+                <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v)} width={80} domain={([dMin, dMax]) => [Math.floor(dMin * 0.998), Math.ceil(dMax * 1.002)]} />
                 <Tooltip content={chartTooltip} />
                 <Area type="monotone" dataKey="Patrimoine" stroke={chartColor} fill="url(#patG)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
