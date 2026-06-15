@@ -380,6 +380,8 @@ export function useData() {
         .select('ticker, price')
         .in('ticker', keys);
       if (error) throw new Error(error.message);
+      // eslint-disable-next-line no-console
+      console.log('PRICES FROM CACHE:', rows?.map(p => ({ ticker: p.ticker, price: p.price })));
       const priceObj = {};
       for (const row of rows || []) priceObj[row.ticker] = row.price;
       setPrices(priceObj); setLastUpdated(new Date()); setPriceStatus('ok');
