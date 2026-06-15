@@ -153,6 +153,7 @@ export default function Accueil({ T, data, setTab }) {
     supabase
       .from('patrimoine_history')
       .select('valeur, recorded_at')
+      .eq('user_id', data.user.id)
       .gte('recorded_at', since)
       .order('recorded_at', { ascending: true })
       .then(({ data: rows, error }) => {
