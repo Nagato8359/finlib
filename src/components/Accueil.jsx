@@ -92,11 +92,10 @@ export default function Accueil({ T, data, setTab }) {
   const [openPerf, setOpenPerf]   = useState(null); // 'inv'|'revenus'|'depenses'|'ventes'|'epargne'
   const [openInvId, setOpenInvId] = useState(null); // envelope sub-accordion
   const [openCat, setOpenCat]     = useState(null); // dépenses category sub-accordion
-  const perfPricesCache = useRef({}); // { 'KEY__TF': { changePct, loading, error } }
+  const perfPricesCache = useRef({});
   const [perfPrices, setPerfPrices] = useState({});
-  const [intradayHistory, setIntradayHistory] = useState([]);
-  const [intradayLoading, setIntradayLoading] = useState(false);
-  const [dbHistory, setDbHistory] = useState([]);
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const {
     transactions, patrimoine, patrimoineNet, linkedLoanDebt,
@@ -144,38 +143,11 @@ export default function Accueil({ T, data, setTab }) {
     ).then(() => setPerfPrices({ ...perfPricesCache.current }));
   }, [perfTf, investments]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Intraday 1J — fetch temps réel via YF/CoinGecko ─────────────────────
+  // ── Patrimoine history — source unique : patrimoine_history ─────────────
   useEffect(() => {
-    if (chartTf !== '1J') return;
-
-    const positions = [];
-    (investments || []).forEach(inv => {
-      (inv.positions || []).forEach(p => {
-        const key = (p.isin || p.ticker || '').toUpperCase();
-        if (key && (p.shares || 0) > 0) positions.push({ key, shares: p.shares });
-      });
-    });
-    const baseValue = (cashTotal || 0) + (healthTotal || 0);
-
-    setIntradayLoading(true);
-    const ctrl = new AbortController();
-
-    fetch('/api/intraday', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ positions, baseValue }),
-      signal: ctrl.signal,
-    })
-      .then(r => r.json())
-      .then(result => { setIntradayHistory(result.points || []); setIntradayLoading(false); })
-      .catch(err => { if (err.name !== 'AbortError') setIntradayLoading(false); });
-
-    return () => ctrl.abort();
-  }, [chartTf, investments, cashTotal, healthTotal]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── DB patrimoine history — fetch real snapshots from Supabase ──────────
-  useEffect(() => {
-    if (!data.user) { setDbHistory([]); return; }
+    if (!data.user) { setHistoryData([]); setHistoryLoading(false); return; }
+    setHistoryData([]);
+    setHistoryLoading(true);
     const days = TF_DAYS[chartTf] || 30;
     const since = new Date(Date.now() - days * 86400000).toISOString();
     supabase
@@ -184,8 +156,9 @@ export default function Accueil({ T, data, setTab }) {
       .gte('recorded_at', since)
       .order('recorded_at', { ascending: true })
       .then(({ data: rows, error }) => {
-        if (error || !rows?.length) { setDbHistory([]); return; }
-        setDbHistory(rows.map(row => {
+        setHistoryLoading(false);
+        if (error || !rows?.length) { setHistoryData([]); return; }
+        setHistoryData(rows.map(row => {
           const date = new Date(row.recorded_at);
           let label;
           if (days <= 7) {
@@ -203,54 +176,13 @@ export default function Accueil({ T, data, setTab }) {
       });
   }, [chartTf, data.user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Patrimoine history ───────────────────────────────────────────────────
-  const patrimoineHistory = useMemo(() => {
-    const days = TF_DAYS[chartTf] || 30;
-    // 7J→6h pts, 1M/3M→daily, 1AN→weekly
-    const step = days <= 7 ? (6 / 24) : days <= 90 ? 1 : 7;
-    const now = new Date();
-    const rawPts = [];
-    const seen = new Set();
-    const baseNet = patrimoineNet ?? patrimoine;
-
-    for (let i = days; i >= step; i -= step) {
-      const date = new Date(now.getTime() - i * 86400000);
-      const futureTx = transactions.filter(tx => new Date(tx.date) > date && new Date(tx.date) <= now);
-      const cashDiff = futureTx.reduce((s, tx) => s + tx.amount, 0);
-      const val = Math.max(0, baseNet - cashDiff);
-
-      let label;
-      if (step < 1) {
-        const h = date.getHours();
-        label = h === 0
-          ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
-          : `${date.toLocaleDateString('fr-FR', { weekday: 'short' })} ${h}h`;
-      } else if (days <= 90) {
-        label = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-      } else {
-        label = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-      }
-
-      if (!seen.has(label)) { seen.add(label); rawPts.push({ label, Patrimoine: Math.round(val) }); }
-    }
-    rawPts.push({ label: t('today_label'), Patrimoine: Math.round(baseNet) });
-    return rawPts;
-  }, [chartTf, transactions, patrimoine, patrimoineNet, t]);
-
+  const histFirst   = historyData.length > 0 ? historyData[0].Patrimoine : null;
+  const histLast    = historyData.length > 0 ? historyData[historyData.length - 1].Patrimoine : null;
+  const change      = (histFirst != null && histLast != null) ? histLast - histFirst : 0;
+  const changePct   = (histFirst != null && histFirst > 0 && change !== 0) ? (change / histFirst) * 100 : 0;
+  const chartColor  = change >= 0 ? T.accent : '#f87171';
   const displayPatrimoine = patrimoineNet ?? patrimoine;
-  // Prefer real DB snapshots; fall back to transaction-based approximation
-  const activeHistory = dbHistory.length > 1 ? dbHistory : patrimoineHistory;
-  const chartFirst = chartTf === '1J' && intradayHistory.length > 0
-    ? intradayHistory[0]
-    : (activeHistory.length > 1 ? activeHistory[0] : null);
-  const chartLast = chartTf === '1J' && intradayHistory.length > 0
-    ? intradayHistory[intradayHistory.length - 1]
-    : (activeHistory.length > 1 ? activeHistory[activeHistory.length - 1] : null);
-  const histOpen = chartFirst?.Patrimoine ?? displayPatrimoine;
-  const histClose = chartLast?.Patrimoine ?? displayPatrimoine;
-  const change = histClose - histOpen;
-  const changePct = histOpen > 0 && change !== 0 ? (change / histOpen) * 100 : 0;
-  const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#fb923c' : '#f87171';
+  const scoreColor  = score >= 70 ? '#4ade80' : score >= 40 ? '#fb923c' : '#f87171';
 
   // ── Allocation donut ─────────────────────────────────────────────────────
   const allocData = useMemo(() => [
@@ -367,35 +299,16 @@ export default function Accueil({ T, data, setTab }) {
 
   const handleConfettiDone = useCallback(() => setShowConfetti(false), []);
 
-  const intradayTooltip = useCallback(({ active, payload, label }) => {
-    if (!active || !payload?.[0]) return null;
-    const val = payload[0].value;
-    const openVal = payload[0].payload?.open || 0;
-    const diff = val - openVal;
-    const pct = openVal > 0 ? (diff / openVal) * 100 : 0;
-    const col = diff >= 0 ? '#4ade80' : '#f87171';
-    return (
-      <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,.3)' }}>
-        <div style={{ color: T.textMuted, marginBottom: 5, fontWeight: 600, fontSize: 11 }}>{label}</div>
-        <div style={{ color: T.text, fontWeight: 700, fontSize: 14 }}>{fEur(val)}</div>
-        <div style={{ color: col, fontWeight: 600, marginTop: 3 }}>
-          {diff >= 0 ? '+' : ''}{fEur(diff, true)} ({diff >= 0 ? '+' : ''}{pct.toFixed(2)}%)
-        </div>
-        <div style={{ color: T.textFaint, fontSize: 10, marginTop: 4 }}>depuis l'ouverture</div>
-      </div>
-    );
-  }, [T]);
-
-  const patrimoineTooltip = useCallback(({ active, payload, label }) => {
+  const chartTooltip = useCallback(({ active, payload }) => {
     if (!active || !payload?.[0]) return null;
     const val = payload[0].value;
     const ts = payload[0].payload?.ts;
     const dateStr = ts
       ? new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
-      : label;
+      : '';
     return (
       <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,.3)' }}>
-        <div style={{ color: T.textMuted, marginBottom: 4, fontSize: 11 }}>{dateStr}</div>
+        {dateStr && <div style={{ color: T.textMuted, marginBottom: 4, fontSize: 11 }}>{dateStr}</div>}
         <div style={{ color: T.text, fontWeight: 700, fontSize: 14 }}>{fEur(val)}</div>
       </div>
     );
@@ -416,11 +329,6 @@ export default function Accueil({ T, data, setTab }) {
   }, [investments, invLiveValue, invLiveInvested, cashTotal, healthTotal, healthCost, t]);
 
   const card = { ...S.card };
-  const chartColor = changePct >= 0 ? T.accent : '#f87171';
-  const chartData = chartTf === '1J' && intradayHistory.length > 0
-    ? intradayHistory
-    : activeHistory;
-  const xTickInterval = Math.max(0, Math.floor(chartData.length / 6) - 1);
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -439,19 +347,16 @@ export default function Accueil({ T, data, setTab }) {
                 {linkedLoanDebt > 0 && <span style={{ marginLeft: 6, fontSize: 10, color: T.textFaint }}>{t('accueil_net_value')}</span>}
               </div>
               <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-.04em', color: T.text, lineHeight: 1.1 }}>
-                {fEur(displayPatrimoine)}
+                {histLast != null ? fEur(histLast) : '—'}
               </div>
-              {linkedLoanDebt > 0 && (
-                <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
-                  {t('accueil_gross')} : {fEur(patrimoine)} · {t('accueil_immo_debt')} : <span style={{ color: '#f87171' }}>−{fEur(linkedLoanDebt)}</span>
+              {histFirst != null && histLast != null && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: change >= 0 ? '#4ade80' : '#f87171', background: change >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(248,113,113,0.1)', padding: '3px 10px', borderRadius: 20 }}>
+                    {change >= 0 ? '+' : ''}{fEur(change, true)} ({fPct(changePct)})
+                  </span>
+                  <span style={{ fontSize: 12, color: T.textMuted }}>{t('over')} {chartTf}</span>
                 </div>
               )}
-              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: change >= 0 ? '#4ade80' : '#f87171', background: change >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(248,113,113,0.1)', padding: '3px 10px', borderRadius: 20 }}>
-                  {change >= 0 ? '+' : ''}{fEur(change, true)} ({fPct(changePct)})
-                </span>
-                <span style={{ fontSize: 12, color: T.textMuted }}>{t('over')} {chartTf}</span>
-              </div>
             </div>
 
             {/* Timeframe buttons */}
@@ -471,27 +376,39 @@ export default function Accueil({ T, data, setTab }) {
           </div>
 
           {/* Chart */}
-          {chartTf === '1J' && intradayLoading && intradayHistory.length === 0 && (
+          {historyLoading && (
             <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textFaint, fontSize: 12 }}>
-              Chargement des données temps réel…
+              Chargement…
             </div>
           )}
-          {!(chartTf === '1J' && intradayLoading && intradayHistory.length === 0) && (
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="patG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={chartColor} stopOpacity={0.25} />
-                  <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={xTickInterval} />
-              <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v)} width={80} domain={([dMin, dMax]) => { const pad = (dMax - dMin) * 0.1 || 1000; return [Math.floor(dMin - pad), Math.ceil(dMax + pad * 0.2)]; }} />
-              <Tooltip content={chartTf === '1J' ? intradayTooltip : patrimoineTooltip} />
-              <Area type="monotone" dataKey="Patrimoine" stroke={chartColor} fill="url(#patG)" strokeWidth={2.5} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          {!historyLoading && historyData.length === 0 && (
+            <div style={{ height: 280, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span style={{ fontSize: 32 }}>📈</span>
+              <span style={{ fontSize: 13, color: T.textMuted }}>Aucune donnée pour cette période</span>
+              <span style={{ fontSize: 11, color: T.textFaint }}>L'historique se construit automatiquement toutes les heures</span>
+            </div>
+          )}
+          {!historyLoading && historyData.length === 1 && (
+            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textFaint, fontSize: 12 }}>
+              Historique en cours de construction…
+            </div>
+          )}
+          {!historyLoading && historyData.length >= 2 && (
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={historyData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="patG" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={chartColor} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(historyData.length / 6) - 1)} />
+                <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v)} width={80} domain={([dMin, dMax]) => [Math.floor(dMin * 0.998), Math.ceil(dMax * 1.002)]} />
+                <Tooltip content={chartTooltip} />
+                <Area type="monotone" dataKey="Patrimoine" stroke={chartColor} fill="url(#patG)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
           )}
         </div>
 
