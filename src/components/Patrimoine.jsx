@@ -325,8 +325,9 @@ export default function Patrimoine({ T, data }) {
             <div style={{ ...S.card }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('inv_positions_title', (cur.positions || []).length)}</h3>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button onClick={() => { setCashModal(cur); setCashOpMode('add'); setCashOpAmt(''); }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', background: 'rgba(139,92,246,.15)', borderColor: 'rgba(139,92,246,.4)', color: '#a78bfa' }}>💰 Liquidités</button>
+                  <button onClick={() => { setDivInvId(cur.id); setModal('div'); }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', background: 'rgba(74,222,128,.1)', borderColor: 'rgba(74,222,128,.3)', color: '#4ade80' }}>{t('inv_add_dividend')}</button>
                   <button onClick={() => { setPosForm({ ...mkPos(), posType: invFormType(cur) }); setModal('drill'); }} style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>{t('inv_add_position')}</button>
                 </div>
               </div>
@@ -626,7 +627,6 @@ export default function Patrimoine({ T, data }) {
                       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                         <button onClick={e => { e.stopPropagation(); openEditPortfolio(inv); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10 }}>✎</button>
                         <button onClick={e => { e.stopPropagation(); setConfirmDel({ msg: `Supprimer l'enveloppe "${inv.name}" ? Cette action est irréversible et supprimera tous les actifs associés.`, fn: () => delInv(inv.id) }); }} style={{ ...S.btnD, padding: '2px 8px', fontSize: 10 }}>✕</button>
-                        <button onClick={e => { e.stopPropagation(); setDivInvId(inv.id); setModal('div'); }} style={{ ...S.btnS, padding: '2px 8px', fontSize: 10, color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>{t('inv_add_dividend')}</button>
                       </div>
                     </div>
                   );
