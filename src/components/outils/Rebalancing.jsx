@@ -2,23 +2,31 @@ import { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { makeS, fEur } from '../../utils/constants';
 
+const isCrypto     = (inv) => inv.type?.toLowerCase().includes('crypto');
+const isActions    = (inv) => ['pea','cto','compte-titres','assurance-vie','épargne salariale']
+  .some(t => inv.type?.toLowerCase().includes(t));
+const isPER        = (inv) => ['per','assurance-vie fonds'].some(t => inv.type?.toLowerCase().includes(t));
+const isImmoFrac   = (inv) => ['realt','première brique','bricks','tantiem','crowdfunding immo']
+  .some(t => inv.type?.toLowerCase().includes(t));
+const isSCPI       = (inv) => ['scpi','opci','sci'].some(t => inv.type?.toLowerCase().includes(t));
+const isImmoPhys   = (inv) => {
+  const t = inv.type?.toLowerCase() || '';
+  return t.includes('immobilier') && !t.includes('crowdfunding');
+};
+const isMatPrem    = (inv) => inv.type?.toLowerCase().includes('matière') || inv.type?.toLowerCase().includes('commodit');
+const isAlternatif = (inv) => ['private equity','obligation','art','forêt','vigne','crowdfunding entreprise','autre']
+  .some(t => inv.type?.toLowerCase().includes(t));
+
 const CATS = [
-  { key: 'actions',     label: 'Actions / ETF',         icon: '📈', color: '#10B981',
-    types: ['PEA', 'CTO', 'Assurance-vie', 'Épargne salariale', 'PER', 'Assurance-vie fonds euros'] },
-  { key: 'crypto',      label: 'Crypto',                 icon: '₿',  color: '#F59E0B',
-    types: ['Crypto'] },
-  { key: 'immo-frac',   label: 'Immo. fractionné',      icon: '🏘️', color: '#EF4444',
-    types: ['RealT', 'La Première Brique', 'Tantiem', 'Bricks.co', 'Crowdfunding immobilier'] },
-  { key: 'scpi',        label: 'SCPI / OPCI',            icon: '🏢', color: '#D97706',
-    types: ['SCPI', 'OPCI', 'SCI'] },
-  { key: 'immo-phys',   label: 'Immobilier physique',    icon: '🏠', color: '#8B5CF6',
-    types: ['Immobilier'] },
-  { key: 'matieres',    label: 'Matières premières',     icon: '🥇', color: '#EAB308',
-    types: ['Matières premières'] },
-  { key: 'alternatifs', label: 'Alternatifs',            icon: '💼', color: '#7C3AED',
-    types: ['Private Equity', 'Crowdfunding entreprise', 'Obligations', 'Art & Collections', 'Forêts / GFI', 'Vignes / GFV', 'Autre'] },
-  { key: 'cash',        label: 'Épargne & Cash',         icon: '🏦', color: '#34D399', types: [] },
-  { key: 'materiel',    label: 'Patrimoine matériel',    icon: '📦', color: '#60A5FA', types: [] },
+  { key: 'actions',     label: 'Actions / ETF',         icon: '📈', color: '#10B981', match: (inv) => isActions(inv) || isPER(inv) },
+  { key: 'crypto',      label: 'Crypto',                 icon: '₿',  color: '#F59E0B', match: isCrypto },
+  { key: 'immo-frac',   label: 'Immo. fractionné',      icon: '🏘️', color: '#EF4444', match: isImmoFrac },
+  { key: 'scpi',        label: 'SCPI / OPCI',            icon: '🏢', color: '#D97706', match: isSCPI },
+  { key: 'immo-phys',   label: 'Immobilier physique',    icon: '🏠', color: '#8B5CF6', match: isImmoPhys },
+  { key: 'matieres',    label: 'Matières premières',     icon: '🥇', color: '#EAB308', match: isMatPrem },
+  { key: 'alternatifs', label: 'Alternatifs',            icon: '💼', color: '#7C3AED', match: isAlternatif },
+  { key: 'cash',        label: 'Épargne & Cash',         icon: '🏦', color: '#34D399', match: null },
+  { key: 'materiel',    label: 'Patrimoine matériel',    icon: '📦', color: '#60A5FA', match: null },
 ];
 
 const LS_KEY = 'capitaly_rebalancing_target';
@@ -66,7 +74,7 @@ export default function Rebalancing({ T, data }) {
       if (cat.key === 'cash') { vals[cat.key] = cashTotal; return; }
       if (cat.key === 'materiel') { vals[cat.key] = healthTotal; return; }
       vals[cat.key] = investments
-        .filter(inv => cat.types.includes(inv.type))
+        .filter(inv => cat.match && cat.match(inv))
         .reduce((s, inv) => s + (invLiveValue ? invLiveValue(inv) : parseFloat(inv.value) || 0), 0);
     });
     return vals;
