@@ -418,7 +418,7 @@ export function useData() {
       if (p.posType === 'other' || p.posType === 'realestate') {
         return s + p.shares * p.currentPrice;
       }
-      return s + p.shares * (prices[(p.isin || p.ticker)?.toUpperCase()] ?? p.currentPrice);
+      return s + p.shares * ((prices[p.isin?.toUpperCase()] || prices[p.ticker?.toUpperCase()]) ?? p.currentPrice);
     }, 0);
     return (v > 0 ? Math.round(v) : (parseFloat(inv.value) || 0)) + cash;
   };
