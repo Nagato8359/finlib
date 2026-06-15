@@ -379,6 +379,16 @@ export function useData() {
       if (!res.ok) throw new Error('server');
       const data = await res.json();
       setPrices(data); setLastUpdated(new Date()); setPriceStatus('ok');
+      setInvestments(prev => prev.map(inv => ({
+        ...inv,
+        positions: inv.positions?.map(pos => {
+          const livePrice = data[pos.isin?.toUpperCase()] || data[pos.ticker?.toUpperCase()];
+          if (livePrice && livePrice !== pos.currentPrice) {
+            return { ...pos, currentPrice: livePrice };
+          }
+          return pos;
+        }),
+      })));
     } catch { setPriceStatus('error'); }
   }, []);
 
