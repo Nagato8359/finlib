@@ -212,6 +212,28 @@ export const TICKER_TO_DOMAIN = {
   CSPX: 'ishares.com', VWCE: 'vanguard.com', WPEA: 'amundi.com',
   CW8: 'amundi.com', ESE: 'etfsecurities.com', LCWD: 'lgim.com',
   MEUD: 'lyxoretf.com', LQQ: 'lyxoretf.com',
+  // ── Variantes avec suffixe d'exchange ─────────────────────────────────────
+  // Paris (.PA)
+  'MC.PA': 'lvmh.com', 'OR.PA': 'loreal.com', 'SAN.PA': 'sanofi.com',
+  'BNP.PA': 'bnpparibas.com', 'AI.PA': 'airbus.com', 'RMS.PA': 'hermes.com',
+  'KER.PA': 'kering.com', 'CAP.PA': 'capgemini.com', 'DSY.PA': 'dassault-systemes.com',
+  'ORA.PA': 'orange.com', 'ENGI.PA': 'engie.com', 'SGO.PA': 'saint-gobain.com',
+  'DG.PA': 'vinci.com', 'ACA.PA': 'credit-agricole.com', 'GLE.PA': 'societegenerale.com',
+  'CS.PA': 'axa.com', 'HO.PA': 'thalesgroup.com', 'PUB.PA': 'publicis.com',
+  'RNO.PA': 'renault.com', 'SW.PA': 'schneider-electric.com', 'SU.PA': 'schneider-electric.com',
+  'ML.PA': 'michelin.com', 'BN.PA': 'danone.com', 'CA.PA': 'carrefour.com',
+  'RI.PA': 'pernod-ricard.com', 'VIE.PA': 'veolia.com', 'STM.PA': 'st.com',
+  'TEP.PA': 'teleperformance.com', 'LR.PA': 'legrand.com', 'EL.PA': 'essilorluxottica.com',
+  'SAF.PA': 'safran.com', 'NK.PA': 'nexans.com',
+  // Francfort (.DE)
+  'SAP.DE': 'sap.com', 'SIE.DE': 'siemens.com', 'ALV.DE': 'allianz.com',
+  'BMW.DE': 'bmw.com', 'VOW3.DE': 'volkswagen.com', 'ADS.DE': 'adidas.com',
+  'BAS.DE': 'basf.com', 'BAYN.DE': 'bayer.com', 'MBG.DE': 'mercedes-benz.com',
+  'DTE.DE': 'telekom.com',
+  // Amsterdam (.AS) / Zurich (.SW) / Londres (.L)
+  'ASML.AS': 'asml.com',
+  'NESN.SW': 'nestle.com', 'NOVN.SW': 'novartis.com', 'ROG.SW': 'roche.com',
+  HSBA: 'hsbc.com', 'HSBA.L': 'hsbc.com',
 };
 
 export const LOGO_DEV_TOKEN = 'pk_X4dPbXQbTBuiGqrJH9u8VA';
@@ -229,9 +251,10 @@ const SCPI_DOMAINS = {
 };
 
 // Returns ordered logo sources for stocks/ETF:
-//   1. asset.logoUrl — API-provided field (prioritised if present)
-//   2. Logo.dev by domain — covers companies worldwide (known domains only)
-//   3. Google favicons — universal last resort (known domains only)
+//   1. logoUrl — API-provided field
+//   2. Logo.dev by domain (TICKER_TO_DOMAIN match)
+//   3. Logo.dev by ticker (?ticker=BASE) — universal fallback for unlisted tickers
+//   4. Google favicon (TICKER_TO_DOMAIN match)
 export const stockLogoSources = (sym, logoUrl) => {
   const srcs = [];
   if (logoUrl) srcs.push(logoUrl);
@@ -240,6 +263,7 @@ export const stockLogoSources = (sym, logoUrl) => {
   const base   = sym.split('.')[0].toUpperCase();
   const domain = TICKER_TO_DOMAIN[full] || TICKER_TO_DOMAIN[base];
   if (domain) srcs.push(`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`);
+  srcs.push(`https://img.logo.dev/?ticker=${base}&token=${LOGO_DEV_TOKEN}&size=64`);
   if (domain) srcs.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
   return srcs;
 };
