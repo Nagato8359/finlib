@@ -22,7 +22,8 @@ import RecapFiscal from './components/outils/RecapFiscal';
 import Simulateur from './components/outils/Simulateur';
 import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
-import Tutorial from './components/Tutorial';
+import TutorialSlides   from './components/Tutorial/TutorialSlides';
+import TutorialTooltips from './components/Tutorial/TutorialTooltips';
 
 const GlobalCSS = ({ bg, bg2, bg3, text, cardBg, cardBorder, inputBg, inputBorder, textMuted, accent = '#10b981', accentDark = '#059669' }) => (
   <style>{`
@@ -138,7 +139,9 @@ export default function App() {
   const [tab, setTab] = useState('accueil');
   const [isReset, setIsReset] = useState(() => window.location.hash.includes('type=recovery'));
   const [showSplash, setShowSplash] = useState(true);
-  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('capitaly_tutorial_done'));
+  const [tutorialPhase, setTutorialPhase] = useState(() =>
+    localStorage.getItem('capitaly_tutorial_done') ? null : 'slides'
+  );
   const splashDoneRef = useRef(false);
   const handleSplashDone = useRef(() => {
     if (!splashDoneRef.current) { splashDoneRef.current = true; setShowSplash(false); }
@@ -252,7 +255,7 @@ export default function App() {
             setCurrency={setCurrency}
             language={language}
             setLanguage={setLanguage}
-            onStartTutorial={() => setShowTutorial(true)}
+            onStartTutorial={() => setTutorialPhase('tooltips')}
             dateFormat={dateFormat}
             setDateFormat={setDateFormat}
             tab={tab}
@@ -268,7 +271,19 @@ export default function App() {
         <Modals T={T} data={data} />
         <PositionFormModal T={T} data={data} />
       </div>
-      {showTutorial && <Tutorial T={T} onDone={() => setShowTutorial(false)} />}
+      {tutorialPhase === 'slides' && (
+        <TutorialSlides
+          onDone={() => setTutorialPhase('tooltips')}
+          onSkip={() => { localStorage.setItem('capitaly_tutorial_done', '1'); setTutorialPhase(null); }}
+        />
+      )}
+      {tutorialPhase === 'tooltips' && (
+        <TutorialTooltips
+          T={T}
+          setTab={setTab}
+          onDone={() => { localStorage.setItem('capitaly_tutorial_done', '1'); setTutorialPhase(null); }}
+        />
+      )}
       {data.ioBannerMsg && (
         <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 9000, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: '12px 18px', maxWidth: 'calc(100vw - 32px)', boxShadow: '0 8px 32px rgba(0,0,0,.4)', animation: 'slideUp .25s ease', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>📊</span>
