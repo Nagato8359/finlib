@@ -287,11 +287,16 @@ module.exports = async function handler(req, res) {
       .filter(e => e.valeur > 0);
 
     if (historyEntries.length > 0) {
-      const { error: histErr } = await supabaseAdmin
+      console.log('[cron-prices] patrimoine_history: inserting', JSON.stringify(historyEntries));
+      const { error: histErr, data: histData } = await supabaseAdmin
         .from('patrimoine_history')
-        .upsert(historyEntries, { onConflict: 'user_id,recorded_at' });
-      if (histErr) console.error('[cron-prices] patrimoine_history:', histErr.message);
-      else console.log(`[cron-prices] patrimoine_history: ${historyEntries.length} snapshots`);
+        .upsert(historyEntries, { onConflict: 'user_id,recorded_at' })
+        .select();
+      if (histErr) {
+        console.error('[cron-prices] patrimoine_history insert error:', JSON.stringify(histErr));
+      } else {
+        console.log(`[cron-prices] patrimoine_history: ${historyEntries.length} snapshots inserted`, JSON.stringify(histData));
+      }
     }
 
     // 7. Invalidate stale RealT rent caches (last cached rent older than 7 days)
