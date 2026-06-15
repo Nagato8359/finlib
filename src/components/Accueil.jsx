@@ -159,6 +159,8 @@ export default function Accueil({ T, data, setTab }) {
       .gte('recorded_at', since)
       .order('recorded_at', { ascending: true })
       .then(({ data: rows, error }) => {
+        // eslint-disable-next-line no-console
+        console.log('PATRIMOINE ROWS:', rows?.length, rows, error);
         setHistoryLoading(false);
         if (error || !rows?.length) { setHistoryData([]); return; }
         const byTs = new Map();
