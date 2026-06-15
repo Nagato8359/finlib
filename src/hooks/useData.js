@@ -418,16 +418,6 @@ export function useData() {
       if (p.posType === 'other' || p.posType === 'realestate') {
         return s + p.shares * p.currentPrice;
       }
-      if (p.isin === 'FR0000120271' || p.ticker === 'TTE' || p.ticker === 'TTE.PA') {
-        console.log('TTE price lookup:',
-          'isin:', p.isin,
-          'prices[isin]:', prices[p.isin?.toUpperCase()],
-          'ticker:', p.ticker,
-          'prices[ticker]:', prices[p.ticker?.toUpperCase()],
-          'p.currentPrice:', p.currentPrice,
-          'result:', (prices[p.isin?.toUpperCase()] || prices[p.ticker?.toUpperCase()]) ?? p.currentPrice
-        );
-      }
       return s + p.shares * ((prices[p.isin?.toUpperCase()] || prices[p.ticker?.toUpperCase()]) ?? p.currentPrice);
     }, 0);
     return (v > 0 ? Math.round(v) : (parseFloat(inv.value) || 0)) + cash;

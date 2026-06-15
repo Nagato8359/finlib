@@ -23,7 +23,7 @@ function buildContext(data) {
     const li = data.invLiveInvested ? data.invLiveInvested(inv) : (parseFloat(inv.invested) || 0);
     const pv = lv - li;
     const positions = (inv.positions || []).map(p => {
-      const prix = (data.prices?.[p.isin || p.ticker]) ?? p.currentPrice ?? 0;
+      const prix = (data.prices?.[p.isin?.toUpperCase() || p.ticker?.toUpperCase()]) ?? p.currentPrice ?? 0;
       const pru  = parseFloat(p.buyPrice) || 0;
       return {
         nom:      p.name || p.ticker || p.isin || '',
