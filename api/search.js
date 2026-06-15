@@ -25,8 +25,9 @@ async function fetchLogoUrl(symbol) {
         return url;
       }
     }
-    await setCached(cacheKey, '', 7 * 86400); // negative cache
-    return null;
+    const yimgUrl = `https://s.yimg.com/lb/brands/150x150/${base}.png`;
+    await setCached(cacheKey, yimgUrl, 7 * 86400);
+    return yimgUrl;
   } catch {
     return null;
   }
