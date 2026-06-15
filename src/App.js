@@ -20,6 +20,7 @@ import Projection from './components/outils/Projection';
 import CalendrierDividendes from './components/outils/CalendrierDividendes';
 import RecapFiscal from './components/outils/RecapFiscal';
 import Simulateur from './components/outils/Simulateur';
+import Rebalancing from './components/outils/Rebalancing';
 import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
 import TutorialSlides   from './components/Tutorial/TutorialSlides';
@@ -233,7 +234,7 @@ export default function App() {
     'calendrier-dividendes': <CalendrierDividendes T={T} data={data} />,
     'recap-fiscal':          <RecapFiscal T={T} data={data} />,
     'simulateur':            <Simulateur T={T} />,
-    'rebalancing':           <ComingSoon icon="🎯" title="Rebalancing" desc="Analysez les écarts entre votre allocation cible et votre allocation actuelle, et recevez des suggestions de rééquilibrage." />,
+    'rebalancing':           <Rebalancing T={T} data={data} />,
     'veille-marche':         <ComingSoon icon="📰" title="Veille marché" desc="Suivez les actualités financières et les indicateurs de marché clés pour vos actifs." />,
     'optimisation-fiscale':  <ComingSoon icon="💰" title="Optimisation fiscale" desc="Découvrez les stratégies pour optimiser votre fiscalité : enveloppes fiscales, PEA, assurance-vie, PER…" />,
   };
