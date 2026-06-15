@@ -327,7 +327,7 @@ export function useData() {
       } catch (e) {
         console.error('SAVE ERROR:', e);
       }
-    }, 1500);
+    }, 500);
   }, [transactions, investments, healthAssets, budgets, customBudgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly]);
 
   const handleLogout = async () => {
