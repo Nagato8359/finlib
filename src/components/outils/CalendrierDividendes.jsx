@@ -32,7 +32,7 @@ export default function CalendrierDividendes({ T, data }) {
   const [received,  setReceived]  = useState(loadReceived);
   const [customShares, setCustomShares] = useState({});
   const [editingShares, setEditingShares] = useState(null);
-  const [liquidMsg, setLiquidMsg] = useState(null);
+
 
   const { investments, allDividends, setInvestments } = data;
 
@@ -175,8 +175,6 @@ export default function CalendrierDividendes({ T, data }) {
             const newCash = parseFloat(((parseFloat(inv.cash) || 0) + event.amountEUR).toFixed(2));
             return { ...inv, cash: newCash };
           }));
-          setLiquidMsg(`+${fEur(event.amountEUR)} ajouté aux liquidités de "${event.invName}"`);
-          setTimeout(() => setLiquidMsg(null), 4000);
         }
       }
       saveReceived(next);
@@ -406,17 +404,6 @@ export default function CalendrierDividendes({ T, data }) {
         </div>
       )}
 
-      {/* Toast */}
-      {liquidMsg && (
-        <div style={{
-          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 9000, background: '#0d1117', border: '1px solid #4ade80', borderRadius: 12,
-          padding: '12px 20px', fontSize: 13, fontWeight: 600, color: '#4ade80',
-          boxShadow: '0 8px 32px rgba(0,0,0,.55)', animation: 'slideUp .25s ease', whiteSpace: 'nowrap',
-        }}>
-          ✅ {liquidMsg}
-        </div>
-      )}
     </div>
   );
 }

@@ -284,17 +284,6 @@ export default function App() {
           onDone={() => { localStorage.setItem('capitaly_tutorial_done', '1'); setTutorialPhase(null); }}
         />
       )}
-      {data.ioBannerMsg && (
-        <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 9000, background: T.bg3, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: '12px 18px', maxWidth: 'calc(100vw - 32px)', boxShadow: '0 8px 32px rgba(0,0,0,.4)', animation: 'slideUp .25s ease', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>📊</span>
-          <div style={{ flex: 1 }}>
-            {data.ioBannerMsg.split('\n').map((line, i) => (
-              <div key={i} style={{ fontSize: i === 0 ? 13 : 12, fontWeight: i === 0 ? 700 : 400, color: i === 0 ? T.text : T.textMuted, marginBottom: i === 0 ? 3 : 0 }}>{line}</div>
-            ))}
-          </div>
-          <button onClick={() => data.setIoBannerMsg(null)} style={{ background: 'none', border: 'none', color: T.textMuted, fontSize: 16, cursor: 'pointer', flexShrink: 0, padding: 0 }}>✕</button>
-        </div>
-      )}
     </>
     </LanguageProvider>
   );

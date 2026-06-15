@@ -158,7 +158,6 @@ export function useData() {
   const [investments, setInvestments] = useState([]);
   const [healthAssets, setHealthAssets] = useState([]);
   const [budgets, setBudgets] = useState(SEED_BUDGETS);
-  const [ioBannerMsg, setIoBannerMsg] = useState(null);
   const [customBudgets, setCustomBudgets] = useState([]);
   const [customBudgetForm, setCustomBudgetForm] = useState(mkCustomBudget());
   const [goals, setGoals] = useState([]);
@@ -581,7 +580,7 @@ export function useData() {
   useEffect(() => {
     if (!transactions.length || reminderChecked.current) return;
     reminderChecked.current = true;
-    checkReminderNotif(transactions, setIoBannerMsg);
+    checkReminderNotif(transactions);
   }, [transactions]);
 
   // ── Daily 20h performance notification (checks every 30 min) ─────────────
@@ -590,7 +589,7 @@ export function useData() {
   useEffect(() => {
     const run = () => {
       if (!dataLoaded.current) return;
-      checkAndSendDailyNotif(dailyCtxRef.current, setIoBannerMsg);
+      checkAndSendDailyNotif(dailyCtxRef.current);
     };
     run();
     const id = setInterval(run, 30 * 60 * 1000);
@@ -959,6 +958,5 @@ export function useData() {
     exportCSV, exportDataJSON, importJSON, deleteAccount,
     loadedPreferences, savePreferences,
     profiles, activeProfileId, switchProfile, addProfile,
-    ioBannerMsg, setIoBannerMsg,
   };
 }
