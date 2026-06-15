@@ -194,6 +194,14 @@ module.exports = async function handler(req, res) {
       console.log(`[cron-prices] ${updated}/${keys.length} tickers refreshed`);
     }
 
+    // Build price map (EUR) from freshly fetched results
+    const priceMap = {};
+    for (const r of settled) {
+      if (r.status === 'fulfilled' && r.value?.ok && r.value.price != null) {
+        priceMap[r.value.key.toUpperCase()] = r.value.price;
+      }
+    }
+
     // 5. Fetch RealT token prices from community API and upsert to prices_cache
     let realtUpdated = 0;
     for (const wallet of realtWallets) {
@@ -223,7 +231,7 @@ module.exports = async function handler(req, res) {
             updated_at: new Date().toISOString(),
           }, { onConflict: 'ticker' });
 
-          if (!upsErr) realtUpdated++;
+          if (!upsErr) { realtUpdated++; priceMap[ticker] = priceEUR; }
           else console.error(`[cron] RealT ${ticker}:`, upsErr.message);
         }
       } catch (e) {
@@ -231,6 +239,25 @@ module.exports = async function handler(req, res) {
       }
     }
     if (realtWallets.size) console.log(`[cron-prices] RealT: ${realtUpdated} token prices updated`);
+
+    // Mirrors frontend invLiveValue: positions × live price, fallback to stored price then inv.value
+    const liveInvValue = (inv) => {
+      const positions = inv.positions || [];
+      if (!positions.length) return parseFloat(inv.value) || 0;
+      let total = 0;
+      for (const pos of positions) {
+        if (pos.posType === 'other' || pos.posType === 'realestate') {
+          total += parseFloat(pos.currentValue) || parseFloat(pos.buyPrice) || 0;
+          continue;
+        }
+        const key = pos.posType === 'commodity'
+          ? (COMMODITY_TICKER_MAP[pos.commodityType] || '').toUpperCase()
+          : (pos.isin || pos.ticker || '').toUpperCase();
+        const livePrice = (key && priceMap[key] != null) ? priceMap[key] : (parseFloat(pos.currentPrice) || 0);
+        total += (parseFloat(pos.shares) || 0) * livePrice;
+      }
+      return total;
+    };
 
     // 6. Record one patrimoine snapshot per user per hour
     const snapshotHour = new Date();
@@ -244,7 +271,7 @@ module.exports = async function handler(req, res) {
         const savings_     = row.savings || [];
         const healthAssets = row.health_assets || [];
         const loans_       = row.loans || [];
-        const invTotal_    = investments_.reduce((s, inv) => s + (parseFloat(inv.value) || 0), 0);
+        const invTotal_    = investments_.reduce((s, inv) => s + liveInvValue(inv), 0);
         const cashTotal_   = savings_.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0);
         const healthTotal_ = healthAssets.reduce((s, h) => s + (parseFloat(h.currentValue) || 0), 0);
         const linkedDebt   = investments_
@@ -254,6 +281,7 @@ module.exports = async function handler(req, res) {
             return s + (parseFloat(loan?.capitalRemaining) || 0);
           }, 0);
         const valeur = Math.round(invTotal_ + cashTotal_ + healthTotal_ - linkedDebt);
+        console.log(`[cron-prices] patrimoine user=${row.user_id}: inv=${Math.round(invTotal_)} cash=${Math.round(cashTotal_)} health=${Math.round(healthTotal_)} debt=${Math.round(linkedDebt)} → total=${valeur}`);
         return { user_id: row.user_id, valeur, recorded_at: recordedAt };
       })
       .filter(e => e.valeur > 0);

@@ -175,7 +175,7 @@ export default function Accueil({ T, data, setTab }) {
 
   // ── DB patrimoine history — fetch real snapshots from Supabase ──────────
   useEffect(() => {
-    if (!data.user || chartTf === '1J') { setDbHistory([]); return; }
+    if (!data.user) { setDbHistory([]); return; }
     const days = TF_DAYS[chartTf] || 30;
     const since = new Date(Date.now() - days * 86400000).toISOString();
     supabase
@@ -240,11 +240,16 @@ export default function Accueil({ T, data, setTab }) {
   const displayPatrimoine = patrimoineNet ?? patrimoine;
   // Prefer real DB snapshots; fall back to transaction-based approximation
   const activeHistory = dbHistory.length > 1 ? dbHistory : patrimoineHistory;
-  const histOpen = chartTf === '1J' && intradayHistory.length > 0
-    ? intradayHistory[0].Patrimoine
-    : (activeHistory.length > 1 ? activeHistory[0].Patrimoine : displayPatrimoine);
-  const change = displayPatrimoine - histOpen;
-  const changePct = histOpen > 0 && histOpen !== displayPatrimoine ? (change / histOpen) * 100 : 0;
+  const chartFirst = chartTf === '1J' && intradayHistory.length > 0
+    ? intradayHistory[0]
+    : (activeHistory.length > 1 ? activeHistory[0] : null);
+  const chartLast = chartTf === '1J' && intradayHistory.length > 0
+    ? intradayHistory[intradayHistory.length - 1]
+    : (activeHistory.length > 1 ? activeHistory[activeHistory.length - 1] : null);
+  const histOpen = chartFirst?.Patrimoine ?? displayPatrimoine;
+  const histClose = chartLast?.Patrimoine ?? displayPatrimoine;
+  const change = histClose - histOpen;
+  const changePct = histOpen > 0 && change !== 0 ? (change / histOpen) * 100 : 0;
   const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#fb923c' : '#f87171';
 
   // ── Allocation donut ─────────────────────────────────────────────────────
