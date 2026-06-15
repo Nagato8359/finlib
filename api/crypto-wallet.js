@@ -93,7 +93,10 @@ module.exports = async function handler(req, res) {
         const decimals = parseInt(token.decimals, 10) || 18;
         const amount = parseFloat(item.value || '0') / Math.pow(10, decimals);
         if (amount <= 0) continue;
-        const priceUSD = parseFloat(token.exchange_rate || '0');
+        const sym = (token.symbol || '').toUpperCase();
+        const STABLECOINS = ['USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'LUSD', 'CRVUSD', 'EURC', 'USDE', 'PYUSD'];
+        const rawRate = parseFloat(token.exchange_rate);
+        const priceUSD = rawRate > 0 ? rawRate : (STABLECOINS.includes(sym) ? 1.0 : 0);
         if (priceUSD <= 0) continue;
         const priceEUR = priceUSD / eurusd;
         allTokens.push({
