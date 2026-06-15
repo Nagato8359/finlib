@@ -57,15 +57,23 @@ export default function Projection({ T, data }) {
               { label: t('proj_monthly_contrib'),  val: projMonthly, set: setProjMonthly, min: 0, max: 5000, unit: ' €/mois', step: 50 },
             ].map(({ label, val, set, min, max, unit, step }) => (
               <div key={label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: T.textMuted }}>{label}</span>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>
-                    {typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(1) : val}{unit}
-                  </span>
+                <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>{label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="range" min={min} max={max} step={step} value={val}
+                    onChange={e => set(+e.target.value)}
+                    style={{ flex: 1, cursor: 'pointer', minWidth: 0, touchAction: 'none' }}
+                  />
+                  <input
+                    type="number" min={min} max={max} step={step} value={val}
+                    onChange={e => set(+e.target.value)}
+                    onBlur={e => set(Math.min(max, Math.max(min, +e.target.value)))}
+                    style={{ width: 80, textAlign: 'right', flexShrink: 0, background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8, padding: '4px 8px', fontSize: 13, color: T.text, fontFamily: 'inherit' }}
+                  />
+                  {unit.trim() && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{unit.trim()}</span>}
                 </div>
-                <input type="range" min={min} max={max} step={step} value={val} onChange={e => set(+e.target.value)} style={{ width: '100%' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textFaint, marginTop: 2 }}>
-                  <span>{min}{unit.includes('%') ? '%' : ''}</span><span>{max}{unit.includes('%') ? '%' : ''}</span>
+                  <span>{min}{unit}</span><span>{max}{unit}</span>
                 </div>
               </div>
             ))}

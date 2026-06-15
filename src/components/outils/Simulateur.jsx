@@ -64,15 +64,31 @@ export default function Simulateur({ T }) {
     { id: 'credit', label: '🏠 Crédit' },
   ];
 
-  const Slider = ({ label, value, set, min, max, step, fmt = v => v, unit = '' }) => (
+  const numInputStyle = {
+    width: 82, textAlign: 'right', flexShrink: 0,
+    background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8,
+    padding: '4px 8px', fontSize: 13, color: T.text, fontFamily: 'inherit',
+  };
+
+  const Slider = ({ label, value, set, min, max, step, unit = '' }) => (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: T.textMuted }}>{label}</span>
-        <span style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fmt(value)}{unit}</span>
+      <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range" min={min} max={max} step={step} value={value}
+          onChange={e => set(+e.target.value)}
+          style={{ flex: 1, cursor: 'pointer', minWidth: 0, touchAction: 'none' }}
+        />
+        <input
+          type="number" min={min} max={max} step={step} value={value}
+          onChange={e => set(+e.target.value)}
+          onBlur={e => set(Math.min(max, Math.max(min, +e.target.value)))}
+          style={numInputStyle}
+        />
+        {unit.trim() && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{unit.trim()}</span>}
       </div>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={e => set(+e.target.value)} />
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textFaint, marginTop: 2 }}>
-        <span>{fmt(min)}{unit}</span><span>{fmt(max)}{unit}</span>
+        <span>{min}{unit}</span><span>{max}{unit}</span>
       </div>
     </div>
   );
@@ -102,7 +118,7 @@ export default function Simulateur({ T }) {
   const { monthly: crMonthly, chartData: crChart, totalInterests: crInterests } = crData;
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, overflowX: 'hidden', maxWidth: '100%' }}>
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>📈 Simulateur</h1>
         <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>Simulez vos stratégies d'investissement</p>
@@ -123,10 +139,10 @@ export default function Simulateur({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres DCA</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-              <Slider label="Versement mensuel" value={dcaMonthly} set={setDcaMonthly} min={50}    max={5000}   step={50}   fmt={fEur} />
-              <Slider label="Capital initial"    value={dcaInitial} set={setDcaInitial} min={0}     max={100000} step={500}  fmt={fEur} />
-              <Slider label="Rendement annuel"   value={dcaRate}    set={setDcaRate}    min={1}     max={25}     step={0.5}  unit="%" />
-              <Slider label="Durée"              value={dcaYears}   set={setDcaYears}   min={1}     max={40}     step={1}    unit=" ans" />
+              <Slider label="Versement mensuel" value={dcaMonthly} set={setDcaMonthly} min={50}  max={5000}   step={50}  unit=" €" />
+              <Slider label="Capital initial"    value={dcaInitial} set={setDcaInitial} min={0}   max={100000} step={500} unit=" €" />
+              <Slider label="Rendement annuel"   value={dcaRate}    set={setDcaRate}    min={1}   max={25}     step={0.5} unit="%" />
+              <Slider label="Durée"              value={dcaYears}   set={setDcaYears}   min={1}   max={40}     step={1}   unit=" ans" />
             </div>
           </div>
 
@@ -137,7 +153,7 @@ export default function Simulateur({ T }) {
             <KpiBox icon="📊" label="Multiplicateur"    value={dcaFin.Versements ? `×${((dcaFin.Valeur || 0) / dcaFin.Versements).toFixed(1)}` : '—'} color="#60a5fa" />
           </div>
 
-          <div style={{ ...S.card }}>
+          <div style={{ ...S.card, minWidth: 0 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Évolution du portefeuille</h3>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={dcaData}>
@@ -153,7 +169,7 @@ export default function Simulateur({ T }) {
                 <XAxis dataKey="year" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.ceil(dcaYears / 10) - 1)} />
                 <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={55} />
                 <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="Versements" name="Versements"   stroke="#60a5fa" fill="url(#gDcaP)" strokeWidth={1.5} strokeDasharray="4 3" />
+                <Area type="monotone" dataKey="Versements" name="Versements"    stroke="#60a5fa" fill="url(#gDcaP)" strokeWidth={1.5} strokeDasharray="4 3" />
                 <Area type="monotone" dataKey="Valeur"     name="Valeur totale" stroke={T.accent} fill="url(#gDcaV)" strokeWidth={2.5} />
               </AreaChart>
             </ResponsiveContainer>
@@ -167,9 +183,9 @@ export default function Simulateur({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-              <Slider label="Capital de départ"   value={icCapital} set={setIcCapital} min={1000} max={500000} step={1000} fmt={fEur} />
-              <Slider label="Rendement annuel"    value={icRate}    set={setIcRate}    min={0.5}  max={30}     step={0.5}  unit="%" />
-              <Slider label="Durée"               value={icYears}   set={setIcYears}   min={1}    max={50}     step={1}    unit=" ans" />
+              <Slider label="Capital de départ"  value={icCapital} set={setIcCapital} min={1000} max={500000} step={1000} unit=" €" />
+              <Slider label="Rendement annuel"   value={icRate}    set={setIcRate}    min={0.5}  max={30}     step={0.5}  unit="%" />
+              <Slider label="Durée"              value={icYears}   set={setIcYears}   min={1}    max={50}     step={1}    unit=" ans" />
               <div>
                 <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Fréquence de capitalisation</div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -185,13 +201,13 @@ export default function Simulateur({ T }) {
           </div>
 
           <div className="g4">
-            <KpiBox icon="🚀" label="Capital final"       value={fEur(icFin.Valeur, true)} color={T.accent} />
-            <KpiBox icon="💸" label="Capital de départ"   value={fEur(icCapital, true)} />
-            <KpiBox icon="✨" label="Intérêts composés"   value={fEur((icFin.Valeur || 0) - icCapital, true)} color="#4ade80" />
-            <KpiBox icon="📊" label="Multiplicateur"      value={`×${((icFin.Valeur || icCapital) / icCapital).toFixed(1)}`} color="#60a5fa" />
+            <KpiBox icon="🚀" label="Capital final"      value={fEur(icFin.Valeur, true)} color={T.accent} />
+            <KpiBox icon="💸" label="Capital de départ"  value={fEur(icCapital, true)} />
+            <KpiBox icon="✨" label="Intérêts composés"  value={fEur((icFin.Valeur || 0) - icCapital, true)} color="#4ade80" />
+            <KpiBox icon="📊" label="Multiplicateur"     value={`×${((icFin.Valeur || icCapital) / icCapital).toFixed(1)}`} color="#60a5fa" />
           </div>
 
-          <div style={{ ...S.card }}>
+          <div style={{ ...S.card, minWidth: 0 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Croissance du capital</h3>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={icData}>
@@ -204,8 +220,8 @@ export default function Simulateur({ T }) {
                 <XAxis dataKey="year" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.ceil(icYears / 10) - 1)} />
                 <YAxis tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={55} />
                 <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="Capital" name="Capital initial"       stroke="#60a5fa" fill="rgba(96,165,250,.05)" strokeWidth={1.5} strokeDasharray="4 3" />
-                <Area type="monotone" dataKey="Valeur"  name="Capital + intérêts"   stroke={T.accent} fill="url(#gIcV)" strokeWidth={2.5} />
+                <Area type="monotone" dataKey="Capital" name="Capital initial"     stroke="#60a5fa" fill="rgba(96,165,250,.05)" strokeWidth={1.5} strokeDasharray="4 3" />
+                <Area type="monotone" dataKey="Valeur"  name="Capital + intérêts" stroke={T.accent} fill="url(#gIcV)" strokeWidth={2.5} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -218,20 +234,20 @@ export default function Simulateur({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres du crédit</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22 }}>
-              <Slider label="Capital emprunté" value={crCapital} set={setCrCapital} min={10000}  max={1000000} step={5000} fmt={fEur} />
-              <Slider label="Taux annuel"      value={crRate}    set={setCrRate}    min={0.5}    max={10}      step={0.1}  unit="%" />
-              <Slider label="Durée"            value={crYears}   set={setCrYears}   min={5}      max={30}      step={1}    unit=" ans" />
+              <Slider label="Capital emprunté" value={crCapital} set={setCrCapital} min={10000} max={1000000} step={5000} unit=" €" />
+              <Slider label="Taux annuel"      value={crRate}    set={setCrRate}    min={0.5}   max={10}      step={0.1}  unit="%" />
+              <Slider label="Durée"            value={crYears}   set={setCrYears}   min={5}     max={30}      step={1}    unit=" ans" />
             </div>
           </div>
 
           <div className="g4">
-            <KpiBox icon="📅" label="Mensualité"        value={`${fEur(crMonthly)}/mois`}                    color="#f87171" />
-            <KpiBox icon="💸" label="Coût total"        value={fEur(crMonthly * crYears * 12, true)} />
-            <KpiBox icon="📊" label="Total intérêts"    value={fEur(crInterests, true)}                      color="#fb923c" />
-            <KpiBox icon="⚡" label="Taux nominal"      value={`${crRate}%`}                                 color="#60a5fa" />
+            <KpiBox icon="📅" label="Mensualité"     value={`${fEur(crMonthly)}/mois`}                    color="#f87171" />
+            <KpiBox icon="💸" label="Coût total"     value={fEur(crMonthly * crYears * 12, true)} />
+            <KpiBox icon="📊" label="Total intérêts" value={fEur(crInterests, true)}                      color="#fb923c" />
+            <KpiBox icon="⚡" label="Taux nominal"   value={`${crRate}%`}                                 color="#60a5fa" />
           </div>
 
-          <div style={{ ...S.card }}>
+          <div style={{ ...S.card, minWidth: 0 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Amortissement du prêt</h3>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={crChart}>
