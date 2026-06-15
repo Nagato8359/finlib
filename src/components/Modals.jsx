@@ -158,7 +158,7 @@ export const AssetLogo = ({ sources = [], letter, color, size = 32 }) => {
 // Used by Logo.dev (primary) and Google favicons (fallback)
 export const TICKER_TO_DOMAIN = {
   // ── France CAC40 / SBF120 ─────────────────────────────────────────────────
-  TTE: 'totalenergies.com', FP: 'totalenergies.com',
+  TTE: 'totalenergies.com', 'TTE.PA': 'totalenergies.com', FP: 'totalenergies.com',
   AI: 'airbus.com', BNP: 'bnpparibas.com',
   SAN: 'sanofi.com', MC: 'lvmh.com', OR: 'loreal.com',
   RMS: 'hermes.com', TFI: 'tf1.fr', ORA: 'orange.com',
@@ -170,8 +170,19 @@ export const TICKER_TO_DOMAIN = {
   RNO: 'renault.com', SU: 'schneider-electric.com', SW: 'schneider-electric.com',
   LR: 'legrand.com', EL: 'essilorluxottica.com', TEP: 'teleperformance.com',
   HO: 'thalesgroup.com', AXA: 'axa.com', CS: 'axa.com',
-  SAF: 'safran.com', AC: 'accor.com', ALO: 'alstom.com',
+  SAF: 'safran.com', AC: 'accor.com', ALO: 'alstomgroup.com', 'ALO.PA': 'alstomgroup.com',
   NK: 'nexans.com', WLN: 'worldline.com',
+  // ── ETF Amundi / BNP / FDJ / NN ──────────────────────────────────────────
+  TNO: 'amundi.com', 'TNO.MI': 'amundi.com',
+  AWAT: 'amundi.com', 'AWAT.PA': 'amundi.com',
+  PCEU: 'amundi.com', 'PCEU.PA': 'amundi.com',
+  PAEEM: 'amundi.com', 'PAEEM.PA': 'amundi.com',
+  PLEM: 'amundi.com', 'PLEM.PA': 'amundi.com',
+  ETZD: 'bnpparibas.com', 'ETZD.PA': 'bnpparibas.com',
+  FDJU: 'groupefdj.com', 'FDJU.PA': 'groupefdj.com',
+  NN: 'nn-group.com', 'NN.AS': 'nn-group.com',
+  // ── Crypto ────────────────────────────────────────────────────────────────
+  BTC: 'bitcoin.org', ETH: 'ethereum.org',
   // ── Europe ────────────────────────────────────────────────────────────────
   ASML: 'asml.com', SAP: 'sap.com', NESN: 'nestle.com',
   NOVN: 'novartis.com', ROG: 'roche.com', SHELL: 'shell.com',
@@ -225,8 +236,9 @@ export const stockLogoSources = (sym, logoUrl) => {
   const srcs = [];
   if (logoUrl) srcs.push(logoUrl);
   if (!sym) return srcs;
+  const full   = sym.toUpperCase();
   const base   = sym.split('.')[0].toUpperCase();
-  const domain = TICKER_TO_DOMAIN[base];
+  const domain = TICKER_TO_DOMAIN[full] || TICKER_TO_DOMAIN[base];
   if (domain) srcs.push(`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`);
   if (domain) srcs.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
   return srcs;

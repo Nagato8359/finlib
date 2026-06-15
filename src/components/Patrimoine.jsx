@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { KPI, makeS, fEur, fPct, fDate, INV_COLORS, CASH_TYPE_COLORS, CASH_TYPE_INFO, LISTING_CAT_COLORS, PORTFOLIO_TYPE_ICON, PORTFOLIO_TYPE_COLOR, getInvFormType } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
-import { AssetLogo, stockLogoSources, scpiLogoSources, LOGO_DEV_TOKEN } from './Modals';
+import { AssetLogo, stockLogoSources, scpiLogoSources } from './Modals';
 
 const mLeft = endDate => {
   if (!endDate) return 0;
@@ -349,15 +349,15 @@ export default function Patrimoine({ T, data }) {
                       posLogoLetter = getCommodityEmoji(pos.name || pos.ticker);
                       posLogoColor  = '#EAB308';
                     } else if (isPosRealt) {
-                      posLogoSrcs   = [`https://img.logo.dev/realt.co?token=${LOGO_DEV_TOKEN}&size=64`];
-                      posLogoLetter = '🏘';
-                      posLogoColor  = '#10b981';
+                      posLogoSrcs   = [];
+                      posLogoLetter = '🏘️';
+                      posLogoColor  = '#EF4444';
                     } else if (isPosScpi) {
                       posLogoSrcs   = scpiLogoSources(pos.name || '');
                       posLogoLetter = '🏬';
                       posLogoColor  = '#D97706';
                     } else if (isPosCrypto) {
-                      posLogoSrcs   = [`https://assets.parqet.com/logos/symbol/${posSymbol}?format=svg`];
+                      posLogoSrcs   = [...stockLogoSources(pos.ticker, null), `https://assets.parqet.com/logos/symbol/${posSymbol}?format=svg`];
                       posLogoLetter = posSymbol[0] || '?';
                       posLogoColor  = '#F59E0B';
                     } else {
