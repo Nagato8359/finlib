@@ -158,7 +158,7 @@ async function resolvePrice(ticker) {
   const entry = { ...result, ticker, ts: now };
   if (result.price != null) {
     cache[ticker] = entry;
-    await setCached(redisKey, entry, 900);
+    await setCached(redisKey, entry, 300);
   }
   return entry;
 }
@@ -178,7 +178,7 @@ async function resolvePriceByKey(key) {
     const entry = { ...result, ticker: key, resolvedTicker, ts: now };
     if (result.price != null) {
       cache[key] = entry;
-      await setCached(redisKey, entry, 900);
+      await setCached(redisKey, entry, 300);
     }
     return entry;
   }
