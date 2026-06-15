@@ -194,6 +194,9 @@ export function useData() {
   const [loadedPreferences, setLoadedPreferences] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
+  const [referralCode, setReferralCode] = useState('');
+  const [referrals, setReferrals] = useState([]);
+  const [proBonusMonths, setProBonusMonths] = useState(0);
   const activeProfileIdRef = useRef(null);
   useEffect(() => { activeProfileIdRef.current = activeProfileId; }, [activeProfileId]);
   const dataLoaded = useRef(false);
@@ -241,6 +244,30 @@ export function useData() {
         if (data.proj_rate) setProjRate(data.proj_rate);
         if (data.proj_monthly !== undefined) setProjMonthly(data.proj_monthly);
         if (data.preferences && typeof data.preferences === 'object') setLoadedPreferences(data.preferences);
+        setProBonusMonths(data.pro_bonus_months || 0);
+        if (data.referral_code) {
+          setReferralCode(data.referral_code);
+        } else if (profileId == null) {
+          const email = userRef.current?.email || userId;
+          const nameRaw = email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+          const code = (nameRaw || 'USER') + Math.random().toString(36).slice(2, 6).toUpperCase();
+          setReferralCode(code);
+          supabase.from('user_data').update({ referral_code: code }).eq('user_id', userId).then(() => {});
+        }
+      }
+      if (profileId == null) {
+        try {
+          const { data: refs } = await supabase.from('referrals')
+            .select('*').eq('referrer_id', userId).order('created_at', { ascending: false });
+          setReferrals(refs || []);
+          // Credit bonus if referred and not yet credited
+          const bonus = data?.pro_bonus_months || 0;
+          if (bonus === 0) {
+            const { data: myRef } = await supabase.from('referrals')
+              .select('bonus_months').eq('referred_id', userId).eq('status', 'confirmed').maybeSingle();
+            if (myRef?.bonus_months) setProBonusMonths(myRef.bonus_months);
+          }
+        } catch {}
       }
     } catch {}
     dataLoaded.current = true;
@@ -282,12 +309,14 @@ export function useData() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
+      userRef.current = u;
       setUser(u);
       if (u) { loadUserData(u.id); loadProfiles(u.id); }
       else setAuthLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
+      userRef.current = u;
       setUser(u);
       if (u) { setDemoMode(false); dataLoaded.current = false; setActiveProfileId(null); loadUserData(u.id); loadProfiles(u.id); registerPush(u.id); }
       else { dataLoaded.current = false; setAuthLoading(false); }
@@ -307,6 +336,7 @@ export function useData() {
           budgets, custom_budgets: customBudgets, goals, savings, listings, sold_history: soldHistory,
           loans, debts,
           proj_years: projYears, proj_rate: projRate, proj_monthly: projMonthly,
+          pro_bonus_months: proBonusMonths,
           updated_at: new Date().toISOString(),
         };
         if (profileId != null) {
@@ -327,7 +357,7 @@ export function useData() {
         console.error('SAVE ERROR:', e);
       }
     }, 500);
-  }, [transactions, investments, healthAssets, budgets, customBudgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly]);
+  }, [transactions, investments, healthAssets, budgets, customBudgets, goals, savings, listings, soldHistory, loans, debts, projYears, projRate, projMonthly, proBonusMonths]);
 
   const handleLogout = async () => {
     dataLoaded.current = false;
@@ -958,5 +988,6 @@ export function useData() {
     exportCSV, exportDataJSON, importJSON, deleteAccount,
     loadedPreferences, savePreferences,
     profiles, activeProfileId, switchProfile, addProfile,
+    referralCode, referrals, proBonusMonths,
   };
 }

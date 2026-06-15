@@ -325,6 +325,7 @@ export default function Header({
                     <MBtn icon="✎" label={t('menu_edit_profile')} onClick={() => setProfilePage(true)} />
                   )}
                   <MBtn icon="🏆" label="Trophées & Statut" onClick={() => setTrophiesPage(true)} />
+                  {!demoMode && <MBtn icon="🎁" label="Parrainage" onClick={() => { setTab('parrainage'); closeMenu(); }} />}
                   <Divider />
                 </>
               )}

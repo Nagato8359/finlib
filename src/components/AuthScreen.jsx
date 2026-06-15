@@ -10,6 +10,7 @@ export default function AuthScreen({ onDemo }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [resetSent, setResetSent] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
 
   const translateError = msg => {
     if (!msg) return 'Une erreur est survenue';
@@ -27,8 +28,15 @@ export default function AuthScreen({ onDemo }) {
     setError(''); setSuccess(''); setLoading(true);
     try {
       if (mode === 'register') {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data: signUpData, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+        if (referralCode.trim() && signUpData?.user?.id) {
+          fetch('/api/referral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referral_code: referralCode.trim().toUpperCase(), referred_id: signUpData.user.id }),
+          }).catch(() => {});
+        }
         setSuccess('Compte créé ! Vérifiez votre email pour activer votre compte.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -77,10 +85,16 @@ export default function AuthScreen({ onDemo }) {
               <label style={lbl}>Email</label>
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="vous@exemple.com" style={inp} />
             </div>
-            <div style={{ marginBottom: 22 }}>
+            <div style={{ marginBottom: mode === 'register' ? 14 : 22 }}>
               <label style={lbl}>Mot de passe</label>
               <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} placeholder="6 caractères minimum" style={inp} />
             </div>
+            {mode === 'register' && (
+              <div style={{ marginBottom: 22 }}>
+                <label style={lbl}>Code de parrainage <span style={{ color: '#4b5563', fontWeight: 400 }}>(optionnel)</span></label>
+                <input type="text" value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase())} placeholder="Ex : ALEX2B4F" style={{ ...inp, textTransform: 'uppercase', letterSpacing: '.08em' }} maxLength={12} />
+              </div>
+            )}
             {error && <div style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#f87171', marginBottom: 14 }}>{error}</div>}
             {success && <div style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.2)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#4ade80', marginBottom: 14 }}>{success}</div>}
             <button type="submit" disabled={loading} style={{ width: '100%', background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', borderRadius: 10, color: '#fff', padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: loading ? 0.7 : 1 }}>
