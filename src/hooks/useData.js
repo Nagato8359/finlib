@@ -597,12 +597,12 @@ export function useData() {
     });
   }, [goals, patrimoine]);
 
-  // ── Patrimoine snapshot (hourly, frontend-driven) ─────────────────────────
+  // ── Patrimoine snapshot (every 30min when app is open) ───────────────────
   useEffect(() => {
     if (!user || !dataLoaded.current || patrimoine <= 0) return;
     const now = Date.now();
     const last = parseInt(localStorage.getItem('lastPatrimoineSnapshot') || '0', 10);
-    if (now - last < 3600000) return;
+    if (now - last < 1800000) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.access_token) return;
       fetch('/api/cron-prices?action=snapshot', {
