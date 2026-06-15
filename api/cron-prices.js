@@ -11,10 +11,10 @@ const COMMODITY_TICKER_MAP = {
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
 const UNSUPPORTED_TICKERS = [
-  'REALT', 'REALT.',                    // RealT tokens
-  'SCPI', 'OPCI', 'SCI',               // Pierre-papier
-  'GFI', 'GFV',                         // Forêts / Vignes
-  'PER',                                 // Plan Épargne Retraite
+  'REALT', 'REALT.',
+  'SCPI', 'OPCI', 'SCI',
+  'GFI', 'GFV',
+  'PER',
 ];
 
 function detectDivFrequency(sortedDates) {
@@ -85,7 +85,7 @@ async function fetchCryptoEntry(coinId) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
-  // ── action=clear-cache : purge all realt:* keys from Redis ──────────────────
+  // ── action=clear-cache ───────────────────────────────────────────────────
   if (req.query.action === 'clear-cache') {
     if (!process.env.CRON_SECRET || req.query.key !== process.env.CRON_SECRET) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -113,30 +113,50 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // Vercel injects CRON_SECRET automatically for scheduled invocations
   const auth = req.headers.authorization;
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Outer variables — declared here so all steps and the final res.json can access them
+  let rows = [];
+  let keys = [];
+  let realtWallets = new Set();
+  let eurusd = 1.08;
+  let updated = 0;
+  let settled = [];
+  let priceMap = {};
+  let realtUpdated = 0;
+  let historyEntries = [];
+  let rentsInvalidated = 0;
+  let divTickerSet = new Set();
+  let divUpserted = 0;
+  let pushSent = 0;
+
+  // ── STEP 1: Read user data ───────────────────────────────────────────────
+  console.log('STEP1 START: reading user_data');
   try {
-    // 1. Read all user data (requires service role key)
-    const { data: rows, error: dbErr } = await supabaseAdmin
+    const { data: dbRows, error: dbErr } = await supabaseAdmin
       .from('user_data')
       .select('user_id, investments, savings, health_assets, loans, updated_at, preferences');
     if (dbErr) throw new Error(`user_data read: ${dbErr.message}`);
+    rows = dbRows || [];
+    console.log(`STEP1 OK: ${rows.length} users`);
+  } catch (e) {
+    console.error('STEP1 ERROR:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
 
-    // 2. Extract unique tickers and RealT wallet addresses
+  // ── STEP 2: Extract tickers ──────────────────────────────────────────────
+  console.log('STEP2 START: extracting tickers');
+  try {
     const tickerSet = new Set();
-    const realtWallets = new Set();
-    for (const row of rows || []) {
+    for (const row of rows) {
       for (const inv of row.investments || []) {
-        // Collect RealT wallet addresses for community API update
         if (inv.type === 'RealT' && inv.platform && /^0x[0-9a-fA-F]{40}$/i.test(inv.platform)) {
           realtWallets.add(inv.platform.toLowerCase());
         }
         for (const pos of inv.positions || []) {
-          // Skip manual-priced position types (no Yahoo Finance ticker to fetch)
           if (pos.posType === 'other' || pos.posType === 'realestate') continue;
           if (pos.posType === 'commodity') {
             const t = COMMODITY_TICKER_MAP[pos.commodityType];
@@ -149,16 +169,28 @@ module.exports = async function handler(req, res) {
         }
       }
     }
+    keys = [...tickerSet].filter(k => !UNSUPPORTED_TICKERS.includes(k.toUpperCase()));
+    console.log(`STEP2 OK: ${keys.length} tickers, ${realtWallets.size} RealT wallets`);
+  } catch (e) {
+    console.error('STEP2 ERROR:', e.message);
+  }
 
-    const keys = [...tickerSet].filter(k => !UNSUPPORTED_TICKERS.includes(k.toUpperCase()));
-    if (!keys.length && !realtWallets.size) return res.json({ ok: true, updated: 0, realtUpdated: 0, total: 0 });
+  if (!keys.length && !realtWallets.size) {
+    return res.json({ ok: true, updated: 0, realtUpdated: 0, total: 0 });
+  }
 
-    // 3. Fetch EUR/USD once for all USD-denominated assets
-    const eurusd = await getEURUSD();
+  // ── STEP 3: EUR/USD ──────────────────────────────────────────────────────
+  console.log('STEP3 START: fetching EUR/USD');
+  try {
+    eurusd = await getEURUSD();
+    console.log(`STEP3 OK: eurusd=${eurusd}`);
+  } catch (e) {
+    console.error('STEP3 ERROR:', e.message);
+  }
 
-    // 4. Fetch price + 1d change_pct for Yahoo Finance / CoinGecko tickers
-    let updated = 0;
-    let settled = [];
+  // ── STEP 4: Prices ───────────────────────────────────────────────────────
+  console.log('STEP4 START: fetching prices');
+  try {
     if (keys.length) {
       settled = await Promise.allSettled(
         keys.map(async (key) => {
@@ -171,9 +203,7 @@ module.exports = async function handler(req, res) {
               const ticker = ISIN_RE.test(upper) ? await isinToTicker(upper) : upper;
               entry = await fetchStockEntry(ticker, eurusd);
             }
-
             if (entry.price == null) return { key, ok: false };
-
             const { error: upsErr } = await supabaseAdmin.from('prices_cache').upsert({
               ticker: key,
               price:      parseFloat(entry.price.toFixed(4)),
@@ -181,7 +211,6 @@ module.exports = async function handler(req, res) {
               currency:   'EUR',
               updated_at: new Date().toISOString(),
             }, { onConflict: 'ticker' });
-
             if (upsErr) console.error(`[cron] upsert ${key}:`, upsErr.message);
             return { key, ok: !upsErr, change_pct: entry.change_pct, price: entry.price };
           } catch (e) {
@@ -191,19 +220,21 @@ module.exports = async function handler(req, res) {
         })
       );
       updated = settled.filter(r => r.status === 'fulfilled' && r.value?.ok).length;
-      console.log(`[cron-prices] ${updated}/${keys.length} tickers refreshed`);
     }
+    console.log(`STEP4 OK: ${updated}/${keys.length} tickers refreshed`);
+  } catch (e) {
+    console.error('STEP4 ERROR:', e.message);
+  }
 
-    // Build price map (EUR) from freshly fetched results
-    const priceMap = {};
-    for (const r of settled) {
-      if (r.status === 'fulfilled' && r.value?.ok && r.value.price != null) {
-        priceMap[r.value.key.toUpperCase()] = r.value.price;
-      }
+  for (const r of settled) {
+    if (r.status === 'fulfilled' && r.value?.ok && r.value.price != null) {
+      priceMap[r.value.key.toUpperCase()] = r.value.price;
     }
+  }
 
-    // 5. Fetch RealT token prices from community API and upsert to prices_cache
-    let realtUpdated = 0;
+  // ── STEP 5: RealT prices ─────────────────────────────────────────────────
+  console.log('STEP5 START: RealT prices');
+  try {
     for (const wallet of realtWallets) {
       try {
         const rtRes = await fetch(`https://api.realtoken.community/v1/holder/${wallet}`, {
@@ -213,7 +244,6 @@ module.exports = async function handler(req, res) {
         if (!rtRes.ok) { console.error(`[cron] RealT ${wallet}: HTTP ${rtRes.status}`); continue; }
         const raw = await rtRes.json();
         const balances = Array.isArray(raw) ? raw : raw?.holder?.balances || raw?.balances || [];
-
         for (const b of balances) {
           const token = b.token || {};
           const amount = parseFloat(b.amount) || 0;
@@ -221,7 +251,6 @@ module.exports = async function handler(req, res) {
           const ticker = (token.shortName || token.symbol || '').toUpperCase();
           const priceUSD = parseFloat(token.tokenPrice) || 0;
           if (!ticker || priceUSD <= 0) continue;
-
           const priceEUR = priceUSD / eurusd;
           const { error: upsErr } = await supabaseAdmin.from('prices_cache').upsert({
             ticker,
@@ -230,7 +259,6 @@ module.exports = async function handler(req, res) {
             currency:   'EUR',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'ticker' });
-
           if (!upsErr) { realtUpdated++; priceMap[ticker] = priceEUR; }
           else console.error(`[cron] RealT ${ticker}:`, upsErr.message);
         }
@@ -238,33 +266,37 @@ module.exports = async function handler(req, res) {
         console.error(`[cron] RealT wallet ${wallet}:`, e.message);
       }
     }
-    if (realtWallets.size) console.log(`[cron-prices] RealT: ${realtUpdated} token prices updated`);
+    console.log(`STEP5 OK: ${realtUpdated} RealT prices updated`);
+  } catch (e) {
+    console.error('STEP5 ERROR:', e.message);
+  }
 
-    // Mirrors frontend invLiveValue: positions × live price, fallback to stored price then inv.value
-    const liveInvValue = (inv) => {
-      const positions = inv.positions || [];
-      if (!positions.length) return parseFloat(inv.value) || 0;
-      let total = 0;
-      for (const pos of positions) {
-        if (pos.posType === 'other' || pos.posType === 'realestate') {
-          total += parseFloat(pos.currentValue) || parseFloat(pos.buyPrice) || 0;
-          continue;
-        }
-        const key = pos.posType === 'commodity'
-          ? (COMMODITY_TICKER_MAP[pos.commodityType] || '').toUpperCase()
-          : (pos.isin || pos.ticker || '').toUpperCase();
-        const livePrice = (key && priceMap[key] != null) ? priceMap[key] : (parseFloat(pos.currentPrice) || 0);
-        total += (parseFloat(pos.shares) || 0) * livePrice;
+  const liveInvValue = (inv) => {
+    const positions = inv.positions || [];
+    if (!positions.length) return parseFloat(inv.value) || 0;
+    let total = 0;
+    for (const pos of positions) {
+      if (pos.posType === 'other' || pos.posType === 'realestate') {
+        total += parseFloat(pos.currentValue) || parseFloat(pos.buyPrice) || 0;
+        continue;
       }
-      return total;
-    };
+      const key = pos.posType === 'commodity'
+        ? (COMMODITY_TICKER_MAP[pos.commodityType] || '').toUpperCase()
+        : (pos.isin || pos.ticker || '').toUpperCase();
+      const livePrice = (key && priceMap[key] != null) ? priceMap[key] : (parseFloat(pos.currentPrice) || 0);
+      total += (parseFloat(pos.shares) || 0) * livePrice;
+    }
+    return total;
+  };
 
-    // 6. Record one patrimoine snapshot per user per hour
+  // ── STEP 6: Patrimoine history ───────────────────────────────────────────
+  console.log('STEP6 START: patrimoine_history snapshot');
+  try {
     const snapshotHour = new Date();
     snapshotHour.setMinutes(0, 0, 0);
     const recordedAt = snapshotHour.toISOString();
 
-    const historyEntries = (rows || [])
+    historyEntries = rows
       .filter(row => row.user_id)
       .map(row => {
         const investments_ = row.investments || [];
@@ -294,16 +326,23 @@ module.exports = async function handler(req, res) {
       .filter(e => e.valeur > 0);
 
     if (historyEntries.length > 0) {
-      console.log('[cron-prices] patrimoine_history: inserting', JSON.stringify(historyEntries));
+      console.log('STEP6 inserting:', JSON.stringify(historyEntries));
       const { data: histData, error: histErr } = await supabaseAdmin
         .from('patrimoine_history')
         .insert(historyEntries);
       if (histErr) console.error('HISTORY INSERT ERROR:', JSON.stringify(histErr));
       else console.log('HISTORY INSERTED:', histData?.length, 'rows');
+    } else {
+      console.log('STEP6: no entries (all valeur <= 0 or no users)');
     }
+    console.log(`STEP6 OK: ${historyEntries.length} entries`);
+  } catch (e) {
+    console.error('STEP6 ERROR:', e.message, e.stack);
+  }
 
-    // 7. Invalidate stale RealT rent caches (last cached rent older than 7 days)
-    let rentsInvalidated = 0;
+  // ── STEP 7: RealT rent cache invalidation ────────────────────────────────
+  console.log('STEP7 START: RealT rent cache');
+  try {
     for (const wallet of realtWallets) {
       try {
         const cacheKey = `realt:rents:${wallet}`;
@@ -321,11 +360,15 @@ module.exports = async function handler(req, res) {
         console.error(`[cron-prices] RealT rent cache check ${wallet}:`, e.message);
       }
     }
-    if (realtWallets.size) console.log(`[cron-prices] RealT rents: ${rentsInvalidated}/${realtWallets.size} cache(s) invalidated`);
+    console.log(`STEP7 OK: ${rentsInvalidated}/${realtWallets.size} caches invalidated`);
+  } catch (e) {
+    console.error('STEP7 ERROR:', e.message);
+  }
 
-    // 8. Fetch and upsert dividend events for stock/ETF tickers
-    const divTickerSet = new Set();
-    for (const row of rows || []) {
+  // ── STEP 8: Dividend events ──────────────────────────────────────────────
+  console.log('STEP8 START: dividend events');
+  try {
+    for (const row of rows) {
       for (const inv of row.investments || []) {
         for (const pos of inv.positions || []) {
           if (['stock', 'etf'].includes(pos.posType) && pos.ticker && !ISIN_RE.test(pos.ticker.toUpperCase())) {
@@ -335,7 +378,6 @@ module.exports = async function handler(req, res) {
       }
     }
     const divTickers = [...divTickerSet];
-    let divUpserted = 0;
     if (divTickers.length) {
       await Promise.allSettled(divTickers.map(async ticker => {
         try {
@@ -344,13 +386,11 @@ module.exports = async function handler(req, res) {
           );
           const result = data?.chart?.result?.[0];
           if (!result) return;
-
           const currency = result.meta?.currency || 'USD';
           const toEUR = currency === 'EUR' ? 1 : 1 / eurusd;
           const divEvents = result.events?.dividends || {};
           const sorted = Object.values(divEvents).sort((a, b) => a.date - b.date);
           if (!sorted.length) return;
-
           const confirmed = sorted.map(e => ({
             ticker,
             ex_date:    new Date(e.date * 1000).toISOString().slice(0, 10),
@@ -361,14 +401,11 @@ module.exports = async function handler(req, res) {
             source:     'yahoo',
             updated_at: new Date().toISOString(),
           }));
-
           const { error: confErr } = await supabaseAdmin
             .from('dividend_events')
             .upsert(confirmed, { onConflict: 'ticker,ex_date' });
           if (confErr) { console.error(`[cron] div upsert ${ticker}:`, confErr.message); return; }
           divUpserted += confirmed.length;
-
-          // Project up to 4 estimated future dividends (don't overwrite confirmed)
           const frequency = detectDivFrequency(sorted.map(e => new Date(e.date * 1000)));
           const gapMs = DIV_FREQ_DAYS[frequency] * 86400000;
           const last = confirmed[confirmed.length - 1];
@@ -397,24 +434,24 @@ module.exports = async function handler(req, res) {
           console.error(`[cron] dividends ${ticker}:`, e.message);
         }
       }));
-      console.log(`[cron-prices] dividends: ${divUpserted} confirmed events upserted for ${divTickers.length} tickers`);
     }
+    console.log(`STEP8 OK: ${divUpserted} confirmed events for ${divTickerSet.size} tickers`);
+  } catch (e) {
+    console.error('STEP8 ERROR:', e.message);
+  }
 
-    // 9. Push notifications — inactivité, dividendes J+3, paliers, records, performance
+  // ── STEP 9: Push notifications ───────────────────────────────────────────
+  console.log('STEP9 START: push notifications');
+  try {
     const todayNotifStr = new Date().toISOString().slice(0, 10);
-    let pushSent = 0;
-
-    // Build ticker-stats map from step-4 settled results (performance alerts)
     const tickerStats = {};
-    for (const r of (settled || [])) {
+    for (const r of settled) {
       if (r.status === 'fulfilled' && r.value?.ok && r.value.change_pct != null) {
         tickerStats[r.value.key] = { change_pct: r.value.change_pct, price: r.value.price };
       }
     }
-
-    // Build per-user stock holdings map: userId → { base_ticker → shares }
     const userHoldings = {};
-    for (const row of rows || []) {
+    for (const row of rows) {
       if (!row.user_id) continue;
       userHoldings[row.user_id] = {};
       for (const inv of row.investments || []) {
@@ -427,12 +464,10 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // A) Per-user notifications (inactivité, paliers, records)
-    for (const row of rows || []) {
+    for (const row of rows) {
       if (!row.user_id) continue;
       const np = row.preferences?.notifications ?? {};
 
-      // A1. Inactivité
       if (np.inactivite !== false && row.updated_at) {
         const daysSince = Math.floor((Date.now() - new Date(row.updated_at).getTime()) / 86400000);
         const inactMsgs = {
@@ -454,7 +489,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // A2. Paliers patrimoine
       const userHist = historyEntries.find(e => e.user_id === row.user_id);
       const currentPat = userHist?.valeur || 0;
       if (currentPat > 0 && np.paliers !== false) {
@@ -472,9 +506,9 @@ module.exports = async function handler(req, res) {
           }
         }
 
-        // A3. Record patrimoine (once per day)
         const recKey = `push:rec:${row.user_id}`;
-        const recDayKey = `push:recday:${row.user_id}:${todayNotifStr}`;
+        const todayNotifStr2 = new Date().toISOString().slice(0, 10);
+        const recDayKey = `push:recday:${row.user_id}:${todayNotifStr2}`;
         const prevMaxStr = await getCached(recKey);
         const prevMax = parseFloat(prevMaxStr || '0');
         if (currentPat > prevMax) {
@@ -489,18 +523,16 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // B) Dividende dans 3 jours
     const in3days = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
     const { data: upcomingDivs } = await supabaseAdmin
       .from('dividend_events')
       .select('ticker, amount, amount_eur, currency')
       .eq('ex_date', in3days)
       .eq('status', 'confirmed');
-
     for (const ev of upcomingDivs || []) {
       const divKey = `push:div3:${ev.ticker}:${in3days}`;
       if (await getCached(divKey)) continue;
-      for (const row of rows || []) {
+      for (const row of rows) {
         if (!row.user_id || (row.preferences?.notifications?.dividendes) === false) continue;
         if (!userHoldings[row.user_id]?.[ev.ticker]) continue;
         const amtStr = ev.amount_eur ? `${ev.amount_eur.toFixed(4)}€` : `${ev.amount} ${ev.currency}`;
@@ -510,14 +542,13 @@ module.exports = async function handler(req, res) {
       await setCached(divKey, '1', 4 * 86400);
     }
 
-    // C) Performance actifs (+/- 5%)
     for (const [ticker, stats] of Object.entries(tickerStats)) {
       if (Math.abs(stats.change_pct) < 5) continue;
       const perfKey = `push:perf:${ticker}:${todayNotifStr}`;
       if (await getCached(perfKey)) continue;
       const isDown = stats.change_pct < 0;
       const pct = Math.abs(stats.change_pct).toFixed(1);
-      for (const row of rows || []) {
+      for (const row of rows) {
         if (!row.user_id || (row.preferences?.notifications?.performance) === false) continue;
         const shares = userHoldings[row.user_id]?.[ticker];
         if (!shares) continue;
@@ -529,12 +560,10 @@ module.exports = async function handler(req, res) {
       }
       await setCached(perfKey, '1', 86400);
     }
-
-    console.log(`[cron-prices] push: ${pushSent} notifications envoyées`);
-
-    res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length, rentsInvalidated, divTickers: divTickers.length, divUpserted, pushSent });
-  } catch (err) {
-    console.error('[cron-prices] fatal:', err.message);
-    res.status(500).json({ error: err.message });
+    console.log(`STEP9 OK: ${pushSent} notifications envoyées`);
+  } catch (e) {
+    console.error('STEP9 ERROR:', e.message);
   }
+
+  res.json({ ok: true, updated, realtUpdated, total: keys.length, snapshots: historyEntries.length, rentsInvalidated, divTickers: divTickerSet.size, divUpserted, pushSent });
 };
