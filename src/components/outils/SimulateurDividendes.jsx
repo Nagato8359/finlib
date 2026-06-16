@@ -88,9 +88,6 @@ export default function SimulateurDividendes({ T }) {
   const [years,               setYears]               = useState(20);
   const [monthlyContribution, setMonthlyContribution] = useState(500);
 
-  // ── Tableau personnalisé ─────────────────────────────────────────────────
-  const [customRows, setCustomRows] = useState([{ id: 1, name: '', ticker: '', yield: 0, alloc: 0 }]);
-
   const needed = useMemo(() => neededCapital(monthlyIncome, yieldRate, taxRate), [monthlyIncome, yieldRate, taxRate]);
 
   const sim = useMemo(() => {
@@ -128,17 +125,6 @@ export default function SimulateurDividendes({ T }) {
   const freqOpt = FREQ_OPTIONS.find(f => f.v === frequency) || FREQ_OPTIONS[0];
   const perPaymentNet = annualNetDividends / freqOpt.n;
 
-  const totalAlloc = useMemo(() => customRows.reduce((s, r) => s + (parseFloat(r.alloc) || 0), 0), [customRows]);
-  const weightedYield = useMemo(() => {
-    if (totalAlloc <= 0) return 0;
-    return customRows.reduce((s, r) => s + (parseFloat(r.yield) || 0) * (parseFloat(r.alloc) || 0), 0) / totalAlloc;
-  }, [customRows, totalAlloc]);
-
-  const addCustomRow = () => setCustomRows(rows => [...rows, { id: Date.now(), name: '', ticker: '', yield: 0, alloc: 0 }]);
-  const removeCustomRow = id => setCustomRows(rows => rows.filter(r => r.id !== id));
-  const updateCustomRow = (id, field, value) => setCustomRows(rows => rows.map(r => r.id === id ? { ...r, [field]: value } : r));
-  const applyWeightedYield = () => { setYieldRate(Math.min(15, Math.max(1, Math.round(weightedYield * 10) / 10))); setActiveTab('calc'); };
-
   const numInputStyle = {
     width: 82, textAlign: 'right', flexShrink: 0,
     background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8,
@@ -151,7 +137,8 @@ export default function SimulateurDividendes({ T }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <input
           type="range" min={min} max={max} step={step} value={value}
-          onChange={e => set(+e.target.value)}
+          onInput={e => set(Number(e.target.value))}
+          onChange={e => set(Number(e.target.value))}
           style={{ flex: 1, cursor: 'pointer', minWidth: 0, touchAction: 'none' }}
         />
         <input
@@ -203,7 +190,6 @@ export default function SimulateurDividendes({ T }) {
   const TABS_LIST = [
     { id: 'calc',          label: '🧮 Calculateur' },
     { id: 'portefeuilles', label: '📦 Exemples de portefeuilles' },
-    { id: 'perso',         label: '✏️ Mon portefeuille' },
   ];
 
   return (
@@ -371,72 +357,6 @@ export default function SimulateurDividendes({ T }) {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* ══════════════════════════ SECTION 4 — Personnalisation avancée ══════════════════════════ */}
-      {activeTab === 'perso' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ ...S.card }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Mon portefeuille cible</h3>
-              <button onClick={addCustomRow} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>＋ Ajouter une ligne</button>
-            </div>
-
-            <div className="div-table-wrap">
-              <table className="div-table">
-                <thead>
-                  <tr>
-                    <th>Nom actif</th><th>Ticker</th><th>Rendement %</th><th>Allocation %</th><th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customRows.map(row => (
-                    <tr key={row.id}>
-                      <td>
-                        <input type="text" value={row.name} onChange={e => updateCustomRow(row.id, 'name', e.target.value)}
-                          placeholder="Ex : TotalEnergies" style={{ ...S.inp, padding: '5px 8px', fontSize: 12 }} />
-                      </td>
-                      <td>
-                        <input type="text" value={row.ticker} onChange={e => updateCustomRow(row.id, 'ticker', e.target.value.toUpperCase())}
-                          placeholder="TTE" style={{ ...S.inp, padding: '5px 8px', fontSize: 12, width: 80 }} />
-                      </td>
-                      <td>
-                        <input type="number" min="0" max="50" step="0.1" value={row.yield} onChange={e => updateCustomRow(row.id, 'yield', e.target.value)}
-                          style={{ ...S.inp, padding: '5px 8px', fontSize: 12, width: 70, textAlign: 'right' }} />
-                      </td>
-                      <td>
-                        <input type="number" min="0" max="100" step="1" value={row.alloc} onChange={e => updateCustomRow(row.id, 'alloc', e.target.value)}
-                          style={{ ...S.inp, padding: '5px 8px', fontSize: 12, width: 70, textAlign: 'right' }} />
-                      </td>
-                      <td>
-                        <button onClick={() => removeCustomRow(row.id)} disabled={customRows.length === 1}
-                          style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: customRows.length === 1 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, opacity: customRows.length === 1 ? 0.4 : 1 }}>
-                          🗑
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {Math.abs(totalAlloc - 100) > 0.5 && (
-              <div style={{ background: 'rgba(251,146,60,.1)', border: '1px solid rgba(251,146,60,.3)', borderRadius: 10, padding: '8px 12px', marginTop: 14, fontSize: 12, color: '#fb923c' }}>
-                ⚠️ Le total des allocations est de {totalAlloc.toFixed(1)}% (devrait être 100%)
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.cardBorder}` }}>
-              <div>
-                <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Rendement moyen pondéré</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: T.accent }}>{weightedYield.toFixed(2)}%</div>
-              </div>
-              <button onClick={applyWeightedYield} disabled={totalAlloc <= 0} style={{ ...S.btnG, fontSize: 13, padding: '9px 18px', opacity: totalAlloc <= 0 ? 0.5 : 1, cursor: totalAlloc <= 0 ? 'not-allowed' : 'pointer' }}>
-                Utiliser ce rendement
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
