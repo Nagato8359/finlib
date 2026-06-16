@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
   PieChart, Pie, Cell,
@@ -96,9 +96,9 @@ function Slider({ T, label, value, set, min, max, step, unit = '' }) {
           style={{
             flex: 1, minWidth: 0,
             WebkitAppearance: 'none', appearance: 'none',
-            height: 6, borderRadius: 3,
-            background: `linear-gradient(to right, ${T.accent} ${pct}%, ${T.cardBorder} ${pct}%)`,
-            outline: 'none', cursor: 'grab', touchAction: 'none', userSelect: 'none', pointerEvents: 'auto',
+            width: '100%', height: '6px', borderRadius: '3px',
+            outline: 'none', cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', pointerEvents: 'auto',
+            background: `linear-gradient(to right, #f97316 ${pct}%, #374151 ${pct}%)`,
           }}
         />
         <input
@@ -150,11 +150,12 @@ function PieTooltip({ T, active, payload }) {
   );
 }
 
-export default function SimulateurDividendes({ T }) {
+export default function SimulateurDividendes({ T, data }) {
   const S = makeS(T);
   const [activeTab, setActiveTab] = useState('calc');
 
   // ── Paramètres principaux ────────────────────────────────────────────────
+  const [initialCapital,      setInitialCapitalRaw]  = useState(0);
   const [monthlyIncome,       setMonthlyIncome]       = useState(1000);
   const [yieldRate,           setYieldRate]           = useState(4);
   const [frequency,           setFrequency]           = useState('mensuel');
@@ -163,13 +164,20 @@ export default function SimulateurDividendes({ T }) {
   const [years,               setYears]               = useState(20);
   const [monthlyContribution, setMonthlyContribution] = useState(500);
 
+  // Pré-remplit avec le patrimoine total dès qu'il est chargé, sans écraser une saisie manuelle.
+  const initialCapitalTouched = useRef(false);
+  useEffect(() => {
+    if (!initialCapitalTouched.current) setInitialCapitalRaw(Math.round(data?.patrimoine || 0));
+  }, [data?.patrimoine]);
+  const setInitialCapital = v => { initialCapitalTouched.current = true; setInitialCapitalRaw(v); };
+
   const needed = useMemo(() => neededCapital(monthlyIncome, yieldRate, taxRate), [monthlyIncome, yieldRate, taxRate]);
 
   const sim = useMemo(() => {
     const r = yieldRate / 100 / 12;
     const maxMonths = Math.max(years, 50) * 12;
-    let capital = 0;
-    let goalMonths = null;
+    let capital = initialCapital;
+    let goalMonths = needed.net > 0 && capital >= needed.net ? 0 : null;
     const rows = [];
     for (let m = 1; m <= maxMonths; m++) {
       capital = reinvest ? capital * (1 + r) + monthlyContribution : capital + monthlyContribution;
@@ -184,7 +192,10 @@ export default function SimulateurDividendes({ T }) {
       }
     }
     return { rows, goalMonths, finalCapital: rows[rows.length - 1]?.capital || 0 };
-  }, [yieldRate, years, monthlyContribution, reinvest, needed.net, taxRate]);
+  }, [yieldRate, years, monthlyContribution, reinvest, needed.net, taxRate, initialCapital]);
+
+  const initialMonthlyGross = initialCapital * (yieldRate / 100) / 12;
+  const initialMonthlyNet   = initialMonthlyGross * (1 - taxRate / 100);
 
   const annualNetDividends = sim.finalCapital * (yieldRate / 100) * (1 - taxRate / 100);
   const netYieldPct = yieldRate * (1 - taxRate / 100);
@@ -222,15 +233,21 @@ export default function SimulateurDividendes({ T }) {
         }
         input[type=range]::-webkit-slider-thumb {
           -webkit-appearance: none;
-          width: 18px; height: 18px; border-radius: 50%;
-          background: ${T.accent}; border: none; cursor: grab; pointer-events: auto;
+          width: 22px; height: 22px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: grab;
+          border: 2px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
+        input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; }
         input[type=range]::-moz-range-thumb {
-          width: 18px; height: 18px; border-radius: 50%;
-          background: ${T.accent}; border: none; cursor: grab;
+          width: 22px; height: 22px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: grab;
+          border: 2px solid white;
         }
-        input[type=range]:active::-webkit-slider-thumb,
-        input[type=range]:active::-moz-range-thumb { cursor: grabbing; }
       `}</style>
 
       <div>
@@ -253,6 +270,7 @@ export default function SimulateurDividendes({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres</h3>
             <div className="div-grid">
+              <Slider T={T} label="Capital initial" value={initialCapital}              set={setInitialCapital}     min={0} max={500000} step={1000} unit=" €" />
               <Slider T={T} label="Revenu mensuel souhaité" value={monthlyIncome}       set={setMonthlyIncome}       min={0} max={10000} step={50} unit=" €" />
               <Slider T={T} label="Rendement moyen du portefeuille" value={yieldRate}  set={setYieldRate}           min={1} max={15}    step={0.1} unit="%" />
               <Slider T={T} label="Taux d'imposition sur dividendes" value={taxRate}   set={setTaxRate}             min={0} max={50}    step={1} unit="%" />
@@ -286,6 +304,9 @@ export default function SimulateurDividendes({ T }) {
 
             <div style={{ fontSize: 11, color: T.textFaint, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.cardBorder}` }}>
               💡 Soit {fEur(perPaymentNet)} net par versement ({freqOpt.l.toLowerCase()}), sur la base du capital projeté après {years} an{years > 1 ? 's' : ''}.
+              {initialCapital > 0 && (
+                <> Avec votre capital initial de {fEur(initialCapital)}, vous générez déjà {fEur(initialMonthlyNet)} net/mois ({fEur(initialMonthlyGross)} brut) de dividendes dès aujourd'hui.</>
+              )}
             </div>
           </div>
 

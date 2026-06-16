@@ -236,7 +236,7 @@ export default function App() {
     'calendrier-dividendes': <CalendrierDividendes T={T} data={data} />,
     'recap-fiscal':          <RecapFiscal T={T} data={data} />,
     'simulateur':            <Simulateur T={T} />,
-    'simulateur-dividendes': <SimulateurDividendes T={T} />,
+    'simulateur-dividendes': <SimulateurDividendes T={T} data={data} />,
     'rebalancing':           <Rebalancing T={T} data={data} />,
     'parrainage':            <Parrainage T={T} data={data} />,
     'veille-marche':         <ComingSoon icon="📰" title="Veille marché" desc="Suivez les actualités financières et les indicateurs de marché clés pour vos actifs." />,
