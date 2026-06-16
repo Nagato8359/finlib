@@ -2,12 +2,17 @@ import { useState } from 'react';
 import { makeS, fDate } from '../utils/constants';
 
 const SHARE_MSG = (code) =>
-  `Rejoins-moi sur Capitaly, l'app de suivi de patrimoine ! Utilise mon code ${code} à l'inscription pour gagner 1 mois Pro gratuit 🎉 → capitaly.fr`;
+  `Rejoins-moi sur Capitaly, l'app de suivi de patrimoine ! Utilise mon code ${code} à l'inscription pour gagner 1 mois Pro gratuit 🎉 → https://capitaly.fr/?ref=${code}`;
 
 export default function Parrainage({ T, data }) {
   const S = makeS(T);
-  const { referralCode = '', referrals = [], proBonusMonths = 0, user, demoMode } = data;
+  const { referralCode = '', referrals = [], proBonusMonths = 0, user, demoMode, updateReferralCode } = data;
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralCode).then(() => {
@@ -24,6 +29,33 @@ export default function Parrainage({ T, data }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }).catch(() => {});
+    }
+  };
+
+  const startEdit = () => {
+    setEditValue(referralCode);
+    setEditError('');
+    setEditSuccess('');
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setEditError('');
+  };
+
+  const saveEdit = async () => {
+    if (editLoading) return;
+    setEditError(''); setEditSuccess('');
+    setEditLoading(true);
+    const res = await updateReferralCode(editValue);
+    setEditLoading(false);
+    if (res.ok) {
+      setEditing(false);
+      setEditSuccess('Code mis à jour !');
+      setTimeout(() => setEditSuccess(''), 3000);
+    } else {
+      setEditError(res.error || 'Une erreur est survenue');
     }
   };
 
@@ -59,25 +91,67 @@ export default function Parrainage({ T, data }) {
 
         {/* ── Mon code ─────────────────────────────────────────────── */}
         <div style={{ ...S.card }}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 16 }}>Mon code de parrainage</h3>
-          <div style={{ background: T.bg2, borderRadius: 16, padding: '20px 16px', textAlign: 'center', marginBottom: 16, border: `2px dashed ${T.accent}44` }}>
-            <div className="par-code">{referralCode || '———'}</div>
-            <div style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>Partagez ce code à vos proches</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text, margin: 0 }}>Mon code de parrainage</h3>
+            {!editing && (
+              <button
+                onClick={startEdit}
+                style={{ background: 'transparent', border: 'none', color: T.textMuted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+              >
+                ✏️ Modifier
+              </button>
+            )}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={handleCopy}
-              style={{ ...S.btnS, flex: 1, fontSize: 12, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-            >
-              {copied ? '✓ Copié !' : '📋 Copier'}
-            </button>
-            <button
-              onClick={handleShare}
-              style={{ ...S.btnG, flex: 1, fontSize: 12, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-            >
-              📤 Partager
-            </button>
-          </div>
+
+          {editing ? (
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="text"
+                autoFocus
+                value={editValue}
+                onChange={e => setEditValue(e.target.value.toUpperCase())}
+                maxLength={12}
+                style={{ width: '100%', boxSizing: 'border-box', background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 10, color: T.text, padding: '10px 12px', fontSize: 16, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}
+              />
+              {editError && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{editError}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={saveEdit}
+                  disabled={editLoading}
+                  style={{ ...S.btnG, flex: 1, fontSize: 12, padding: '8px 0', opacity: editLoading ? .6 : 1, cursor: editLoading ? 'wait' : 'pointer' }}
+                >
+                  {editLoading ? '…' : 'Enregistrer'}
+                </button>
+                <button onClick={cancelEdit} disabled={editLoading} style={{ ...S.btnS, flex: 1, fontSize: 12, padding: '8px 0' }}>
+                  Annuler
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ background: T.bg2, borderRadius: 16, padding: '20px 16px', textAlign: 'center', marginBottom: 16, border: `2px dashed ${T.accent}44` }}>
+              <div className="par-code">{referralCode || '———'}</div>
+              <div style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>Partagez ce code à vos proches</div>
+            </div>
+          )}
+
+          {editSuccess && <div style={{ color: '#4ade80', fontSize: 11, marginBottom: 8, textAlign: 'center' }}>{editSuccess}</div>}
+
+          {!editing && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleCopy}
+                style={{ ...S.btnS, flex: 1, fontSize: 12, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                {copied ? '✓ Copié !' : '📋 Copier'}
+              </button>
+              <button
+                onClick={handleShare}
+                style={{ ...S.btnG, flex: 1, fontSize: 12, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                📤 Partager
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Mes filleuls ─────────────────────────────────────────── */}

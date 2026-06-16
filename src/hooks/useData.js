@@ -938,6 +938,31 @@ export function useData() {
     } catch {}
   }, []);
 
+  const updateReferralCode = useCallback(async (newCode) => {
+    if (!userRef.current) return { ok: false, error: 'Non connecté' };
+    const code = (newCode || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{6,12}$/.test(code)) {
+      return { ok: false, error: '6 à 12 caractères, lettres et chiffres uniquement' };
+    }
+    if (code === referralCode) return { ok: true };
+    try {
+      const { data: existing } = await supabase
+        .from('user_data').select('user_id').eq('referral_code', code).maybeSingle();
+      if (existing && existing.user_id !== userRef.current.id) {
+        return { ok: false, error: 'Ce code est déjà utilisé' };
+      }
+      const { error } = await supabase
+        .from('user_data').update({ referral_code: code }).eq('user_id', userRef.current.id);
+      if (error) {
+        return { ok: false, error: error.code === '23505' ? 'Ce code est déjà utilisé' : 'Erreur lors de la mise à jour' };
+      }
+      setReferralCode(code);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Erreur lors de la mise à jour' };
+    }
+  }, [referralCode]);
+
   const deleteAccount = async () => {
     if (!userRef.current) return;
     await supabase.from('user_data').delete().eq('user_id', userRef.current.id);
@@ -992,6 +1017,6 @@ export function useData() {
     exportCSV, exportDataJSON, importJSON, deleteAccount,
     loadedPreferences, savePreferences,
     profiles, activeProfileId, switchProfile, addProfile,
-    referralCode, referrals, proBonusMonths,
+    referralCode, referrals, proBonusMonths, updateReferralCode,
   };
 }

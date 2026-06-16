@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import logo from '../logo.png';
 
@@ -11,6 +11,19 @@ export default function AuthScreen({ onDemo }) {
   const [success, setSuccess] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [referralCode, setReferralCode] = useState('');
+
+  useEffect(() => {
+    const refParam = new URLSearchParams(window.location.search).get('ref');
+    if (refParam) {
+      const code = refParam.trim().toUpperCase();
+      setReferralCode(code);
+      localStorage.setItem('capitaly_ref', code);
+      setMode('register');
+    } else {
+      const stored = localStorage.getItem('capitaly_ref');
+      if (stored) setReferralCode(stored);
+    }
+  }, []);
 
   const translateError = msg => {
     if (!msg) return 'Une erreur est survenue';
@@ -92,7 +105,7 @@ export default function AuthScreen({ onDemo }) {
             {mode === 'register' && (
               <div style={{ marginBottom: 22 }}>
                 <label style={lbl}>Code de parrainage <span style={{ color: '#4b5563', fontWeight: 400 }}>(optionnel)</span></label>
-                <input type="text" value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase())} placeholder="Ex : ALEX2B4F" style={{ ...inp, textTransform: 'uppercase', letterSpacing: '.08em' }} maxLength={12} />
+                <input type="text" value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase())} placeholder="Code de parrainage (optionnel)" style={{ ...inp, textTransform: 'uppercase', letterSpacing: '.08em' }} maxLength={12} />
               </div>
             )}
             {error && <div style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#f87171', marginBottom: 14 }}>{error}</div>}
