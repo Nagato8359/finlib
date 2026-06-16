@@ -162,13 +162,69 @@ export const CAT_KEYWORDS = {
 };
 
 // ── Platforms (Investir tab) ──────────────────────────────────────────────────
+export const PLATFORM_CATEGORY_COLORS = { Crypto: '#f59e0b', Bourse: '#10b981', Immobilier: '#3b82f6', Banque: '#8b5cf6' };
+
 export const PLATFORMS = [
-  { name: 'Binance', desc: 'Plus grande plateforme crypto mondiale. Accès à 350+ cryptos, staking et DeFi.', url: 'https://www.binance.com', color: '#f0b90b', emoji: '₿', tags: ['Crypto', 'DeFi', 'Staking'] },
-  { name: 'Crypto.com', desc: 'Plateforme crypto avec carte Visa et cashback jusqu\'à 8% en CRO.', url: 'https://crypto.com', color: '#1199fa', emoji: 'Ⓒ', tags: ['Crypto', 'Carte Visa'] },
-  { name: 'Boursobank', desc: 'Banque en ligne française. PEA, compte-titres, livrets et assurance-vie.', url: 'https://www.boursobank.com', color: '#0070f3', emoji: '🏦', tags: ['PEA', 'Bourse', 'Livret A'] },
-  { name: 'Revolut', desc: 'Super-app financière : actions, crypto, change et outils de budget.', url: 'https://www.revolut.com', color: '#7c3aed', emoji: '⚡', tags: ['Crypto', 'Actions', 'Budget'] },
-  { name: 'Trade Republic', desc: 'Courtier européen à 0 € de frais. ETF, actions, obligations et plans d\'épargne.', url: 'https://www.traderepublic.com', color: '#a855f7', emoji: '📈', tags: ['ETF', 'Actions', '0 € frais'] },
-  { name: 'Bourse Direct', desc: 'Courtier français spécialisé PEA & bourse française depuis 2000.', url: 'https://www.boursedirect.fr', color: '#ef4444', emoji: '🏛️', tags: ['PEA', 'CAC 40', 'Actions FR'] },
+  {
+    name: 'RealT', emoji: '🏘️', categories: ['Immobilier'], domain: 'realt.co',
+    url: 'https://realt.co/my-account/ref/BiOGaZ/',
+    desc: "Investissez dans l'immobilier américain tokenisé dès 50$. Recevez des loyers chaque semaine directement dans votre wallet.",
+    actifs: ['Immobilier tokenisé', 'Tokens RealT'],
+  },
+  {
+    name: 'La Première Brique', emoji: '🧱', categories: ['Immobilier'], domain: 'lapremierebrique.fr',
+    url: 'https://app.lapremierebrique.fr/fr/users/sign_up/NZH4LD',
+    desc: "Investissez dans l'immobilier français dès 1€. Projets sélectionnés avec rendements attractifs.",
+    actifs: ['Crowdfunding immobilier'],
+  },
+  {
+    name: 'Bricks.co', emoji: '🏗️', categories: ['Immobilier'], domain: 'bricks.co',
+    url: 'https://app.bricks.co/sign-up/ALEBOU746',
+    desc: "La plateforme d'investissement immobilier fractionné. Devenez propriétaire d'une fraction de bien immobilier.",
+    actifs: ['Immobilier fractionné'],
+  },
+  {
+    name: 'DeGiro', emoji: '📈', categories: ['Bourse'], domain: 'degiro.fr',
+    url: 'https://www.degiro.fr/parrainage/commencez-a-investir?id=BF1459E4&utm_source=mgm',
+    desc: "Le courtier en ligne avec les frais les plus bas d'Europe. Accédez à 50+ bourses mondiales.",
+    actifs: ['Actions', 'ETF', 'Options', 'Obligations'],
+  },
+  {
+    name: 'Trade Republic', emoji: '📊', categories: ['Bourse', 'Crypto'], domain: 'traderepublic.com',
+    url: 'https://refnocode.trade.re/hn8mq5k2',
+    desc: 'Investissez en actions et ETF sans commission. Épargne automatique et intérêts sur liquidités.',
+    actifs: ['Actions', 'ETF', 'Crypto', 'Épargne'],
+  },
+  {
+    name: 'Boursobank', emoji: '🏦', categories: ['Banque', 'Bourse'], domain: 'boursobank.com',
+    url: 'https://bour.so/p/5ih4dJq8ULY',
+    desc: 'La banque en ligne la moins chère de France. PEA, CTO, livrets et compte courant premium.',
+    actifs: ['PEA', 'CTO', 'Livrets', 'Actions', 'ETF'],
+  },
+  {
+    name: 'Revolut', emoji: '💳', categories: ['Banque', 'Crypto'], domain: 'revolut.com',
+    url: 'https://revolut.com/referral/?referral-code=alexancdtt!JUN1-26-AR&geo-redirect',
+    desc: 'La super-app financière. Compte multi-devises, crypto, actions et épargne dans une seule app.',
+    actifs: ['Crypto', 'Actions', 'Épargne', 'Multi-devises'],
+  },
+  {
+    name: 'Kraken', emoji: '🐙', categories: ['Crypto'], domain: 'kraken.com',
+    url: 'https://invite.kraken.com/JDNW/yfz8av0l',
+    desc: "L'une des plateformes crypto les plus sécurisées et réputées au monde depuis 2011.",
+    actifs: ['Bitcoin', 'Ethereum', '200+ cryptos', 'Staking'],
+  },
+  {
+    name: 'OKX', emoji: '⭕', categories: ['Crypto'], domain: 'okx.com',
+    url: 'https://okx.com/join/13767228',
+    desc: 'Exchange crypto mondial avec des outils avancés. Trading spot, futures et DeFi intégrée.',
+    actifs: ['300+ cryptos', 'Trading avancé', 'DeFi', 'NFT'],
+  },
+  {
+    name: 'Crypto.com', emoji: '🔷', categories: ['Crypto'], domain: 'crypto.com',
+    url: 'https://crypto.com/app/uq4dewbpm2',
+    desc: 'Achetez, vendez et payez en crypto partout. Carte Visa crypto avec cashback en CRO.',
+    actifs: ['Crypto', 'Carte Visa', 'Staking', 'DeFi'],
+  },
 ];
 
 // ── Seed data ────────────────────────────────────────────────────────────────
