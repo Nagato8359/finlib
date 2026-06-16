@@ -1,13 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceLine, ReferenceArea,
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { makeS, fEur } from '../../utils/constants';
 
 const TRIMESTRES_REQUIS = 172;
 const VIE_ESTIMEE = 85;
-const LOCATIF_YIELD = 5;
+const MAX_MONTHS_PROJECTION = 1200;
 
 const REGIMES = [
   { key: 'salarie',       label: 'Salarié privé',  tauxPlein: 50, complRatio: 0.6 },
@@ -72,12 +71,12 @@ function KpiBox({ T, S, icon, label, value, sub, color, big }) {
 
 function ChartTooltip({ T, active, payload, label }) {
   if (!active || !payload?.length) return null;
-  const capital = payload.find(p => p.dataKey === 'capitalAccum' || p.dataKey === 'capitalDecum');
+  const patrimoine = payload.find(p => p.dataKey === 'patrimoine');
   const revenu = payload.find(p => p.dataKey === 'revenu');
   return (
     <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
       <div style={{ color: T.textMuted, marginBottom: 4 }}>{label} ans</div>
-      {capital != null && capital.value != null && <div style={{ color: capital.color }}>Capital : {fEur(capital.value)}</div>}
+      {patrimoine != null && <div style={{ color: patrimoine.color }}>Patrimoine : {fEur(patrimoine.value)}</div>}
       {revenu != null && <div style={{ color: revenu.color }}>Revenu mensuel : {fEur(revenu.value)}</div>}
     </div>
   );
@@ -86,24 +85,34 @@ function ChartTooltip({ T, active, payload, label }) {
 export default function SimulateurRetraite({ T, data, setTab }) {
   const S = makeS(T);
 
-  const [currentAge,      setCurrentAge]      = useState(30);
-  const [retirementAge,   setRetirementAge]   = useState(64);
-  const [monthlySalary,   setMonthlySalary]   = useState(2500);
-  const [trimestres,      setTrimestres]      = useState(40);
-  const [regime,          setRegime]          = useState('salarie');
-  const [extraIncomeRaw,  setExtraIncomeRaw]  = useState(0);
-  const [expectedReturn,  setExpectedReturn]  = useState(4);
-  const [tmi,              setTmi]             = useState(30);
-  const [monthlySavings,  setMonthlySavings]  = useState(300);
+  const [currentAge,        setCurrentAge]        = useState(30);
+  const [retirementAge,     setRetirementAge]     = useState(64);
+  const [monthlySalary,     setMonthlySalary]     = useState(2500);
+  const [trimestres,        setTrimestres]        = useState(40);
+  const [regime,            setRegime]            = useState('salarie');
+  const [patrimoineRaw,     setPatrimoineRaw]     = useState(0);
+  const [extraIncomeRaw,    setExtraIncomeRaw]    = useState(0);
+  const [expectedReturn,    setExpectedReturn]    = useState(4);
+  const [monthlySavings,    setMonthlySavings]    = useState(300);
 
-  // Pré-remplit avec les loyers RealT réels dès qu'ils sont chargés, sans écraser une saisie manuelle.
+  // Pré-remplit avec le patrimoine réel dès qu'il est chargé, sans écraser une saisie manuelle.
+  const patrimoineTouched = useRef(false);
+  useEffect(() => {
+    if (!patrimoineTouched.current) setPatrimoineRaw(Math.round(data?.patrimoine || 0));
+  }, [data?.patrimoine]);
+  const patrimoineActuel = patrimoineRaw;
+  const setPatrimoineActuel = v => { patrimoineTouched.current = true; setPatrimoineRaw(v); };
+
+  // Pré-remplit avec les loyers RealT + dividendes réels dès qu'ils sont chargés, sans écraser une saisie manuelle.
   const extraIncomeTouched = useRef(false);
   const realTIncome = useMemo(() => (data?.investments || [])
     .filter(inv => normType(inv.type) === 'realt')
     .reduce((sum, inv) => sum + (parseFloat(inv.loyerMensuel) || 0), 0), [data?.investments]);
+  const dividendIncome = (data?.divThisYear || 0) / 12;
+  const passiveIncomeReel = realTIncome + dividendIncome;
   useEffect(() => {
-    if (!extraIncomeTouched.current && realTIncome > 0) setExtraIncomeRaw(Math.round(realTIncome));
-  }, [realTIncome]);
+    if (!extraIncomeTouched.current && passiveIncomeReel > 0) setExtraIncomeRaw(Math.round(passiveIncomeReel));
+  }, [passiveIncomeReel]);
   const extraIncome = extraIncomeRaw;
   const setExtraIncome = v => { extraIncomeTouched.current = true; setExtraIncomeRaw(v); };
 
@@ -118,7 +127,8 @@ export default function SimulateurRetraite({ T, data, setTab }) {
 
     const pensionBase = monthlySalary * (tauxPension / 100) * (trimestresAtRetirement / TRIMESTRES_REQUIS);
     const pensionComplementaire = pensionBase * regimeCfg.complRatio;
-    const pensionTotale = pensionBase + pensionComplementaire + extraIncome;
+    const pensionRetraite = pensionBase + pensionComplementaire;
+    const pensionTotale = pensionRetraite + extraIncome;
     const gap = monthlySalary - pensionTotale;
     const tauxRemplacement = monthlySalary > 0 ? (pensionTotale / monthlySalary) * 100 : 0;
 
@@ -128,36 +138,37 @@ export default function SimulateurRetraite({ T, data, setTab }) {
 
     return {
       yearsToRetirement, trimestresAtRetirement, missingTrimestres, decote, tauxPension,
-      pensionBase, pensionComplementaire, pensionTotale, gap, tauxRemplacement,
-      pensionBaseTauxPlein, pensionTotaleTauxPlein,
+      pensionBase, pensionComplementaire, pensionRetraite, pensionTotale, gap, tauxRemplacement,
+      pensionTotaleTauxPlein,
     };
   }, [currentAge, retirementAge, monthlySalary, trimestres, extraIncome, regimeCfg]);
 
   const gapFill = useMemo(() => {
     const gap = pension.gap;
     const capitalNecessaire = gap > 0 ? (gap * 12) / (expectedReturn / 100) : 0;
-    const dureeRetraite = Math.max(0, VIE_ESTIMEE - retirementAge);
+    const patrimoineIncome = patrimoineActuel * (expectedReturn / 100) / 12;
+    const capitalRestant = Math.max(0, capitalNecessaire - patrimoineActuel);
 
-    const nMonths = pension.yearsToRetirement * 12;
     const rMonthly = expectedReturn / 100 / 12;
-    const perMonthly = gap <= 0 || nMonths <= 0 ? 0
-      : (rMonthly > 0 ? capitalNecessaire * rMonthly / (Math.pow(1 + rMonthly, nMonths) - 1) : capitalNecessaire / nMonths);
-    const perEconomieFiscaleAnnuelle = perMonthly * 12 * (tmi / 100);
+    let capital = patrimoineActuel;
+    let months = 0;
+    while (capital < capitalNecessaire && months < MAX_MONTHS_PROJECTION) {
+      capital = capital * (1 + rMonthly) + monthlySavings;
+      months++;
+    }
+    const monthsToGoal = capital >= capitalNecessaire ? months : null;
 
-    const capitalImmoNecessaire = gap > 0 ? (gap * 12) / (LOCATIF_YIELD / 100) : 0;
+    return { capitalNecessaire, patrimoineIncome, capitalRestant, monthsToGoal };
+  }, [pension.gap, expectedReturn, patrimoineActuel, monthlySavings]);
 
-    return { capitalNecessaire, dureeRetraite, perMonthly, perEconomieFiscaleAnnuelle, capitalImmoNecessaire };
-  }, [pension.gap, pension.yearsToRetirement, expectedReturn, tmi, retirementAge]);
+  const remainingGapAfterPatrimoine = Math.max(0, pension.gap - gapFill.patrimoineIncome);
 
   const chart = useMemo(() => {
-    const rAnnual = expectedReturn / 100;
-    const rMonthly = rAnnual / 12;
+    const rMonthly = expectedReturn / 100 / 12;
     const maxAge = Math.max(VIE_ESTIMEE, retirementAge + 1);
-    let capital = 0;
-    let exhaustedAge = null;
+    let capital = patrimoineActuel;
     const rows = [];
     for (let age = currentAge; age <= maxAge; age++) {
-      const preCapital = capital;
       const isAccumYear = age < retirementAge;
       if (isAccumYear) {
         for (let m = 0; m < 12; m++) capital = capital * (1 + rMonthly) + monthlySavings;
@@ -166,17 +177,23 @@ export default function SimulateurRetraite({ T, data, setTab }) {
           capital = capital * (1 + rMonthly);
           if (pension.gap > 0) capital = Math.max(0, capital - pension.gap);
         }
-        if (capital <= 0 && exhaustedAge === null) exhaustedAge = age;
       }
       rows.push({
         age,
-        capitalAccum: age <= retirementAge ? (age === retirementAge ? preCapital : capital) : null,
-        capitalDecum: age >= retirementAge ? (age === retirementAge ? preCapital : capital) : null,
-        revenu: isAccumYear ? monthlySalary : pension.pensionTotale + (capital > 0 ? pension.gap : 0),
+        patrimoine: Math.round(capital),
+        revenu: isAccumYear ? monthlySalary : Math.round(pension.pensionTotale + (capital > 0 ? pension.gap : 0)),
       });
     }
-    return { rows, exhaustedAge, maxAge };
-  }, [currentAge, retirementAge, monthlySalary, monthlySavings, expectedReturn, pension.gap, pension.pensionTotale]);
+    return { rows, maxAge };
+  }, [currentAge, retirementAge, monthlySalary, monthlySavings, expectedReturn, pension.gap, pension.pensionTotale, patrimoineActuel]);
+
+  const monthsToGoalLabel = useMemo(() => {
+    if (gapFill.capitalRestant <= 0) return 'Déjà couvert par votre patrimoine actuel';
+    if (gapFill.monthsToGoal == null) return `> ${Math.round(MAX_MONTHS_PROJECTION / 12)} ans`;
+    const y = Math.floor(gapFill.monthsToGoal / 12);
+    const m = gapFill.monthsToGoal % 12;
+    return `${y} an${y > 1 ? 's' : ''}${m ? ` ${m} mois` : ''}`;
+  }, [gapFill.capitalRestant, gapFill.monthsToGoal]);
 
   const trimestresPct = Math.min(100, (trimestres / TRIMESTRES_REQUIS) * 100);
   const trimestresRestants = Math.max(0, TRIMESTRES_REQUIS - trimestres);
@@ -186,11 +203,7 @@ export default function SimulateurRetraite({ T, data, setTab }) {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <style>{`
         .ret-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-        .ret-gap-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-        @media (max-width: 768px) {
-          .ret-grid { grid-template-columns: 1fr; }
-          .ret-gap-grid { grid-template-columns: 1fr; }
-        }
+        @media (max-width: 768px) { .ret-grid { grid-template-columns: 1fr; } }
         input[type=range]::-webkit-slider-thumb {
           -webkit-appearance: none;
           width: 22px; height: 22px;
@@ -223,21 +236,21 @@ export default function SimulateurRetraite({ T, data, setTab }) {
             Pour des résultats précis, connectez-vous sur moncompte.retraite.fr et reportez vos données réelles ici (trimestres cotisés, estimation de pension).
           </span>
         </div>
-        <a href="https://moncompte.retraite.fr" target="_blank" rel="noopener noreferrer"
+        <a href="https://www.info-retraite.fr/portail-services/login" target="_blank" rel="noopener noreferrer"
           style={{ background: '#60a5fa', color: '#0a0f1a', borderRadius: 9, padding: '9px 16px', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
           Accéder à Mon Compte Retraite →
         </a>
       </div>
 
-      {/* ══════════════════ SECTION 1 — Profil retraite ══════════════════ */}
+      {/* ══════════════════ ÉTAPE 1 — Ma situation aujourd'hui ══════════════════ */}
       <div style={{ ...S.card }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Profil retraite</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>📍 Étape 1 — Ma situation aujourd'hui</h3>
         <div className="ret-grid">
-          <Slider T={T} label="Âge actuel"                       value={currentAge}    set={setCurrentAge}    min={18}  max={65}   step={1}   unit=" ans" />
-          <Slider T={T} label="Âge de départ souhaité"            value={retirementAge} set={setRetirementAge} min={60}  max={70}   step={1}   unit=" ans" />
-          <Slider T={T} label="Salaire net mensuel actuel"        value={monthlySalary} set={setMonthlySalary} min={500} max={10000} step={50} unit=" €" />
-          <Slider T={T} label="Trimestres cotisés actuellement"   value={trimestres}    set={setTrimestres}    min={0}   max={172}  step={1}   unit="" />
-          <Slider T={T} label="Revenus complémentaires mensuels"  value={extraIncome}   set={setExtraIncome}   min={0}   max={5000} step={50}  unit=" €" />
+          <Slider T={T} label="Âge actuel"                      value={currentAge}    set={setCurrentAge}      min={18} max={65}    step={1}  unit=" ans" />
+          <Slider T={T} label="Salaire net mensuel actuel"       value={monthlySalary} set={setMonthlySalary}   min={500} max={10000} step={50} unit=" €" />
+          <Slider T={T} label="Trimestres cotisés actuellement"  value={trimestres}    set={setTrimestres}      min={0}  max={172}   step={1}  unit="" />
+          <Slider T={T} label="Patrimoine actuel"                value={patrimoineActuel} set={setPatrimoineActuel} min={0} max={1000000} step={1000} unit=" €" />
+          <Slider T={T} label="Revenus passifs actuels (dividendes + loyers)" value={extraIncome} set={setExtraIncome} min={0} max={5000} step={50} unit=" €" />
 
           <div>
             <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Régime</div>
@@ -252,140 +265,147 @@ export default function SimulateurRetraite({ T, data, setTab }) {
           </div>
         </div>
 
-        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.cardBorder}` }}>
-          📌 Trimestres requis pour la retraite à taux plein : <strong style={{ color: T.text }}>{TRIMESTRES_REQUIS}</strong>
-          {realTIncome > 0 && <> · Revenus complémentaires pré-remplis avec vos loyers RealT actuels ({fEur(realTIncome)}/mois).</>}
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: T.textMuted }}>{trimestres} / {TRIMESTRES_REQUIS} trimestres cotisés</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: trimestresPct >= 100 ? '#4ade80' : '#fb923c' }}>{Math.round(trimestresPct)}%</span>
+          </div>
+          <div style={{ background: T.cardBorder, borderRadius: 6, height: 8, overflow: 'hidden' }}>
+            <div style={{ width: `${trimestresPct}%`, height: '100%', background: trimestresPct >= 100 ? '#4ade80' : '#fb923c', borderRadius: 6, transition: 'width .4s' }} />
+          </div>
+          <div style={{ fontSize: 11, color: T.textFaint, marginTop: 8 }}>
+            {trimestres >= TRIMESTRES_REQUIS
+              ? 'Vous avez déjà atteint le taux plein.'
+              : <>Il vous reste <strong style={{ color: T.text }}>{trimestresRestants}</strong> trimestres à cotiser. Taux plein atteint à <strong style={{ color: T.text }}>{ageTauxPlein} ans</strong>.</>}
+          </div>
         </div>
+
+        <div className="g3" style={{ marginTop: 18 }}>
+          <KpiBox T={T} S={S} icon="🏦" label="Patrimoine actuel" value={fEur(patrimoineActuel)} color={T.accent} />
+          <KpiBox T={T} S={S} icon="🏘️" label="Revenus passifs actuels" value={fEur(extraIncome)} sub="dividendes + loyers" />
+          <KpiBox T={T} S={S} icon="💼" label="Salaire net actuel" value={fEur(monthlySalary)} />
+        </div>
+
+        {passiveIncomeReel > 0 && (
+          <div style={{ fontSize: 11, color: T.textFaint, marginTop: 14 }}>
+            📌 Revenus passifs pré-remplis avec vos données réelles : {fEur(realTIncome)}/mois de loyers RealT + {fEur(dividendIncome)}/mois de dividendes.
+          </div>
+        )}
       </div>
 
-      {/* ══════════════════ SECTION 2 — Estimation pension ══════════════════ */}
-      <div className="g3">
-        <KpiBox T={T} S={S} icon="🏛️" label="Pension de base"          value={fEur(pension.pensionBase)} />
-        <KpiBox T={T} S={S} icon="🤝" label="Pension complémentaire"   value={fEur(pension.pensionComplementaire)} />
-        <KpiBox T={T} S={S} icon="🏘️" label="Revenus complémentaires" value={fEur(extraIncome)} />
+      {/* ══════════════════ ÉTAPE 2 — Ma retraite estimée ══════════════════ */}
+      <div style={{ ...S.card }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>🎯 Étape 2 — Ma retraite estimée</h3>
+
+        <div style={{ marginBottom: 18, maxWidth: 360 }}>
+          <Slider T={T} label="Âge de départ souhaité" value={retirementAge} set={setRetirementAge} min={60} max={70} step={1} unit=" ans" />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: T.bg2, borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: T.textMuted }}>Pension retraite estimée (base + complémentaire)</span>
+            <strong style={{ color: T.text }}>{fEur(pension.pensionRetraite)}/mois</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: T.textMuted }}>Vos revenus passifs</span>
+            <strong style={{ color: T.text }}>{fEur(extraIncome)}/mois</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, paddingTop: 8, borderTop: `1px solid ${T.cardBorder}` }}>
+            <span style={{ color: T.text, fontWeight: 600 }}>TOTAL à la retraite</span>
+            <strong style={{ color: T.accent }}>{fEur(pension.pensionTotale)}/mois</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: T.textMuted }}>Votre salaire actuel</span>
+            <strong style={{ color: T.text }}>{fEur(monthlySalary)}/mois</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, paddingTop: 8, borderTop: `1px solid ${T.cardBorder}` }}>
+            <span style={{ color: T.text, fontWeight: 600 }}>{pension.gap > 0 ? 'Il vous manquera' : 'Surplus'}</span>
+            <strong style={{ color: pension.gap > 0 ? '#f87171' : '#4ade80' }}>{fEur(Math.abs(pension.gap))}/mois</strong>
+          </div>
+        </div>
+
+        <div className="g3">
+          <KpiBox T={T} S={S} icon="💰" label="Pension totale estimée" value={fEur(pension.pensionTotale)} color={T.accent} big />
+          <KpiBox T={T} S={S} icon={pension.gap > 0 ? '⚠️' : '✅'} label="Écart avec salaire actuel"
+            value={pension.gap > 0 ? `-${fEur(pension.gap)}/mois` : `+${fEur(-pension.gap)}/mois`}
+            color={pension.gap > 0 ? '#f87171' : '#4ade80'} big />
+          <KpiBox T={T} S={S} icon="📊" label="Taux de remplacement" value={`${pension.tauxRemplacement.toFixed(0)}%`} color="#60a5fa" big />
+        </div>
+
+        {pension.gap > 0 && gapFill.patrimoineIncome > 0 && (
+          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.cardBorder}`, lineHeight: 1.6 }}>
+            {gapFill.patrimoineIncome >= pension.gap
+              ? <>✅ Votre patrimoine actuel peut déjà générer <strong style={{ color: '#4ade80' }}>{fEur(gapFill.patrimoineIncome)}/mois</strong> (à {expectedReturn}% de rendement) — de quoi couvrir tout le gap.</>
+              : <>Votre patrimoine actuel peut déjà générer <strong style={{ color: T.text }}>{fEur(gapFill.patrimoineIncome)}/mois</strong> (à {expectedReturn}%). Il vous manque encore <strong style={{ color: '#f87171' }}>{fEur(remainingGapAfterPatrimoine)}/mois</strong>.</>}
+          </div>
+        )}
+
+        {pension.missingTrimestres > 0 && (
+          <div style={{ fontSize: 11, color: T.textFaint, marginTop: 12 }}>
+            📌 Avec {pension.missingTrimestres} trimestres manquants à {retirementAge} ans (décote {pension.decote.toFixed(2)}%), votre pension à taux plein serait de {fEur(pension.pensionTotaleTauxPlein)}/mois.
+          </div>
+        )}
       </div>
 
-      <div className="g3">
-        <KpiBox T={T} S={S} icon="💰" label="Pension totale estimée" value={fEur(pension.pensionTotale)} color={T.accent} big />
-        <KpiBox T={T} S={S} icon={pension.gap > 0 ? '⚠️' : '✅'} label="Écart avec salaire actuel"
-          value={pension.gap > 0 ? `-${fEur(pension.gap)}/mois` : `+${fEur(-pension.gap)}/mois`}
-          color={pension.gap > 0 ? '#f87171' : '#4ade80'} big />
-        <KpiBox T={T} S={S} icon="📊" label="Taux de remplacement" value={`${pension.tauxRemplacement.toFixed(0)}%`} color="#60a5fa" big />
-      </div>
+      {/* ══════════════════ ÉTAPE 3 — Comment combler le gap ══════════════════ */}
+      <div style={{ ...S.card }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: T.text }}>🧩 Étape 3 — Comment combler le gap ?</h3>
 
-      {/* ══════════════════ SECTION 3 — Combler le gap ══════════════════ */}
-      {pension.gap > 0 && (
-        <div style={{ ...S.card }}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: T.text }}>Combler le gap</h3>
-          <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 16 }}>
-            Pour maintenir votre niveau de vie, vous devrez générer <strong style={{ color: '#f87171' }}>{fEur(pension.gap)}/mois</strong> de revenus complémentaires.
+        {pension.gap <= 0 ? (
+          <p style={{ fontSize: 13, color: '#4ade80', marginTop: 10 }}>
+            ✅ Vos revenus à la retraite couvrent déjà votre niveau de vie actuel — aucun capital supplémentaire n'est nécessaire.
           </p>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: T.textMuted, margin: '6px 0 18px' }}>
+              Pour maintenir votre niveau de vie, il vous faut générer <strong style={{ color: '#f87171' }}>{fEur(pension.gap)}/mois</strong> de revenus complémentaires.
+            </p>
 
-          <div style={{ marginBottom: 18, maxWidth: 360 }}>
-            <Slider T={T} label="Rendement espéré" value={expectedReturn} set={setExpectedReturn} min={1} max={10} step={0.5} unit="%" />
-          </div>
-
-          <div className="g3" style={{ marginBottom: 18 }}>
-            <KpiBox T={T} S={S} icon="🏦" label="Capital nécessaire" value={fEur(gapFill.capitalNecessaire)} sub={`Pour ${fEur(pension.gap)}/mois à ${expectedReturn}%`} color={T.accent} />
-            <KpiBox T={T} S={S} icon="⏳" label="Durée de vie en retraite" value={`${gapFill.dureeRetraite} ans`} sub={`Jusqu'à ${VIE_ESTIMEE} ans`} color="#60a5fa" />
-            <KpiBox T={T} S={S} icon="📆" label="Temps pour épargner" value={`${pension.yearsToRetirement} ans`} sub="avant le départ" color="#fbbf24" />
-          </div>
-
-          <div className="ret-gap-grid">
-            <div style={{ background: T.bg2, borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>💼 PER</div>
-              <div style={{ marginBottom: 10, maxWidth: 280 }}>
-                <Slider T={T} label="TMI (tranche marginale d'imposition)" value={tmi} set={setTmi} min={0} max={45} step={1} unit="%" />
-              </div>
-              <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.6 }}>
-                Un versement de <strong style={{ color: T.text }}>{fEur(gapFill.perMonthly)}/mois</strong> pendant {pension.yearsToRetirement} ans à {expectedReturn}% constitue le capital nécessaire.
-                Économie fiscale estimée : <strong style={{ color: '#4ade80' }}>{fEur(gapFill.perEconomieFiscaleAnnuelle)}/an</strong>.
-              </p>
+            <div style={{ marginBottom: 18, maxWidth: 360 }}>
+              <Slider T={T} label="Rendement espéré" value={expectedReturn} set={setExpectedReturn} min={1} max={10} step={0.5} unit="%" />
             </div>
 
-            <div style={{ background: T.bg2, borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>📈 Dividendes</div>
-              <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
-                Construisez un portefeuille à dividendes pour générer {fEur(pension.gap)}/mois de revenus passifs.
-              </p>
+            <div className="g3" style={{ marginBottom: 18 }}>
+              <KpiBox T={T} S={S} icon="🏦" label="Capital supplémentaire nécessaire" value={fEur(gapFill.capitalNecessaire)} sub={`Pour ${fEur(pension.gap)}/mois à ${expectedReturn}%`} color={T.accent} />
+              <KpiBox T={T} S={S} icon="✅" label="Patrimoine actuel génère déjà" value={fEur(gapFill.patrimoineIncome)} sub="par mois" color="#4ade80" />
+              <KpiBox T={T} S={S} icon="📐" label="Capital encore à constituer" value={fEur(gapFill.capitalRestant)} color="#fbbf24" />
+            </div>
+
+            <div style={{ marginBottom: 18, maxWidth: 360 }}>
+              <Slider T={T} label="Apport mensuel" value={monthlySavings} set={setMonthlySavings} min={0} max={3000} step={50} unit=" €" />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, background: T.bg2, borderRadius: 12, padding: '14px 18px' }}>
+              <div>
+                <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Temps pour y arriver avec cet apport</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{monthsToGoalLabel}</div>
+              </div>
               {setTab && (
-                <button onClick={() => setTab('simulateur-dividendes')} style={{ ...S.btnG, fontSize: 12, padding: '7px 14px' }}>
-                  Ouvrir le Simulateur Dividendes
+                <button onClick={() => setTab('simulateur-dividendes')} style={{ ...S.btnG, fontSize: 12, padding: '9px 16px' }}>
+                  → Simuler avec le Simulateur Dividendes
                 </button>
               )}
             </div>
+          </>
+        )}
+      </div>
 
-            <div style={{ background: T.bg2, borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>🏘️ Immobilier locatif</div>
-              <p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.6 }}>
-                Avec un rendement locatif brut de {LOCATIF_YIELD}%, il faudrait un capital immobilier d'environ <strong style={{ color: T.text }}>{fEur(gapFill.capitalImmoNecessaire)}</strong> pour générer {fEur(pension.gap)}/mois de loyers.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════ SECTION 4 — Graphique ══════════════════ */}
+      {/* ══════════════════ Graphique ══════════════════ */}
       <div style={{ ...S.card, minWidth: 0 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: T.text }}>Évolution du capital jusqu'à et pendant la retraite</h3>
-        <div style={{ marginBottom: 16, maxWidth: 360 }}>
-          <Slider T={T} label="Apport mensuel épargne retraite" value={monthlySavings} set={setMonthlySavings} min={0} max={3000} step={50} unit=" €" />
-        </div>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Évolution du patrimoine et des revenus</h3>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chart.rows}>
-            <defs>
-              <linearGradient id="gRetAccum" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#4ade80" stopOpacity={0.25} /><stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gRetDecum" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={T.accent} stopOpacity={0.2} /><stop offset="95%" stopColor={T.accent} stopOpacity={0} />
-              </linearGradient>
-            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
             <XAxis dataKey="age" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.ceil((chart.maxAge - currentAge) / 12) - 1)} />
             <YAxis yAxisId="left"  tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={60} />
             <YAxis yAxisId="right" orientation="right" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v, true)} width={60} />
             <Tooltip content={<ChartTooltip T={T} />} />
-            {chart.exhaustedAge != null && (
-              <ReferenceArea yAxisId="left" x1={chart.exhaustedAge} x2={chart.maxAge} fill="#f87171" fillOpacity={0.08} />
-            )}
-            <ReferenceLine yAxisId="left" x={retirementAge} stroke="#fbbf24" strokeDasharray="4 3" label={{ value: 'Départ retraite', position: 'insideTopRight', fill: '#fbbf24', fontSize: 10 }} />
-            <Area yAxisId="left" type="monotone" dataKey="capitalAccum" name="Capital (épargne)"  stroke="#4ade80" fill="url(#gRetAccum)" strokeWidth={2.5} connectNulls={false} />
-            <Area yAxisId="left" type="monotone" dataKey="capitalDecum" name="Capital (retraite)" stroke={T.accent} fill="url(#gRetDecum)" strokeWidth={2.5} connectNulls={false} />
-            <Line yAxisId="right" type="monotone" dataKey="revenu" name="Revenu mensuel" stroke="#60a5fa" strokeWidth={2} dot={false} />
+            <ReferenceLine yAxisId="right" y={monthlySalary} stroke="#fbbf24" strokeDasharray="4 3" label={{ value: 'Objectif mensuel', position: 'insideTopRight', fill: '#fbbf24', fontSize: 10 }} />
+            <ReferenceLine yAxisId="left" x={retirementAge} stroke="#f87171" strokeWidth={1.5} label={{ value: 'Départ retraite', position: 'insideTopLeft', fill: '#f87171', fontSize: 10 }} />
+            <Line yAxisId="left"  type="monotone" dataKey="patrimoine" name="Patrimoine"     stroke={T.accent} strokeWidth={2.5} dot={false} />
+            <Line yAxisId="right" type="monotone" dataKey="revenu"     name="Revenu mensuel" stroke="#60a5fa" strokeWidth={2}   dot={false} />
           </ComposedChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* ══════════════════ SECTION 5 — Trimestres ══════════════════ */}
-      <div style={{ ...S.card }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: T.text }}>Trimestres cotisés</h3>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 13, color: T.text }}>{trimestres} / {TRIMESTRES_REQUIS} trimestres</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: trimestresPct >= 100 ? '#4ade80' : '#fb923c' }}>{Math.round(trimestresPct)}%</span>
-        </div>
-        <div style={{ background: T.cardBorder, borderRadius: 6, height: 8, overflow: 'hidden' }}>
-          <div style={{ width: `${trimestresPct}%`, height: '100%', background: trimestresPct >= 100 ? '#4ade80' : '#fb923c', borderRadius: 6, transition: 'width .4s' }} />
-        </div>
-
-        <div style={{ fontSize: 12, color: T.textMuted, marginTop: 10, lineHeight: 1.6 }}>
-          {trimestres >= TRIMESTRES_REQUIS
-            ? <>Vous avez déjà atteint le taux plein.</>
-            : <>Il vous reste <strong style={{ color: T.text }}>{trimestresRestants}</strong> trimestres à cotiser. Vous atteindrez le taux plein à <strong style={{ color: T.text }}>{ageTauxPlein} ans</strong> (en continuant de cotiser au même rythme).</>}
-        </div>
-
-        {pension.missingTrimestres > 0 && (
-          <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${T.cardBorder}` }}>
-            <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>
-              À {retirementAge} ans, il vous manquerait <strong style={{ color: '#f87171' }}>{pension.missingTrimestres}</strong> trimestres, soit une décote de <strong style={{ color: '#f87171' }}>{pension.decote.toFixed(2)}%</strong> sur le taux de pension.
-            </div>
-            <div className="g2">
-              <KpiBox T={T} S={S} icon="📉" label="Pension avec décote"   value={fEur(pension.pensionTotale)} color="#f87171" />
-              <KpiBox T={T} S={S} icon="📈" label="Pension à taux plein" value={fEur(pension.pensionTotaleTauxPlein)} color="#4ade80" />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
