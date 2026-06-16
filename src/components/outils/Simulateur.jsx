@@ -2,6 +2,47 @@ import { useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { makeS, fEur } from '../../utils/constants';
 
+// Defined at module scope (not inside Simulateur) so their identity stays stable across
+// renders — otherwise React remounts the <input> on every drag tick and the browser loses
+// its native drag-tracking on the destroyed node, leaving only clicks working.
+function Slider({ T, label, value, set, min, max, step, unit = '' }) {
+  const pct = ((value - min) / (max - min)) * 100;
+  const numInputStyle = {
+    width: 82, textAlign: 'right', flexShrink: 0,
+    background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8,
+    padding: '4px 8px', fontSize: 13, color: T.text, fontFamily: 'inherit',
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range" min={min} max={max} step={step} value={value}
+          onInput={e => set(Number(e.target.value))}
+          onChange={e => set(Number(e.target.value))}
+          style={{
+            flex: 1, minWidth: 0,
+            WebkitAppearance: 'none', appearance: 'none',
+            width: '100%', height: '6px', borderRadius: '3px',
+            outline: 'none', cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', pointerEvents: 'auto',
+            background: `linear-gradient(to right, #f97316 ${pct}%, #374151 ${pct}%)`,
+          }}
+        />
+        <input
+          type="number" min={min} max={max} step={step} value={value}
+          onChange={e => set(+e.target.value)}
+          onBlur={e => set(Math.min(max, Math.max(min, +e.target.value)))}
+          style={numInputStyle}
+        />
+        {unit.trim() && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{unit.trim()}</span>}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textFaint, marginTop: 2 }}>
+        <span>{min}{unit}</span><span>{max}{unit}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Simulateur({ T }) {
   const S = makeS(T);
   const [activeTab, setActiveTab] = useState('dca');
@@ -64,35 +105,6 @@ export default function Simulateur({ T }) {
     { id: 'credit', label: '🏠 Crédit' },
   ];
 
-  const numInputStyle = {
-    width: 82, textAlign: 'right', flexShrink: 0,
-    background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8,
-    padding: '4px 8px', fontSize: 13, color: T.text, fontFamily: 'inherit',
-  };
-
-  const Slider = ({ label, value, set, min, max, step, unit = '' }) => (
-    <div>
-      <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input
-          type="range" min={min} max={max} step={step} value={value}
-          onChange={e => set(+e.target.value)}
-          style={{ flex: 1, cursor: 'pointer', minWidth: 0, touchAction: 'none' }}
-        />
-        <input
-          type="number" min={min} max={max} step={step} value={value}
-          onChange={e => set(+e.target.value)}
-          onBlur={e => set(Math.min(max, Math.max(min, +e.target.value)))}
-          style={numInputStyle}
-        />
-        {unit.trim() && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{unit.trim()}</span>}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textFaint, marginTop: 2 }}>
-        <span>{min}{unit}</span><span>{max}{unit}</span>
-      </div>
-    </div>
-  );
-
   const KpiBox = ({ icon, label, value, color }) => (
     <div style={{ ...S.card, textAlign: 'center', padding: '16px 12px' }}>
       <div style={{ fontSize: 22, marginBottom: 6 }}>{icon}</div>
@@ -119,6 +131,25 @@ export default function Simulateur({ T }) {
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, overflowX: 'hidden', maxWidth: '100%' }}>
+      <style>{`
+        input[type=range]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 22px; height: 22px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: grab;
+          border: 2px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; }
+        input[type=range]::-moz-range-thumb {
+          width: 22px; height: 22px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: grab;
+          border: 2px solid white;
+        }
+      `}</style>
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: T.text }}>📈 Simulateur</h1>
         <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>Simulez vos stratégies d'investissement</p>
@@ -139,10 +170,10 @@ export default function Simulateur({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres DCA</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-              <Slider label="Versement mensuel" value={dcaMonthly} set={setDcaMonthly} min={50}  max={5000}   step={50}  unit=" €" />
-              <Slider label="Capital initial"    value={dcaInitial} set={setDcaInitial} min={0}   max={100000} step={500} unit=" €" />
-              <Slider label="Rendement annuel"   value={dcaRate}    set={setDcaRate}    min={1}   max={25}     step={0.5} unit="%" />
-              <Slider label="Durée"              value={dcaYears}   set={setDcaYears}   min={1}   max={40}     step={1}   unit=" ans" />
+              <Slider T={T} label="Versement mensuel" value={dcaMonthly} set={setDcaMonthly} min={50}  max={5000}   step={50}  unit=" €" />
+              <Slider T={T} label="Capital initial"    value={dcaInitial} set={setDcaInitial} min={0}   max={100000} step={500} unit=" €" />
+              <Slider T={T} label="Rendement annuel"   value={dcaRate}    set={setDcaRate}    min={1}   max={25}     step={0.5} unit="%" />
+              <Slider T={T} label="Durée"              value={dcaYears}   set={setDcaYears}   min={1}   max={40}     step={1}   unit=" ans" />
             </div>
           </div>
 
@@ -183,9 +214,9 @@ export default function Simulateur({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-              <Slider label="Capital de départ"  value={icCapital} set={setIcCapital} min={1000} max={500000} step={1000} unit=" €" />
-              <Slider label="Rendement annuel"   value={icRate}    set={setIcRate}    min={0.5}  max={30}     step={0.5}  unit="%" />
-              <Slider label="Durée"              value={icYears}   set={setIcYears}   min={1}    max={50}     step={1}    unit=" ans" />
+              <Slider T={T} label="Capital de départ"  value={icCapital} set={setIcCapital} min={1000} max={500000} step={1000} unit=" €" />
+              <Slider T={T} label="Rendement annuel"   value={icRate}    set={setIcRate}    min={0.5}  max={30}     step={0.5}  unit="%" />
+              <Slider T={T} label="Durée"              value={icYears}   set={setIcYears}   min={1}    max={50}     step={1}    unit=" ans" />
               <div>
                 <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Fréquence de capitalisation</div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -234,9 +265,9 @@ export default function Simulateur({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres du crédit</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22 }}>
-              <Slider label="Capital emprunté" value={crCapital} set={setCrCapital} min={10000} max={1000000} step={5000} unit=" €" />
-              <Slider label="Taux annuel"      value={crRate}    set={setCrRate}    min={0.5}   max={10}      step={0.1}  unit="%" />
-              <Slider label="Durée"            value={crYears}   set={setCrYears}   min={5}     max={30}      step={1}    unit=" ans" />
+              <Slider T={T} label="Capital emprunté" value={crCapital} set={setCrCapital} min={10000} max={1000000} step={5000} unit=" €" />
+              <Slider T={T} label="Taux annuel"      value={crRate}    set={setCrRate}    min={0.5}   max={10}      step={0.1}  unit="%" />
+              <Slider T={T} label="Durée"            value={crYears}   set={setCrYears}   min={5}     max={30}      step={1}    unit=" ans" />
             </div>
           </div>
 

@@ -42,6 +42,23 @@ export default function Projection({ T, data }) {
           .proj-kpis    { grid-template-columns: 1fr; }
           .proj-milestones { grid-template-columns: 1fr 1fr; }
         }
+        input[type=range]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 22px; height: 22px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: grab;
+          border: 2px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; }
+        input[type=range]::-moz-range-thumb {
+          width: 22px; height: 22px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: grab;
+          border: 2px solid white;
+        }
       `}</style>
 
       <div>
@@ -57,14 +74,23 @@ export default function Projection({ T, data }) {
               { label: t('proj_duration'),        val: projYears,   set: setProjYears,   min: 1, max: 40,   unit: ` ${t('proj_years')}`, step: 1 },
               { label: t('proj_rate'),             val: projRate,    set: setProjRate,    min: 1, max: 20,   unit: '%',       step: 0.5 },
               { label: t('proj_monthly_contrib'),  val: projMonthly, set: setProjMonthly, min: 0, max: 5000, unit: ' €/mois', step: 50 },
-            ].map(({ label, val, set, min, max, unit, step }) => (
+            ].map(({ label, val, set, min, max, unit, step }) => {
+              const pct = ((val - min) / (max - min)) * 100;
+              return (
               <div key={label}>
                 <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>{label}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input
                     type="range" min={min} max={max} step={step} value={val}
-                    onChange={e => set(+e.target.value)}
-                    style={{ flex: 1, cursor: 'pointer', minWidth: 0, touchAction: 'none' }}
+                    onInput={e => set(Number(e.target.value))}
+                    onChange={e => set(Number(e.target.value))}
+                    style={{
+                      flex: 1, minWidth: 0,
+                      WebkitAppearance: 'none', appearance: 'none',
+                      width: '100%', height: '6px', borderRadius: '3px',
+                      outline: 'none', cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', pointerEvents: 'auto',
+                      background: `linear-gradient(to right, #f97316 ${pct}%, #374151 ${pct}%)`,
+                    }}
                   />
                   <input
                     type="number" min={min} max={max} step={step} value={val}
@@ -78,7 +104,8 @@ export default function Projection({ T, data }) {
                   <span>{min}{unit}</span><span>{max}{unit}</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
