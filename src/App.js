@@ -20,6 +20,7 @@ import Projection from './components/outils/Projection';
 import CalendrierDividendes from './components/outils/CalendrierDividendes';
 import RecapFiscal from './components/outils/RecapFiscal';
 import Simulateur from './components/outils/Simulateur';
+import SimulateurDividendes from './components/outils/SimulateurDividendes';
 import Rebalancing from './components/outils/Rebalancing';
 import Parrainage from './components/Parrainage';
 import Modals from './components/Modals';
@@ -235,6 +236,7 @@ export default function App() {
     'calendrier-dividendes': <CalendrierDividendes T={T} data={data} />,
     'recap-fiscal':          <RecapFiscal T={T} data={data} />,
     'simulateur':            <Simulateur T={T} />,
+    'simulateur-dividendes': <SimulateurDividendes T={T} />,
     'rebalancing':           <Rebalancing T={T} data={data} />,
     'parrainage':            <Parrainage T={T} data={data} />,
     'veille-marche':         <ComingSoon icon="📰" title="Veille marché" desc="Suivez les actualités financières et les indicateurs de marché clés pour vos actifs." />,

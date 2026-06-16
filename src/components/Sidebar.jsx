@@ -7,6 +7,7 @@ const OUTILS = [
   { id: 'calendrier-dividendes',label: 'Calendrier dividendes', icon: '📅' },
   { id: 'recap-fiscal',         label: 'Récap fiscal',          icon: '📋' },
   { id: 'simulateur',           label: 'Simulateur',            icon: '📈' },
+  { id: 'simulateur-dividendes',label: 'Simulateur Dividendes', icon: '💰' },
   { id: 'rebalancing',          label: 'Rebalancing',           icon: '🎯' },
   { id: 'veille-marche',        label: 'Veille marché',         icon: '📰' },
   { id: 'optimisation-fiscale', label: 'Optimisation fiscale',  icon: '💰' },
