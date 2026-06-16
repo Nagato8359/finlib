@@ -146,19 +146,23 @@ module.exports = async function handler(req, res) {
     const cached = await getCached(cacheKey);
     if (cached != null) return res.json({ changePct: cached, key, tf });
 
-    // L2: Supabase prices_cache — all timeframes, freshness < 1h
-    const { data: row } = await supabaseAnon
-      .from('prices_cache')
-      .select('change_pct, updated_at')
-      .eq('ticker', upperKey)
-      .maybeSingle();
+    // L2: Supabase prices_cache — this column only ever holds the 1-day change
+    // (written by cron-prices.js), so it can only ever short-circuit tf=1J.
+    // Using it for other timeframes was returning the daily change for every tf.
+    if (tf === '1J') {
+      const { data: row } = await supabaseAnon
+        .from('prices_cache')
+        .select('change_pct, updated_at')
+        .eq('ticker', upperKey)
+        .maybeSingle();
 
-    if (row?.change_pct != null && row?.updated_at) {
-      const ageMs = Date.now() - new Date(row.updated_at).getTime();
-      if (ageMs < 3_600_000) {
-        const result = parseFloat(Number(row.change_pct).toFixed(3));
-        await setCached(cacheKey, result, 900);
-        return res.json({ changePct: result, key, tf });
+      if (row?.change_pct != null && row?.updated_at) {
+        const ageMs = Date.now() - new Date(row.updated_at).getTime();
+        if (ageMs < 3_600_000) {
+          const result = parseFloat(Number(row.change_pct).toFixed(3));
+          await setCached(cacheKey, result, 900);
+          return res.json({ changePct: result, key, tf });
+        }
       }
     }
 
