@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { makeS, fEur, today, uid, PORTFOLIO_IMMO_TYPES, getInvFormType } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
+import { AssetLogo, TICKER_TO_DOMAIN } from './Modals';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const META_STYLE = {
@@ -379,12 +380,14 @@ export default function PositionFormModal({ T, data }) {
               {showUniversalResults && universalResults.length > 0 && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 30, background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 16px 48px rgba(0,0,0,.55)' }}>
                   {universalResults.slice(0, 8).map((r, i) => {
-                    const logoSrc = r.logoUrl || r.thumb || '';
-                    const sym     = r.symbol || '';
-                    const label   = r.name || sym;
-                    const exch    = r.exchange || (r.rank ? `#${r.rank}` : '');
-                    const btype   = r.type || (formType === 'crypto' ? 'CRYPTO' : 'EQUITY');
-                    const badge   = badgeFor(btype);
+                    const sym   = r.symbol || '';
+                    const label = r.name || sym;
+                    const exch  = r.exchange || (r.rank ? `#${r.rank}` : '');
+                    const btype = r.type || (formType === 'crypto' ? 'CRYPTO' : 'EQUITY');
+                    const badge = badgeFor(btype);
+                    const full  = sym.toUpperCase();
+                    const domain = TICKER_TO_DOMAIN[full] || TICKER_TO_DOMAIN[full.split('.')[0]];
+                    const logoSrc = r.thumb || (domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=64` : '');
                     return (
                       <button
                         key={r.id || r.symbol || i}
@@ -393,18 +396,12 @@ export default function PositionFormModal({ T, data }) {
                         onMouseEnter={e => { e.currentTarget.style.background = T.cardBg; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                       >
-                        {logoSrc ? (
-                          <img
-                            src={logoSrc}
-                            alt=""
-                            style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, objectFit: 'contain', background: 'rgba(255,255,255,.07)' }}
-                            onError={e => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: formType === 'crypto' ? 'rgba(245,158,11,.15)' : 'rgba(99,102,241,.15)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
-                            {formType === 'crypto' ? '🪙' : '📈'}
-                          </div>
-                        )}
+                        <AssetLogo
+                          sources={logoSrc ? [logoSrc] : []}
+                          letter={(sym.split('.')[0] || '?')[0]}
+                          color={badge.color}
+                          size={32}
+                        />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
                           <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1 }}>

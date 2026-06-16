@@ -240,17 +240,13 @@ const SCPI_DOMAINS = {
   'theoreim':      'theoreim.com',
 };
 
-export const stockLogoSources = (sym, logoUrl) => {
-  const srcs = [];
-  if (logoUrl) srcs.push(logoUrl);
-  if (!sym) return srcs;
+export const stockLogoSources = (sym) => {
+  if (!sym) return [];
   const full   = sym.toUpperCase();
-  const base   = sym.split('.')[0].toUpperCase();
+  const base   = full.split('.')[0];
   const domain = TICKER_TO_DOMAIN[full] || TICKER_TO_DOMAIN[base];
-  if (domain) srcs.push(`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64`);
-  srcs.push(`https://img.logo.dev/?ticker=${base}&token=${LOGO_DEV_TOKEN}&size=64`);
-  if (domain) srcs.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
-  return srcs;
+  if (!domain) return [];
+  return [`https://www.google.com/s2/favicons?domain=${domain}&sz=64`];
 };
 
 // Returns logo sources for SCPI: Logo.dev then Google favicon if manager keyword matched
@@ -759,7 +755,7 @@ export default function Modals({ T, data }) {
           ? <AssetLogo sources={asset.thumb ? [asset.thumb] : []} letter={(asset.symbol || '?')[0]} color="#F59E0B" />
           : isSc
             ? <AssetLogo sources={scpiLogoSources(asset.name)} letter="🏬" color="#D97706" />
-            : <AssetLogo sources={stockLogoSources(asset.symbol, asset.logoUrl)} letter={(asset.symbol || '?').split('.')[0][0]} color="#60A5FA" />;
+            : <AssetLogo sources={stockLogoSources(asset.symbol)} letter={(asset.symbol || '?').split('.')[0][0]} color="#60A5FA" />;
       return (
         <button key={key} onClick={onClick}
           style={{ background: T.bg2, border: '1px solid rgba(255,255,255,.06)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', marginBottom: 4 }}
