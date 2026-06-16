@@ -50,6 +50,29 @@ export default function Investir({ T }) {
         <p style={{ color: T.textMuted, fontSize: 13, marginTop: 3 }}>Les meilleures plateformes pour investir et faire fructifier votre patrimoine</p>
       </div>
 
+      <div style={{
+        background: 'linear-gradient(135deg, #f97316, #ea580c)',
+        borderRadius: 16,
+        padding: '20px 24px',
+        marginBottom: 32,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16
+      }}>
+        <span style={{ fontSize: 32 }}>🎁</span>
+        <div>
+          <div style={{ color: 'white', fontWeight: 'bold', fontSize: 18, marginBottom: 4 }}>
+            Bonus exclusifs via Capitaly !
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>
+            En vous inscrivant via nos liens partenaires, vous bénéficiez
+            de bonus de bienvenue exclusifs et vous soutenez le développement
+            de Capitaly. Certains liens vous font gagner de l'argent dès
+            votre première transaction !
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {CATEGORIES.map(c => (
           <button key={c.key} onClick={() => setActiveCat(c.key)} style={{
