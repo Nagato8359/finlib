@@ -75,6 +75,81 @@ function neededCapital(monthlyIncome, yieldPct, taxPct) {
   return { brut, net };
 }
 
+// Defined at module scope (not inside SimulateurDividendes) so their identity stays stable
+// across renders — otherwise React remounts the <input> on every drag tick and the browser
+// loses its native drag-tracking on the destroyed node, leaving only clicks working.
+function Slider({ T, label, value, set, min, max, step, unit = '' }) {
+  const pct = ((value - min) / (max - min)) * 100;
+  const numInputStyle = {
+    width: 82, textAlign: 'right', flexShrink: 0,
+    background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8,
+    padding: '4px 8px', fontSize: 13, color: T.text, fontFamily: 'inherit',
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range" min={min} max={max} step={step} value={value}
+          onInput={e => set(Number(e.target.value))}
+          onChange={e => set(Number(e.target.value))}
+          style={{
+            flex: 1, minWidth: 0,
+            WebkitAppearance: 'none', appearance: 'none',
+            height: 6, borderRadius: 3,
+            background: `linear-gradient(to right, ${T.accent} ${pct}%, ${T.cardBorder} ${pct}%)`,
+            outline: 'none', cursor: 'grab', touchAction: 'none', userSelect: 'none', pointerEvents: 'auto',
+          }}
+        />
+        <input
+          type="number" min={min} max={max} step={step} value={value}
+          onChange={e => set(+e.target.value)}
+          onBlur={e => set(Math.min(max, Math.max(min, +e.target.value)))}
+          style={numInputStyle}
+        />
+        {unit.trim() && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{unit.trim()}</span>}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textFaint, marginTop: 2 }}>
+        <span>{min}{unit}</span><span>{max}{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+function KpiBox({ T, S, icon, label, value, sub, color }) {
+  return (
+    <div style={{ ...S.card, textAlign: 'center', padding: '16px 12px' }}>
+      <div style={{ fontSize: 22, marginBottom: 6 }}>{icon}</div>
+      <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: color || T.text }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ChartTooltip({ T, active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
+      <div style={{ color: T.textMuted, marginBottom: 4 }}>Année {label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color }}>{p.name} : {fEur(p.value)}</div>
+      ))}
+    </div>
+  );
+}
+
+function PieTooltip({ T, active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
+      <div style={{ fontWeight: 700, color: T.text, marginBottom: 2 }}>{d.name}</div>
+      <div style={{ color: T.textMuted }}>{d.value}% — rendement {d.yield}%</div>
+    </div>
+  );
+}
+
 export default function SimulateurDividendes({ T }) {
   const S = makeS(T);
   const [activeTab, setActiveTab] = useState('calc');
@@ -125,68 +200,6 @@ export default function SimulateurDividendes({ T }) {
   const freqOpt = FREQ_OPTIONS.find(f => f.v === frequency) || FREQ_OPTIONS[0];
   const perPaymentNet = annualNetDividends / freqOpt.n;
 
-  const numInputStyle = {
-    width: 82, textAlign: 'right', flexShrink: 0,
-    background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8,
-    padding: '4px 8px', fontSize: 13, color: T.text, fontFamily: 'inherit',
-  };
-
-  const Slider = ({ label, value, set, min, max, step, unit = '' }) => (
-    <div>
-      <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input
-          type="range" min={min} max={max} step={step} value={value}
-          onInput={e => set(Number(e.target.value))}
-          onChange={e => set(Number(e.target.value))}
-          style={{ flex: 1, cursor: 'pointer', minWidth: 0, touchAction: 'none' }}
-        />
-        <input
-          type="number" min={min} max={max} step={step} value={value}
-          onChange={e => set(+e.target.value)}
-          onBlur={e => set(Math.min(max, Math.max(min, +e.target.value)))}
-          style={numInputStyle}
-        />
-        {unit.trim() && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{unit.trim()}</span>}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.textFaint, marginTop: 2 }}>
-        <span>{min}{unit}</span><span>{max}{unit}</span>
-      </div>
-    </div>
-  );
-
-  const KpiBox = ({ icon, label, value, sub, color }) => (
-    <div style={{ ...S.card, textAlign: 'center', padding: '16px 12px' }}>
-      <div style={{ fontSize: 22, marginBottom: 6 }}>{icon}</div>
-      <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 800, color: color || T.text }}>{value}</div>
-      {sub && <div style={{ fontSize: 10, color: T.textFaint, marginTop: 4 }}>{sub}</div>}
-    </div>
-  );
-
-  const ChartTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
-        <div style={{ color: T.textMuted, marginBottom: 4 }}>Année {label}</div>
-        {payload.map((p, i) => (
-          <div key={i} style={{ color: p.color }}>{p.name} : {fEur(p.value)}</div>
-        ))}
-      </div>
-    );
-  };
-
-  const PieTooltip = ({ active, payload }) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
-    return (
-      <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
-        <div style={{ fontWeight: 700, color: T.text, marginBottom: 2 }}>{d.name}</div>
-        <div style={{ color: T.textMuted }}>{d.value}% — rendement {d.yield}%</div>
-      </div>
-    );
-  };
-
   const TABS_LIST = [
     { id: 'calc',          label: '🧮 Calculateur' },
     { id: 'portefeuilles', label: '📦 Exemples de portefeuilles' },
@@ -207,6 +220,17 @@ export default function SimulateurDividendes({ T }) {
           .div-grid { grid-template-columns: 1fr; }
           .div-portfolio-grid { grid-template-columns: 1fr; }
         }
+        input[type=range]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 18px; height: 18px; border-radius: 50%;
+          background: ${T.accent}; border: none; cursor: grab; pointer-events: auto;
+        }
+        input[type=range]::-moz-range-thumb {
+          width: 18px; height: 18px; border-radius: 50%;
+          background: ${T.accent}; border: none; cursor: grab;
+        }
+        input[type=range]:active::-webkit-slider-thumb,
+        input[type=range]:active::-moz-range-thumb { cursor: grabbing; }
       `}</style>
 
       <div>
@@ -229,11 +253,11 @@ export default function SimulateurDividendes({ T }) {
           <div style={{ ...S.card }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 18, color: T.text }}>Paramètres</h3>
             <div className="div-grid">
-              <Slider label="Revenu mensuel souhaité" value={monthlyIncome}       set={setMonthlyIncome}       min={0} max={10000} step={50} unit=" €" />
-              <Slider label="Rendement moyen du portefeuille" value={yieldRate}  set={setYieldRate}           min={1} max={15}    step={0.1} unit="%" />
-              <Slider label="Taux d'imposition sur dividendes" value={taxRate}   set={setTaxRate}             min={0} max={50}    step={1} unit="%" />
-              <Slider label="Durée d'accumulation" value={years}                 set={setYears}               min={1} max={40}    step={1} unit=" ans" />
-              <Slider label="Apport mensuel" value={monthlyContribution}         set={setMonthlyContribution} min={0} max={5000}  step={50} unit=" €" />
+              <Slider T={T} label="Revenu mensuel souhaité" value={monthlyIncome}       set={setMonthlyIncome}       min={0} max={10000} step={50} unit=" €" />
+              <Slider T={T} label="Rendement moyen du portefeuille" value={yieldRate}  set={setYieldRate}           min={1} max={15}    step={0.1} unit="%" />
+              <Slider T={T} label="Taux d'imposition sur dividendes" value={taxRate}   set={setTaxRate}             min={0} max={50}    step={1} unit="%" />
+              <Slider T={T} label="Durée d'accumulation" value={years}                 set={setYears}               min={1} max={40}    step={1} unit=" ans" />
+              <Slider T={T} label="Apport mensuel" value={monthlyContribution}         set={setMonthlyContribution} min={0} max={5000}  step={50} unit=" €" />
 
               <div>
                 <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>Fréquence de versement</div>
@@ -266,10 +290,10 @@ export default function SimulateurDividendes({ T }) {
           </div>
 
           <div className="g4">
-            <KpiBox icon="🏛️" label="Capital nécessaire" value={fEur(needed.net)} sub={`Brut : ${fEur(needed.brut)}`} color={T.accent} />
-            <KpiBox icon="💸" label="Dividendes annuels nets" value={fEur(annualNetDividends)} sub={`${fEur(annualNetDividends / 12)}/mois`} color="#4ade80" />
-            <KpiBox icon="⏳" label="Temps pour y arriver" value={goalLabel} sub="avec votre apport actuel" color="#60a5fa" />
-            <KpiBox icon="📊" label="Rendement net" value={`${netYieldPct.toFixed(2)}%`} sub={`Brut : ${yieldRate.toFixed(1)}%`} color="#fbbf24" />
+            <KpiBox T={T} S={S} icon="🏛️" label="Capital nécessaire" value={fEur(needed.net)} sub={`Brut : ${fEur(needed.brut)}`} color={T.accent} />
+            <KpiBox T={T} S={S} icon="💸" label="Dividendes annuels nets" value={fEur(annualNetDividends)} sub={`${fEur(annualNetDividends / 12)}/mois`} color="#4ade80" />
+            <KpiBox T={T} S={S} icon="⏳" label="Temps pour y arriver" value={goalLabel} sub="avec votre apport actuel" color="#60a5fa" />
+            <KpiBox T={T} S={S} icon="📊" label="Rendement net" value={`${netYieldPct.toFixed(2)}%`} sub={`Brut : ${yieldRate.toFixed(1)}%`} color="#fbbf24" />
           </div>
 
           <div style={{ ...S.card, minWidth: 0 }}>
@@ -280,7 +304,7 @@ export default function SimulateurDividendes({ T }) {
                 <XAxis dataKey="year" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.ceil(years / 10) - 1)} />
                 <YAxis yAxisId="left"  tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v)} width={60} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fill: T.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => fEur(v)} width={60} />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip content={<ChartTooltip T={T} />} />
                 <ReferenceLine yAxisId="right" y={monthlyIncome} stroke="#fbbf24" strokeDasharray="4 3" label={{ value: 'Objectif', position: 'insideTopRight', fill: '#fbbf24', fontSize: 10 }} />
                 <Line yAxisId="left"  type="monotone" dataKey="capital"              name="Capital"                stroke={T.accent} strokeWidth={2.5} dot={false} />
                 <Line yAxisId="right" type="monotone" dataKey="dividendesNetMensuel" name="Dividendes mensuels nets" stroke="#60a5fa" strokeWidth={2}   dot={false} />
@@ -342,7 +366,7 @@ export default function SimulateurDividendes({ T }) {
                         <Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={3} dataKey="value">
                           {pieData.map((entry, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                         </Pie>
-                        <Tooltip content={<PieTooltip />} />
+                        <Tooltip content={<PieTooltip T={T} />} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div style={{ background: T.bg2, borderRadius: 10, padding: '10px 14px', marginTop: 8, textAlign: 'center' }}>
