@@ -10,6 +10,18 @@ const COMMODITY_TICKER_MAP = {
 };
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
+function commodityUnitFactor(type, unit) {
+  if (type === 'Pétrole') return 1;
+  if (type === 'Cuivre') {
+    if (unit === 'kilogrammes') return 2.20462;
+    if (unit === 'tonnes')      return 2204.62;
+    return 1;
+  }
+  if (unit === 'onces troy')  return 1;
+  if (unit === 'kilogrammes') return 32.1507;
+  return 1 / 31.1035;
+}
+
 const UNSUPPORTED_TICKERS = [
   'REALT', 'REALT.',
   'SCPI', 'OPCI', 'SCI',
@@ -334,6 +346,81 @@ module.exports = async function handler(req, res) {
     console.log(`STEP5 OK: ${realtUpdated} RealT prices updated`);
   } catch (e) {
     console.error('STEP5 ERROR:', e.message);
+  }
+
+  // ── STEP 6: Server-side patrimoine snapshots ──────────────────────────────
+  console.log('STEP6 START: computing patrimoine snapshots');
+  try {
+    const nowHour = new Date();
+    nowHour.setMinutes(0, 0, 0);
+    const recordedAt = nowHour.toISOString();
+
+    // Skip users who already have a snapshot this hour (frontend or prior cron run)
+    const { data: recentSnaps } = await supabaseAdmin
+      .from('patrimoine_history')
+      .select('user_id')
+      .gte('recorded_at', recordedAt);
+    const recentSet = new Set((recentSnaps || []).map(r => r.user_id));
+
+    let snapshotted = 0;
+    for (const row of rows) {
+      if (!row.user_id) continue;
+      if (recentSet.has(row.user_id)) continue;
+
+      // ── compute invTotal from priceMap (fresh prices from STEP4/5) ──────
+      let invTotal = 0;
+      for (const inv of row.investments || []) {
+        const cash = parseFloat(inv.cash) || 0;
+        if (inv.type === 'Immobilier' || !inv.positions?.length) {
+          invTotal += (parseFloat(inv.value) || 0) + cash;
+          continue;
+        }
+        let posVal = 0;
+        for (const pos of inv.positions || []) {
+          const shares = parseFloat(pos.shares) || 0;
+          if (pos.posType === 'commodity') {
+            const ct = COMMODITY_TICKER_MAP[pos.commodityType];
+            const rawPx = ct ? priceMap[ct.toUpperCase()] : null;
+            posVal += rawPx != null
+              ? shares * rawPx * commodityUnitFactor(pos.commodityType, pos.unit || 'grammes')
+              : shares * (parseFloat(pos.currentPrice) || 0);
+          } else if (pos.posType === 'other' || pos.posType === 'realestate') {
+            posVal += shares * (parseFloat(pos.currentPrice) || 0);
+          } else {
+            const k = (pos.isin || pos.ticker || '').toUpperCase();
+            posVal += shares * (k && priceMap[k] != null ? priceMap[k] : (parseFloat(pos.currentPrice) || 0));
+          }
+        }
+        invTotal += (posVal > 0 ? posVal : (parseFloat(inv.value) || 0)) + cash;
+      }
+
+      const cashTotal   = (row.savings      || []).reduce((s, a) => s + (parseFloat(a.balance)       || 0), 0);
+      const healthTotal = (row.health_assets || []).reduce((s, h) => s + (parseFloat(h.currentValue) || 0), 0);
+      const total = Math.round(invTotal + cashTotal + healthTotal);
+      if (total <= 0) continue;
+
+      // Skip if the last stored value is identical (no change to record)
+      const { data: last } = await supabaseAdmin
+        .from('patrimoine_history')
+        .select('valeur')
+        .eq('user_id', row.user_id)
+        .order('recorded_at', { ascending: false })
+        .limit(1);
+      if (last?.length && last[0].valeur === total) continue;
+
+      const { error: insErr } = await supabaseAdmin
+        .from('patrimoine_history')
+        .insert({ user_id: row.user_id, valeur: total, recorded_at: recordedAt });
+      if (!insErr) {
+        historyEntries.push({ user_id: row.user_id, valeur: total });
+        snapshotted++;
+      } else {
+        console.error(`[STEP6] ${row.user_id}:`, insErr.message);
+      }
+    }
+    console.log(`STEP6 OK: ${snapshotted} snapshots inserted`);
+  } catch (e) {
+    console.error('STEP6 ERROR:', e.message);
   }
 
   // ── STEP 7: RealT rent cache invalidation ────────────────────────────────
