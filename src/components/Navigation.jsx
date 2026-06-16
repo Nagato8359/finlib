@@ -9,7 +9,6 @@ const OUTILS_MOBILE = [
   { id: 'simulateur-dividendes', label: 'Sim. dividendes', icon: '💰' },
   { id: 'rebalancing',           label: 'Rebalancing',     icon: '🎯' },
   { id: 'veille-marche',         label: 'Veille marché',   icon: '📰' },
-  { id: 'optimisation-fiscale',  label: 'Optim. fiscale',  icon: '💰' },
 ];
 
 const OUTIL_IDS = new Set(OUTILS_MOBILE.map(o => o.id));

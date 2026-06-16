@@ -52,7 +52,8 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(sed -n '4,10p' src/components/Budget.jsx)",
       "Bash(sed -n '7,13p' src/components/Patrimoine.jsx)",
-      "Bash(sed -n '38,44p' src/components/Modals.jsx)"
+      "Bash(sed -n '38,44p' src/components/Modals.jsx)",
+      "WebFetch(domain:www.boursorama.com)"
     ]
   }
 }

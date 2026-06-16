@@ -10,7 +10,6 @@ const OUTILS = [
   { id: 'simulateur-dividendes',label: 'Simulateur Dividendes', icon: '💰' },
   { id: 'rebalancing',          label: 'Rebalancing',           icon: '🎯' },
   { id: 'veille-marche',        label: 'Veille marché',         icon: '📰' },
-  { id: 'optimisation-fiscale', label: 'Optimisation fiscale',  icon: '💰' },
 ];
 
 const OUTIL_IDS = new Set(OUTILS.map(o => o.id));
