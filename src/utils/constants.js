@@ -225,6 +225,12 @@ export const PLATFORMS = [
     desc: 'Achetez, vendez et payez en crypto partout. Carte Visa crypto avec cashback en CRO.',
     actifs: ['Crypto', 'Carte Visa', 'Staking', 'DeFi'],
   },
+  {
+    name: 'Binance', emoji: '🟡', categories: ['Crypto'], domain: 'binance.com',
+    url: 'https://www.binance.com/register?ref=CAPITALY',
+    desc: 'Le plus grand exchange crypto au monde. Trading spot, futures, staking et earn sur 350+ cryptos.',
+    actifs: ['350+ cryptos', 'Trading avancé', 'Staking', 'Earn', 'NFT'],
+  },
 ];
 
 // ── Seed data ────────────────────────────────────────────────────────────────
