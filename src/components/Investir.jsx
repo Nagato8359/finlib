@@ -1,6 +1,25 @@
 import { useState } from 'react';
 import { PLATFORMS, PLATFORM_CATEGORY_COLORS } from '../utils/constants';
-import { AssetLogo } from './Modals';
+
+function PlatformLogo({ domain, name, color }) {
+  const [error, setError] = useState(false);
+  if (error) return (
+    <div style={{
+      width: 48, height: 48, borderRadius: 12,
+      background: color, display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+      fontSize: 20, fontWeight: 'bold', color: 'white', flexShrink: 0,
+    }}>{name[0]}</div>
+  );
+  return (
+    <img
+      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+      onError={() => setError(true)}
+      style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'contain', flexShrink: 0 }}
+      alt={name}
+    />
+  );
+}
 
 const ORANGE = '#fb923c';
 const CATEGORIES = [
@@ -50,7 +69,7 @@ export default function Investir({ T }) {
           return (
             <div key={p.name} className="inv-card" style={{ background: '#131920', borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 14, transition: 'transform .15s, box-shadow .15s' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <AssetLogo sources={[`https://img.logo.dev/${p.domain}?token=pk_X4dPbXQbTBuiGqrJH9u8VA&size=64`]} letter={p.emoji} color={badgeColor} size={48} />
+                <PlatformLogo domain={p.domain} name={p.name} color={badgeColor} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>{p.name}</div>
                   <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: badgeColor + '22', color: badgeColor }}>
