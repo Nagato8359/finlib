@@ -23,6 +23,7 @@ import Simulateur from './components/outils/Simulateur';
 import SimulateurDividendes from './components/outils/SimulateurDividendes';
 import Rebalancing from './components/outils/Rebalancing';
 import VeilleMarche from './components/outils/VeilleMarche';
+import SimulateurRetraite from './components/outils/SimulateurRetraite';
 import Parrainage from './components/Parrainage';
 import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
@@ -233,6 +234,7 @@ export default function App() {
     'rebalancing':           <Rebalancing T={T} data={data} />,
     'parrainage':            <Parrainage T={T} data={data} />,
     'veille-marche':         <VeilleMarche T={T} data={data} />,
+    'simulateur-retraite':   <SimulateurRetraite T={T} data={data} setTab={setTab} />,
   };
 
   return (
