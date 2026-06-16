@@ -22,6 +22,8 @@ import RecapFiscal from './components/outils/RecapFiscal';
 import Simulateur from './components/outils/Simulateur';
 import SimulateurDividendes from './components/outils/SimulateurDividendes';
 import Rebalancing from './components/outils/Rebalancing';
+import VeilleMarche from './components/outils/VeilleMarche';
+import OptimisationFiscale from './components/outils/OptimisationFiscale';
 import Parrainage from './components/Parrainage';
 import Modals from './components/Modals';
 import PositionFormModal from './components/PositionFormModal';
@@ -215,14 +217,6 @@ export default function App() {
     );
   }
 
-  const ComingSoon = ({ icon, title, desc }) => (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16, textAlign: 'center' }}>
-      <div style={{ fontSize: 52 }}>{icon}</div>
-      <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text }}>{title}</h1>
-      <p style={{ fontSize: 13, color: T.textMuted, maxWidth: 360, lineHeight: 1.6 }}>{desc || 'Fonctionnalité en cours de développement. Disponible prochainement.'}</p>
-      <div style={{ fontSize: 11, color: T.textFaint, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 10, padding: '6px 14px' }}>🚧 En construction</div>
-    </div>
-  );
 
   const tabContent = {
     accueil:    <Accueil T={T} data={data} setTab={setTab} />,
@@ -239,8 +233,8 @@ export default function App() {
     'simulateur-dividendes': <SimulateurDividendes T={T} data={data} />,
     'rebalancing':           <Rebalancing T={T} data={data} />,
     'parrainage':            <Parrainage T={T} data={data} />,
-    'veille-marche':         <ComingSoon icon="📰" title="Veille marché" desc="Suivez les actualités financières et les indicateurs de marché clés pour vos actifs." />,
-    'optimisation-fiscale':  <ComingSoon icon="💰" title="Optimisation fiscale" desc="Découvrez les stratégies pour optimiser votre fiscalité : enveloppes fiscales, PEA, assurance-vie, PER…" />,
+    'veille-marche':         <VeilleMarche T={T} data={data} />,
+    'optimisation-fiscale':  <OptimisationFiscale T={T} data={data} />,
   };
 
   return (

@@ -51,10 +51,76 @@ async function geckoChangePct(coinId, days) {
   return ((prices[prices.length - 1][1] - prices[0][1]) / prices[0][1]) * 100;
 }
 
+// ── News (folded in here rather than a new api/news.js — we're already at the
+// 12-function cap on the Vercel Hobby plan) ─────────────────────────────────
+const NEWS_FEED_URL = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=AAPL,BTC-EUR&region=fr&lang=fr-FR';
+const NEWS_CACHE_KEY = 'news:fr';
+const NEWS_CACHE_TTL = 900; // 15 min
+
+function decodeXmlEntities(str) {
+  return str
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#39;/g, "'");
+}
+
+function extractRssTag(block, tag) {
+  const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  if (!m) return '';
+  let val = m[1].trim();
+  const cdata = val.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+  if (cdata) val = cdata[1].trim();
+  return decodeXmlEntities(val);
+}
+
+function parseRssItems(xml, limit) {
+  const blocks = xml.match(/<item[^>]*>[\s\S]*?<\/item>/gi) || [];
+  const items = [];
+  for (const block of blocks.slice(0, limit)) {
+    const title = extractRssTag(block, 'title');
+    const url = extractRssTag(block, 'link');
+    if (!title || !url) continue;
+    const pubDate = extractRssTag(block, 'pubDate');
+    let source = '';
+    try { source = new URL(url).hostname.replace(/^(fr\.|www\.)/, ''); } catch {}
+    items.push({
+      title,
+      description: extractRssTag(block, 'description'),
+      url,
+      publishedAt: pubDate && !isNaN(new Date(pubDate)) ? new Date(pubDate).toISOString() : null,
+      source,
+      image: null,
+    });
+  }
+  return items;
+}
+
+async function handleNews(res) {
+  try {
+    const cached = await getCached(NEWS_CACHE_KEY);
+    if (cached) return res.json({ items: cached, cached: true });
+
+    const rssRes = await fetch(NEWS_FEED_URL, { signal: AbortSignal.timeout(8000) });
+    if (!rssRes.ok) throw new Error(`Yahoo RSS HTTP ${rssRes.status}`);
+    const xml = await rssRes.text();
+    const items = parseRssItems(xml, 20);
+
+    await setCached(NEWS_CACHE_KEY, items, NEWS_CACHE_TTL);
+    res.json({ items, cached: false });
+  } catch (err) {
+    console.error('[performance] news error:', err.message);
+    res.status(502).json({ error: err.message, items: [] });
+  }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (req.query.action === 'news') {
+    res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800');
+    return handleNews(res);
+  }
 
   const { key, tf } = req.query;
   const tfParams = TF[tf];
