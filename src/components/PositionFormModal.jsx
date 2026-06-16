@@ -16,7 +16,6 @@ const COMMODITY_TICKER_MAP = {
   'Or': 'GC=F', 'Argent': 'SI=F', 'Platine': 'PL=F',
   'Palladium': 'PA=F', 'Pétrole': 'CL=F', 'Cuivre': 'HG=F',
 };
-// Units offered per commodity type
 const COMMODITY_UNITS_MAP = {
   'Or':        ['grammes', 'onces troy', 'kilogrammes'],
   'Argent':    ['grammes', 'onces troy', 'kilogrammes'],
@@ -30,21 +29,30 @@ const COMMODITY_DEFAULT_UNIT = {
   'Or': 'grammes', 'Argent': 'grammes', 'Platine': 'grammes', 'Palladium': 'grammes',
   'Pétrole': 'barils', 'Cuivre': 'kilogrammes', 'Autre': 'unités',
 };
-// Convert raw Yahoo price (EUR/troy oz for metals, EUR/barrel for oil, EUR/lb for copper) → EUR/unit
 function commodityUnitFactor(type, unit) {
-  if (type === 'Pétrole') return 1;                               // EUR/barrel → EUR/barrel
+  if (type === 'Pétrole') return 1;
   if (type === 'Cuivre') {
-    if (unit === 'kilogrammes') return 2.20462;                   // 1 kg = 2.20462 lb
-    if (unit === 'tonnes')      return 2204.62;                   // 1 tonne = 2204.62 lb
+    if (unit === 'kilogrammes') return 2.20462;
+    if (unit === 'tonnes')      return 2204.62;
     return 1;
   }
-  // Precious metals: EUR/troy oz
   if (unit === 'onces troy')  return 1;
   if (unit === 'kilogrammes') return 32.1507;
-  return 1 / 31.1035;                                             // grammes (default)
+  return 1 / 31.1035;
 }
 const CRYPTO_PLATFORMS = ['Binance', 'Coinbase', 'Kraken', 'Bybit', 'Ledger (HW)', 'Trezor (HW)', 'MetaMask', 'Autre'];
 const AV_INSURERS = ['AXA', 'Generali', 'Spirica', 'Apicil', 'Suravenir', 'Predica (CA)', 'Autre'];
+
+const TYPE_BADGE = {
+  EQUITY:       { label: 'Action',  bg: 'rgba(99,102,241,.18)',  color: '#818cf8' },
+  ETF:          { label: 'ETF',     bg: 'rgba(16,185,129,.18)',  color: '#34d399' },
+  MUTUALFUND:   { label: 'Fonds',   bg: 'rgba(167,139,250,.18)', color: '#c4b5fd' },
+  CRYPTOCURRENCY:{ label: 'Crypto', bg: 'rgba(245,158,11,.18)',  color: '#fbbf24' },
+  CRYPTO:       { label: 'Crypto',  bg: 'rgba(245,158,11,.18)',  color: '#fbbf24' },
+};
+function badgeFor(type) {
+  return TYPE_BADGE[String(type || '').toUpperCase()] || { label: type || '—', bg: 'rgba(148,163,184,.18)', color: '#94a3b8' };
+}
 
 // ── Micro-components ───────────────────────────────────────────────────────────
 const LBL = ({ children, auto }) => (
@@ -84,18 +92,26 @@ export default function PositionFormModal({ T, data }) {
     other:      { ...META_STYLE.other,      label: t('pos_type_other') },
   };
   const S = makeS(T);
-  const [searching, setSearching] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSug, setShowSug] = useState(false);
-  const [autoFilled, setAutoFilled] = useState(new Set());
+  const [searching, setSearching]           = useState(false);
+  const [autoFilled, setAutoFilled]         = useState(new Set());
   const [fetchingCommodity, setFetchingCommodity] = useState(false);
-  const debounceRef = useRef(null);
-  const sugRef = useRef(null);
+
+  // Universal search
+  const [universalQuery, setUniversalQuery]           = useState('');
+  const [universalResults, setUniversalResults]       = useState([]);
+  const [showUniversalResults, setShowUniversalResults] = useState(false);
+  const [manualMode, setManualMode]                   = useState(false);
+
+  const debounceRef    = useRef(null);
+  const universalRef   = useRef(null);
   const commodityOzRef = useRef(null);
 
-  // Close suggestions on outside click
+  // Close dropdown on outside click
   useEffect(() => {
-    const handler = e => { if (sugRef.current && !sugRef.current.contains(e.target)) setShowSug(false); };
+    const handler = e => {
+      if (universalRef.current && !universalRef.current.contains(e.target))
+        setShowUniversalResults(false);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
@@ -104,8 +120,10 @@ export default function PositionFormModal({ T, data }) {
   useEffect(() => {
     if (modal !== 'drill') {
       setAutoFilled(new Set());
-      setSuggestions([]);
-      setShowSug(false);
+      setUniversalQuery('');
+      setUniversalResults([]);
+      setShowUniversalResults(false);
+      setManualMode(false);
       commodityOzRef.current = null;
     }
   }, [modal]);
@@ -140,9 +158,9 @@ export default function PositionFormModal({ T, data }) {
   if (modal !== 'drill' || !drillInv) return null;
 
   const formType = posForm.posType || getInvFormType(drillInv);
-  const meta = META[formType];
-  const mark = (...fields) => setAutoFilled(prev => new Set([...prev, ...fields]));
-  const isAuto = f => autoFilled.has(f);
+  const meta     = META[formType];
+  const mark     = (...fields) => setAutoFilled(prev => new Set([...prev, ...fields]));
+  const isAuto   = f => autoFilled.has(f);
 
   const inp = {
     background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 8,
@@ -153,7 +171,7 @@ export default function PositionFormModal({ T, data }) {
 
   const onClose = () => { setModal(null); setPosForm(mkPos()); setEditItem(null); };
 
-  // ── Stock search ─────────────────────────────────────────────────────────────
+  // ── Manual ISIN search (stock, manual mode) ───────────────────────────────────
   const searchStock = async (query) => {
     if (!query || query.length < 2) return;
     setSearching(true);
@@ -200,30 +218,61 @@ export default function PositionFormModal({ T, data }) {
     if (v.length >= 2) searchStock(v);
   };
 
-  // ── Crypto search ─────────────────────────────────────────────────────────────
-  const handleCryptoSearch = (e) => {
+  // ── Universal search ──────────────────────────────────────────────────────────
+  const handleUniversalSearch = (e) => {
     const q = e.target.value;
-    setPosForm(p => ({ ...p, name: q }));
+    setUniversalQuery(q);
     clearTimeout(debounceRef.current);
-    if (!q || q.length < 2) { setSuggestions([]); setShowSug(false); return; }
+    if (!q || q.length < 2) { setUniversalResults([]); setShowUniversalResults(false); return; }
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/search?type=crypto&q=${encodeURIComponent(q)}`);
+        const searchType = formType === 'crypto' ? 'crypto' : 'stock';
+        const res = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(q)}`);
         const list = await res.json();
-        setSuggestions(list || []);
-        setShowSug(true);
+        setUniversalResults(list || []);
+        setShowUniversalResults(true);
       } catch {}
       setSearching(false);
-    }, 350);
+    }, 300);
   };
 
-  const selectCoin = async (coin) => {
-    setShowSug(false);
-    setSuggestions([]);
-    setPosForm(p => ({ ...p, name: coin.name, ticker: coin.symbol }));
-    mark('name', 'ticker');
-    fetchTickerPrice(coin.symbol);
+  const selectUniversalResult = async (result) => {
+    setShowUniversalResults(false);
+    setUniversalResults([]);
+
+    if (formType === 'crypto') {
+      const { name, symbol } = result;
+      setUniversalQuery(name);
+      setPosForm(p => ({ ...p, name, ticker: symbol }));
+      mark('name', 'ticker');
+      fetchTickerPrice(symbol);
+      try {
+        const res  = await fetch(`/api/prices?tickers=${encodeURIComponent(symbol)}`);
+        const data = await res.json();
+        const px   = data[symbol.toUpperCase()];
+        if (px != null) {
+          setPosForm(p => ({ ...p, currentPrice: String(px), buyPrice: String(px) }));
+          mark('currentPrice');
+        }
+      } catch {}
+    } else {
+      const { name, symbol, exchange } = result;
+      setUniversalQuery(name);
+      setPosForm(p => ({ ...p, name, ticker: symbol, exchange: exchange || p.exchange }));
+      mark('name', 'ticker', 'exchange');
+      fetchTickerPrice(symbol);
+      fetchDivInfo(symbol);
+      try {
+        const res  = await fetch(`/api/prices?tickers=${encodeURIComponent(symbol)}`);
+        const data = await res.json();
+        const px   = data[symbol.toUpperCase()];
+        if (px != null) {
+          setPosForm(p => ({ ...p, currentPrice: String(px), buyPrice: String(px) }));
+          mark('currentPrice');
+        }
+      } catch {}
+    }
   };
 
   // ── Save handler ──────────────────────────────────────────────────────────────
@@ -238,8 +287,8 @@ export default function PositionFormModal({ T, data }) {
     const bp  = parseFloat(posForm.buyPrice) || 0;
     if (!qty || !bp) return;
 
-    const liveKey = posForm.isin || posForm.ticker;
-    const livePx  = liveKey ? (prices[liveKey] ?? null) : null;
+    const liveKey      = posForm.isin || posForm.ticker;
+    const livePx       = liveKey ? (prices[liveKey] ?? null) : null;
     const currentPrice = parseFloat(posForm.currentPrice) || livePx || bp;
 
     const pos = {
@@ -267,15 +316,15 @@ export default function PositionFormModal({ T, data }) {
   };
 
   // ── Preview ───────────────────────────────────────────────────────────────────
-  const qty = parseFloat(posForm.shares) || (formType === 'realestate' || formType === 'bond' ? 1 : 0);
-  const bp  = parseFloat(posForm.buyPrice) || 0;
+  const qty        = parseFloat(posForm.shares) || (formType === 'realestate' || formType === 'bond' ? 1 : 0);
+  const bp         = parseFloat(posForm.buyPrice) || 0;
   const hasLiveFeed = ['stock', 'etf', 'crypto', 'commodity'].includes(formType);
-  const liveKey = hasLiveFeed ? (posForm.isin || posForm.ticker) : null;
-  const livePx  = (liveKey ? prices[liveKey] : null) ?? (parseFloat(posForm.currentPrice) || 0);
-  const invested  = qty * bp;
-  const curVal    = qty * livePx;
-  const pnl       = curVal - invested;
-  const pnlPct    = invested > 0 ? (pnl / invested) * 100 : 0;
+  const liveKey    = hasLiveFeed ? (posForm.isin || posForm.ticker) : null;
+  const livePx     = (liveKey ? prices[liveKey] : null) ?? (parseFloat(posForm.currentPrice) || 0);
+  const invested   = qty * bp;
+  const curVal     = qty * livePx;
+  const pnl        = curVal - invested;
+  const pnlPct     = invested > 0 ? (pnl / invested) * 100 : 0;
   const hasPreview = (formType === 'realestate' || formType === 'bond') ? bp > 0 : qty > 0 && bp > 0;
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -306,35 +355,113 @@ export default function PositionFormModal({ T, data }) {
         {/* ── Body ── */}
         <div style={{ padding: '26px 28px' }}>
 
+          {/* ══ UNIVERSAL SEARCH BAR (stock + crypto) ════════════════════════════ */}
+          {(formType === 'stock' || formType === 'crypto') && (
+            <div style={{ marginBottom: 18, position: 'relative' }} ref={universalRef}>
+              <LBL>Rechercher un actif</LBL>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder={formType === 'crypto' ? 'Rechercher Bitcoin, Ethereum, Solana…' : 'Rechercher une action, ETF, fonds…'}
+                  style={{ ...inp, paddingRight: searching ? 38 : 12 }}
+                  value={universalQuery}
+                  onChange={handleUniversalSearch}
+                  onFocus={() => universalResults.length > 0 && setShowUniversalResults(true)}
+                />
+                {searching && (
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}>
+                    <Spinner color={meta.color} />
+                  </span>
+                )}
+              </div>
+
+              {/* Results dropdown */}
+              {showUniversalResults && universalResults.length > 0 && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 30, background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 16px 48px rgba(0,0,0,.55)' }}>
+                  {universalResults.slice(0, 8).map((r, i) => {
+                    const logoSrc = r.logoUrl || r.thumb || '';
+                    const sym     = r.symbol || '';
+                    const label   = r.name || sym;
+                    const exch    = r.exchange || (r.rank ? `#${r.rank}` : '');
+                    const btype   = r.type || (formType === 'crypto' ? 'CRYPTO' : 'EQUITY');
+                    const badge   = badgeFor(btype);
+                    return (
+                      <button
+                        key={r.id || r.symbol || i}
+                        onMouseDown={() => selectUniversalResult(r)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', background: 'none', border: 'none', borderBottom: i < Math.min(universalResults.length, 8) - 1 ? `1px solid ${T.cardBorder}` : 'none', cursor: 'pointer', color: T.text, textAlign: 'left' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = T.cardBg; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                      >
+                        {logoSrc ? (
+                          <img
+                            src={logoSrc}
+                            alt=""
+                            style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, objectFit: 'contain', background: 'rgba(255,255,255,.07)' }}
+                            onError={e => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: formType === 'crypto' ? 'rgba(245,158,11,.15)' : 'rgba(99,102,241,.15)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
+                            {formType === 'crypto' ? '🪙' : '📈'}
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+                          <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1 }}>
+                            <span style={{ fontFamily: 'ui-monospace,monospace', letterSpacing: '.04em' }}>{sym}</span>
+                            {exch && <span> · {exch}</span>}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: badge.bg, color: badge.color, flexShrink: 0, letterSpacing: '.03em' }}>
+                          {badge.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Manual mode toggle */}
+              <button
+                onClick={() => setManualMode(m => !m)}
+                style={{ background: 'none', border: 'none', color: T.textMuted, fontSize: 12, cursor: 'pointer', padding: '6px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}
+              >
+                {manualMode ? '🔍 Revenir à la recherche' : '✏️ Saisir manuellement (ISIN / ticker)'}
+              </button>
+            </div>
+          )}
+
           {/* ══ STOCK / ETF ══════════════════════════════════════════════════════ */}
           {formType === 'stock' && (
             <>
-              {/* ISIN + search button */}
-              <div style={{ marginBottom: 14 }}>
-                <LBL auto={isAuto('isin')}>{t('pos_isin')}</LBL>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    type="text"
-                    placeholder="IE00B4L5Y983, FR0010315770…"
-                    maxLength={12}
-                    style={{ ...inp, textTransform: 'uppercase', fontFamily: 'ui-monospace,monospace', letterSpacing: '.06em', flex: 1, ...(isAuto('isin') ? { borderColor: 'rgba(74,222,128,.35)' } : {}) }}
-                    value={posForm.isin}
-                    onChange={handleIsinChange}
-                    onBlur={handleIsinBlur}
-                  />
-                  <button
-                    onClick={() => searchStock(posForm.isin)}
-                    disabled={searching || !posForm.isin}
-                    style={{ background: meta.grad, border: 'none', borderRadius: 8, color: '#fff', padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: posForm.isin ? 'pointer' : 'not-allowed', opacity: !posForm.isin ? 0.4 : 1, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}
-                  >
-                    {searching ? <Spinner /> : '🔍'}
-                    {searching ? t('pos_searching') : t('pos_search')}
-                  </button>
+              {/* ISIN block — manual mode only */}
+              {manualMode && (
+                <div style={{ marginBottom: 14 }}>
+                  <LBL auto={isAuto('isin')}>{t('pos_isin')}</LBL>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="text"
+                      placeholder="IE00B4L5Y983, FR0010315770…"
+                      maxLength={12}
+                      style={{ ...inp, textTransform: 'uppercase', fontFamily: 'ui-monospace,monospace', letterSpacing: '.06em', flex: 1, ...(isAuto('isin') ? { borderColor: 'rgba(74,222,128,.35)' } : {}) }}
+                      value={posForm.isin}
+                      onChange={handleIsinChange}
+                      onBlur={handleIsinBlur}
+                    />
+                    <button
+                      onClick={() => searchStock(posForm.isin)}
+                      disabled={searching || !posForm.isin}
+                      style={{ background: meta.grad, border: 'none', borderRadius: 8, color: '#fff', padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: posForm.isin ? 'pointer' : 'not-allowed', opacity: !posForm.isin ? 0.4 : 1, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}
+                    >
+                      {searching ? <Spinner /> : '🔍'}
+                      {searching ? t('pos_searching') : t('pos_search')}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 5 }}>
+                    {t('pos_isin_hint')}
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 5 }}>
-                  {t('pos_isin_hint')}
-                </div>
-              </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                 <FF label={t('pos_full_name')} auto={isAuto('name')}>
@@ -370,8 +497,8 @@ export default function PositionFormModal({ T, data }) {
                 <FF label={t('pos_dca_price')}>
                   <input type="number" placeholder="0.00" min="0" step="any" style={inp} value={posForm.buyPrice} onChange={e => setPosForm(p => ({ ...p, buyPrice: e.target.value }))} />
                 </FF>
-                <FF label={fetchingPrice ? t('pos_fetching') : prices[liveKey] != null ? t('pos_live_price') : t('pos_current_price')} auto={prices[liveKey] != null}>
-                  <input type="number" placeholder="Auto via ISIN" min="0" step="any" style={{ ...(prices[liveKey] != null ? inpAuto : inp), opacity: fetchingPrice ? 0.5 : 1 }} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
+                <FF label={fetchingPrice ? t('pos_fetching') : prices[liveKey] != null ? t('pos_live_price') : t('pos_current_price')} auto={prices[liveKey] != null || isAuto('currentPrice')}>
+                  <input type="number" placeholder="Auto via ISIN" min="0" step="any" style={{ ...((prices[liveKey] != null || isAuto('currentPrice')) ? inpAuto : inp), opacity: fetchingPrice ? 0.5 : 1 }} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
               </div>
 
@@ -446,48 +573,6 @@ export default function PositionFormModal({ T, data }) {
           {/* ══ CRYPTO ═══════════════════════════════════════════════════════════ */}
           {formType === 'crypto' && (
             <>
-              <div style={{ marginBottom: 14, position: 'relative' }} ref={sugRef}>
-                <LBL>{t('pos_crypto_search')}</LBL>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    placeholder="Bitcoin, Ethereum, Solana…"
-                    style={{ ...inp, paddingRight: searching ? 38 : 12 }}
-                    value={posForm.name}
-                    onChange={handleCryptoSearch}
-                    onFocus={() => suggestions.length > 0 && setShowSug(true)}
-                  />
-                  {searching && (
-                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}>
-                      <Spinner color={meta.color} />
-                    </span>
-                  )}
-                </div>
-                {showSug && suggestions.length > 0 && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20, background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,.5)' }}>
-                    {suggestions.map(coin => (
-                      <button
-                        key={coin.id}
-                        onMouseDown={() => selectCoin(coin)}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 16px', background: 'none', border: 'none', borderBottom: `1px solid ${T.cardBorder}`, cursor: 'pointer', color: T.text, textAlign: 'left' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = T.cardBg; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
-                      >
-                        {coin.thumb ? (
-                          <img src={coin.thumb} alt="" style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }} />
-                        ) : (
-                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,.1)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🪙</div>
-                        )}
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{coin.name}</div>
-                          <div style={{ fontSize: 11, color: T.textMuted }}>{coin.symbol}{coin.rank ? ` · #${coin.rank} market cap` : ''}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                 <FF label={t('pos_symbol')} auto={isAuto('ticker')}>
                   <input
@@ -499,8 +584,8 @@ export default function PositionFormModal({ T, data }) {
                     onBlur={e => { if (e.target.value) fetchTickerPrice(e.target.value.toUpperCase()); }}
                   />
                 </FF>
-                <FF label={fetchingPrice ? t('pos_fetching') : prices[posForm.ticker] != null ? t('pos_live_price') : t('pos_current_price')} auto={prices[posForm.ticker] != null}>
-                  <input type="number" placeholder="Auto via CoinGecko" min="0" step="any" style={{ ...(prices[posForm.ticker] != null ? inpAuto : inp), opacity: fetchingPrice ? 0.5 : 1 }} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
+                <FF label={fetchingPrice ? t('pos_fetching') : prices[posForm.ticker] != null ? t('pos_live_price') : t('pos_current_price')} auto={prices[posForm.ticker] != null || isAuto('currentPrice')}>
+                  <input type="number" placeholder="Auto via CoinGecko" min="0" step="any" style={{ ...((prices[posForm.ticker] != null || isAuto('currentPrice')) ? inpAuto : inp), opacity: fetchingPrice ? 0.5 : 1 }} value={posForm.currentPrice} onChange={e => setPosForm(p => ({ ...p, currentPrice: e.target.value }))} />
                 </FF>
               </div>
 
@@ -617,8 +702,8 @@ export default function PositionFormModal({ T, data }) {
                     onChange={e => {
                       const rate = e.target.value;
                       setPosForm(p => {
-                        const invested = parseFloat(p.buyPrice) || 0;
-                        const newCurrent = rate && invested ? String(+(invested * (1 + parseFloat(rate) / 100)).toFixed(2)) : p.currentPrice;
+                        const invested2 = parseFloat(p.buyPrice) || 0;
+                        const newCurrent = rate && invested2 ? String(+(invested2 * (1 + parseFloat(rate) / 100)).toFixed(2)) : p.currentPrice;
                         return { ...p, guaranteedRate: rate, currentPrice: newCurrent };
                       });
                     }}
