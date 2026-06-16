@@ -26,6 +26,12 @@ function commodityUnitFactor(type, unit) {
   return 1 / 31.1035;  // grammes (default for metals)
 }
 
+function generateReferralCode(user) {
+  const email = user?.email || user?.id || '';
+  const nameRaw = email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  return (nameRaw || 'USER') + Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+
 const mkTx      = () => ({ date: today(), label: '', category: 'Alimentation', amount: '', type: 'expense', recurrent: false, accountId: '', destAccountId: '', loanId: '' });
 const mkInv     = () => ({ name: '', category: 'Actions', value: '', invested: '', notes: '' });
 const mkPortfolio = () => ({
@@ -248,11 +254,9 @@ export function useData() {
         if (data.referral_code) {
           setReferralCode(data.referral_code);
         } else if (profileId == null) {
-          const email = userRef.current?.email || userId;
-          const nameRaw = email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-          const code = (nameRaw || 'USER') + Math.random().toString(36).slice(2, 6).toUpperCase();
+          const code = generateReferralCode(userRef.current || { id: userId });
           setReferralCode(code);
-          supabase.from('user_data').update({ referral_code: code }).eq('user_id', userId).then(() => {});
+          await supabase.from('user_data').update({ referral_code: code }).eq('user_id', userId);
         }
       }
       if (profileId == null) {
