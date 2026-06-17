@@ -394,9 +394,22 @@ module.exports = async function handler(req, res) {
       console.log('STEP6 user:', row.user_id, 'invTotal:', invTotal, 'cashTotal:', cashTotal, 'healthTotal:', healthTotal, 'total:', total);
       if (total <= 0) { console.log('STEP6 user:', row.user_id, 'SKIP: total <= 0'); continue; }
 
+      // Frontend snapshot for this hour is more precise — never overwrite it
+      const { data: existingFrontend } = await supabaseAdmin
+        .from('patrimoine_history')
+        .select('id')
+        .eq('user_id', row.user_id)
+        .eq('source', 'frontend')
+        .gte('recorded_at', recordedAt)
+        .limit(1);
+      if (existingFrontend?.length) {
+        console.log('STEP6 user:', row.user_id, 'SKIP: frontend snapshot exists for this hour');
+        continue;
+      }
+
       const { data: lastSnap } = await supabaseAdmin
         .from('patrimoine_history')
-        .select('valeur, recorded_at, source')
+        .select('valeur, recorded_at')
         .eq('user_id', row.user_id)
         .order('recorded_at', { ascending: false })
         .limit(1);
@@ -404,11 +417,6 @@ module.exports = async function handler(req, res) {
       const minutesSinceLast = last ? (Date.now() - new Date(last.recorded_at).getTime()) / 60000 : 999;
       const valueDiff = last && last.valeur > 0 ? Math.abs(total - last.valeur) / last.valeur : 1;
 
-      // Frontend snapshot is more precise — don't overwrite if recent
-      if (last?.source === 'frontend' && minutesSinceLast < 30) {
-        console.log('STEP6 user:', row.user_id, 'SKIP: recent frontend snapshot (more precise)', { min: Math.round(minutesSinceLast) });
-        continue;
-      }
       if (minutesSinceLast < 45 && valueDiff < 0.005) {
         console.log('STEP6 user:', row.user_id, 'SKIP: recent cron snapshot, no significant change', { min: Math.round(minutesSinceLast), diff: valueDiff.toFixed(4) });
         continue;
