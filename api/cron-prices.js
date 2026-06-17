@@ -350,6 +350,8 @@ module.exports = async function handler(req, res) {
 
   // ── STEP 6: Server-side patrimoine snapshots ──────────────────────────────
   console.log('STEP6 START: computing patrimoine snapshots');
+  console.log('STEP6 START: users to process:', rows.length);
+  console.log('STEP6 prices available:', Object.keys(priceMap).length);
   try {
     const nowHour = new Date();
     nowHour.setMinutes(0, 0, 0);
@@ -361,11 +363,15 @@ module.exports = async function handler(req, res) {
       .select('user_id')
       .gte('recorded_at', recordedAt);
     const recentSet = new Set((recentSnaps || []).map(r => r.user_id));
+    console.log('STEP6 recentSet size (already snapshotted this hour):', recentSet.size);
 
     let snapshotted = 0;
     for (const row of rows) {
       if (!row.user_id) continue;
-      if (recentSet.has(row.user_id)) continue;
+      if (recentSet.has(row.user_id)) {
+        console.log('STEP6 user:', row.user_id, 'SKIP: already in recentSet');
+        continue;
+      }
 
       // ── compute invTotal from priceMap (fresh prices from STEP4/5) ──────
       let invTotal = 0;
@@ -397,7 +403,8 @@ module.exports = async function handler(req, res) {
       const cashTotal   = (row.savings      || []).reduce((s, a) => s + (parseFloat(a.balance)       || 0), 0);
       const healthTotal = (row.health_assets || []).reduce((s, h) => s + (parseFloat(h.currentValue) || 0), 0);
       const total = Math.round(invTotal + cashTotal + healthTotal);
-      if (total <= 0) continue;
+      console.log('STEP6 user:', row.user_id, 'invTotal:', invTotal, 'cashTotal:', cashTotal, 'healthTotal:', healthTotal, 'total:', total);
+      if (total <= 0) { console.log('STEP6 user:', row.user_id, 'SKIP: total <= 0'); continue; }
 
       // Skip if the last stored value is identical (no change to record)
       const { data: last } = await supabaseAdmin
@@ -406,7 +413,7 @@ module.exports = async function handler(req, res) {
         .eq('user_id', row.user_id)
         .order('recorded_at', { ascending: false })
         .limit(1);
-      if (last?.length && last[0].valeur === total) continue;
+      if (last?.length && last[0].valeur === total) { console.log('STEP6 user:', row.user_id, 'SKIP: valeur unchanged', total); continue; }
 
       const { error: insErr } = await supabaseAdmin
         .from('patrimoine_history')
