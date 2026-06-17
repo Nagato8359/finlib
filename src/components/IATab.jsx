@@ -5,7 +5,7 @@ async function callGemini(contents, isAutoAnalysis = false, userPlan = 'free', u
   const res = await fetch('/api/gemini', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-user-plan': userPlan, 'x-user-id': userId },
-    body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: isAutoAnalysis ? 4096 : 2048 }, isAutoAnalysis }),
+    body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }, isAutoAnalysis }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Erreur API (${res.status})`);
