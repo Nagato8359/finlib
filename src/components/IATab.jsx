@@ -241,7 +241,7 @@ const SUGGESTIONS = [
 
 export default function IATab({ T, data }) {
   const { t } = useTranslation();
-  const isPro = Boolean(data?.preferences?.plan === 'pro' || data?.proActive);
+  const isPro = true; // TODO: connecter à subscriptions Stripe
   const userPlan = isPro ? 'pro' : 'free';
   const userId = data?.user?.id || data?.userId || 'anon';
   const [analysisState, setAnalysisState] = useState('loading'); // loading | done | error
