@@ -210,6 +210,7 @@ const ANALYSIS_PROMPT = ctx => `Tu es un conseiller financier expert francophone
 DONNÉES FINANCIÈRES COMPLÈTES DE L'UTILISATEUR :
 ${ctx}
 CONSIGNES :
+- Commence DIRECTEMENT par la première section (💪 POINTS FORTS), sans introduction, sans bonjour, sans phrase d'accroche.
 - Réponds EXCLUSIVEMENT en français
 - Cite des chiffres précis tirés des données (montants, pourcentages, ratios)
 - Sois concret, bienveillant et actionnable
@@ -335,7 +336,11 @@ export default function IATab({ T, data }) {
           </div>
         )}
 
-        {analysisState === 'done' && <MdText text={analysis} T={T} />}
+        {analysisState === 'done' && (
+          <div style={{ overflowY: 'auto', maxHeight: '60vh' }}>
+            <MdText text={analysis} T={T} />
+          </div>
+        )}
       </div>
 
       {/* Chat card — shown even on error so user can still ask questions */}
