@@ -67,16 +67,18 @@ module.exports = async function handler(req, res) {
     const userId = req.headers['x-user-id'] || req.headers['x-forwarded-for'] || 'anon';
 
     // Rate limiting — skip for server-triggered auto-analysis
+    // Counter is incremented only after a successful Gemini response
+    let rateKey = null;
+    let rateCount = 0;
     if (!isAutoAnalysis && userPlan !== 'pro') {
       const date = new Date().toISOString().slice(0, 10);
-      const cacheKey = `ai_count:${userId}:${date}`;
-      const count = parseInt(await getCached(cacheKey) || '0', 10);
-      if (count >= AI_CONFIG.limits.free) {
+      rateKey = `ai_count:${userId}:${date}`;
+      rateCount = parseInt(await getCached(rateKey) || '0', 10);
+      if (rateCount >= AI_CONFIG.limits.free) {
         return res.status(429).json({
           error: `Limite de ${AI_CONFIG.limits.free} questions par jour atteinte. Passez en Pro pour un accès illimité.`,
         });
       }
-      await setCached(cacheKey, String(count + 1), 86400);
     }
 
     if (!isAutoAnalysis) {
@@ -95,7 +97,7 @@ module.exports = async function handler(req, res) {
     }
 
     const url = `${AI_CONFIG.baseUrl}/${AI_CONFIG.model}:generateContent?key=${apiKey}`;
-    const apiRes = await fetch(url, {
+    const fetchOptions = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -106,13 +108,26 @@ module.exports = async function handler(req, res) {
           maxOutputTokens: generationConfig?.maxOutputTokens ?? 2048,
         },
       }),
-    });
+    };
 
-    const data = await apiRes.json().catch(() => ({}));
+    let apiRes = await fetch(url, fetchOptions);
+    let data = await apiRes.json().catch(() => ({}));
+
+    // Retry once on 503 or high-demand error
+    if (apiRes.status === 503 || (data.error?.message || '').toLowerCase().includes('high demand')) {
+      console.log('[gemini] 503/high-demand, retrying in 2s...');
+      await new Promise(r => setTimeout(r, 2000));
+      apiRes = await fetch(url, fetchOptions);
+      data = await apiRes.json().catch(() => ({}));
+    }
+
     if (!apiRes.ok) {
       console.error('[gemini] API error:', apiRes.status, JSON.stringify(data));
       return res.status(502).json({ error: data.error?.message || `Erreur Gemini ${apiRes.status}` });
     }
+
+    // Increment rate limit counter only on success
+    if (rateKey) await setCached(rateKey, String(rateCount + 1), 86400);
 
     return res.status(200).json(data);
 
