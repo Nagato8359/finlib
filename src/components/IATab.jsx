@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
 
-async function callGemini(contents, isAutoAnalysis = false, userPlan = 'free', userId = 'anon') {
+async function callGemini(contents, isAutoAnalysis = false, userPlan = 'free', userId = 'anon', forceRefresh = false) {
+  const headers = { 'Content-Type': 'application/json', 'x-user-plan': userPlan, 'x-user-id': userId };
+  if (forceRefresh) headers['x-force-refresh'] = 'true';
   const res = await fetch('/api/gemini', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-user-plan': userPlan, 'x-user-id': userId },
+    headers,
     body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }, isAutoAnalysis }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Erreur API (${res.status})`);
-  return json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  if (json.cached) return { text: json.text, cached: true };
+  return { text: json.candidates?.[0]?.content?.parts?.[0]?.text ?? '', cached: false };
 }
 
 function buildContext(data) {
@@ -252,6 +255,7 @@ export default function IATab({ T, data }) {
   const [analysisState, setAnalysisState] = useState('loading'); // loading | done | error
   const [analysis, setAnalysis] = useState('');
   const [analysisError, setAnalysisError] = useState('');
+  const [analysisFromCache, setAnalysisFromCache] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -263,12 +267,14 @@ export default function IATab({ T, data }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, chatLoading]);
 
-  async function runAnalysis() {
+  async function runAnalysis(forceRefresh = false) {
     setAnalysisState('loading');
     setAnalysisError('');
+    setAnalysisFromCache(false);
     try {
-      const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(buildContext(data)) }] }], true, userPlan, userId);
+      const { text, cached } = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(buildContext(data)) }] }], true, userPlan, userId, forceRefresh);
       setAnalysis(text);
+      setAnalysisFromCache(cached);
       setAnalysisState('done');
     } catch (err) {
       setAnalysisError(err.message);
@@ -292,7 +298,7 @@ export default function IATab({ T, data }) {
         { role: 'model', parts: [{ text: "Compris, je suis votre assistant financier Capitaly. Comment puis-je vous aider ?" }] },
         ...next.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
       ];
-      const reply = await callGemini(contents, false, userPlan, userId);
+      const { text: reply } = await callGemini(contents, false, userPlan, userId);
       setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', text: `❌ Erreur : ${err.message}` }]);
@@ -315,12 +321,17 @@ export default function IATab({ T, data }) {
       <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{t('ia_analysis_title')}</span>
-          {analysisState === 'done' && (
-            <button onClick={runAnalysis}
-              style={{ background: T.accent + '1a', border: `1px solid ${T.accent}40`, borderRadius: 8, color: T.accent, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              {t('ia_refresh')}
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {analysisFromCache && analysisState === 'done' && (
+              <span style={{ fontSize: 11, color: T.textMuted }}>Analyse du jour</span>
+            )}
+            {analysisState === 'done' && (
+              <button onClick={() => runAnalysis(true)}
+                style={{ background: T.accent + '1a', border: `1px solid ${T.accent}40`, borderRadius: 8, color: T.accent, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {t('ia_refresh')}
+              </button>
+            )}
+          </div>
         </div>
 
         {analysisState === 'loading' && (

@@ -81,6 +81,16 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // Analysis cache — 24h per user, bypassable with x-force-refresh
+    const analysisCacheKey = isAutoAnalysis && userId !== 'anon' ? `analysis:${userId}` : null;
+    if (analysisCacheKey) {
+      const forceRefresh = req.headers['x-force-refresh'] === 'true';
+      if (!forceRefresh) {
+        const cached = await getCached(analysisCacheKey);
+        if (cached) return res.status(200).json({ cached: true, text: cached });
+      }
+    }
+
     if (!isAutoAnalysis) {
       const lastUser = [...contents].reverse().find(m => m.role === 'user');
       if (lastUser) {
@@ -124,6 +134,12 @@ module.exports = async function handler(req, res) {
     if (!apiRes.ok) {
       console.error('[gemini] API error:', apiRes.status, JSON.stringify(data));
       return res.status(502).json({ error: data.error?.message || `Erreur Gemini ${apiRes.status}` });
+    }
+
+    // Store analysis result in cache for 24h
+    if (analysisCacheKey) {
+      const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      if (analysisText) await setCached(analysisCacheKey, analysisText, 86400);
     }
 
     // Increment rate limit counter only on success
