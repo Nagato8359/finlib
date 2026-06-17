@@ -47,7 +47,7 @@ Limite Vercel Hobby : **12 fonctions** (fichiers non-underscore). Actuellement :
 | `performance.js` | `/api/performance?ticker=X&tf=1J\|1S\|1M\|3M\|1AN` | GET | % de variation sur période via Yahoo Finance | Court |
 | `gemini.js` | `/api/gemini` | POST | IA conseiller financier (Google Gemini 1.5 Flash, contexte portfolio) | Aucun |
 | `push.js` | `/api/push?action=subscribe\|send\|test` | GET/POST | Gestion abonnements Web Push + envoi notifications | Aucun |
-| `cron-prices.js` | Cron interne | — | Sync périodique prix → table `prices_cache` | — |
+| `cron-prices.js` | `/api/cron-prices` | GET (cron) / POST | Sync prix → `prices_cache`, snapshots patrimoine server-side, dividendes, push | — |
 
 **Helpers** (prefixe `_`, ne comptent pas dans la limite) :
 
@@ -68,6 +68,19 @@ Limite Vercel Hobby : **12 fonctions** (fichiers non-underscore). Actuellement :
 | `arbitrum` | arbitrum.blockscout.com | ETH |
 | `optimism` | optimism.blockscout.com | ETH |
 | `gnosis` | gnosis.blockscout.com | XDAI |
+
+### Flux prix (cron → cache → frontend)
+
+```
+cron-prices.js (Vercel cron, ~toutes les heures)
+  → STEP4 : Yahoo Finance / CoinGecko → prices_cache (Supabase)
+  → STEP5 : RealT community API → prices_cache
+  → STEP6 : calcule patrimoine total par user → patrimoine_history (source: 'cron')
+
+frontend (useData.js)
+  → /api/prices?tickers=... → prices_cache (lecture)
+  → POST /api/cron-prices?action=snapshot → patrimoine_history (source: 'frontend')
+```
 
 ---
 
@@ -95,7 +108,10 @@ Toutes les données utilisateur dans une seule ligne JSON par profil. Colonnes :
 | `proj_years` | INT | Durée projection (défaut 20 ans) |
 | `proj_rate` | NUMERIC | Taux annuel projection (défaut 7%) |
 | `proj_monthly` | NUMERIC | Versement mensuel projection |
-| `preferences` | JSONB | Thème, langue, devise, format date… |
+| `preferences` | JSONB | Thème, langue, devise, format date, notifications… |
+| `referral_code` | TEXT | Code parrainage unique généré à la connexion |
+| `referred_by` | TEXT | Code parrainage utilisé à l'inscription |
+| `pro_bonus_months` | INT | Mois Pro offerts via parrainage |
 | `updated_at` | TIMESTAMPTZ | Dernière sauvegarde |
 
 Contraintes : `UNIQUE(user_id)` pour profil principal, `UNIQUE(user_id, profile_id)` pour profils nommés. RLS activé.
@@ -104,11 +120,14 @@ Contraintes : `UNIQUE(user_id)` pour profil principal, `UNIQUE(user_id, profile_
 
 | Table | Colonnes clés | Rôle | RLS |
 |-------|--------------|------|-----|
-| `profiles` | `id, user_id, label, created_at` | Profils nommés (multi-profil) | Oui |
-| `prices_cache` | `ticker (PK), price, change_pct, currency, updated_at` | Cache prix lecture publique | Oui (read public) |
-| `dividend_events` | `ticker, ex_date (UNIQUE), payment_date, amount, currency, amount_eur` | Événements dividendes | Oui (read public, write service\_role) |
-| `patrimoine_history` | `user_id, valeur, recorded_at` | Snapshots mensuels de patrimoine | Oui |
-| `push_subscriptions` | `user_id, subscription (JSONB), endpoint (UNIQUE per user)` | Abonnements Web Push | Oui |
+| `profiles` | `id, owner_user_id, label, created_at` | Profils nommés (multi-profil) | Oui |
+| `prices_cache` | `ticker (PK), price, change_pct, currency, updated_at` | Cache prix alimenté par cron, lu par frontend | Oui (read public) |
+| `dividend_events` | `ticker, ex_date (UNIQUE avec ticker), payment_date, amount, currency, amount_eur, status (confirmed/estimated), source (yahoo/estimated)` | Événements dividendes passés + estimations futures | Oui (read public, write service\_role) |
+| `patrimoine_history` | `id, user_id, valeur, recorded_at, source (frontend/cron)` | Snapshots horaires de patrimoine — double source | Oui |
+| `push_subscriptions` | `id, user_id, subscription (JSONB), created_at` | Abonnements Web Push (endpoint unique par user) | Oui |
+| `referrals` | `id, referrer_id, referred_id, bonus_months, status, created_at` | Historique parrainages + statut bonus | Oui |
+
+**Index unique** : `patrimoine_history(user_id, recorded_at)` — évite les doublons cron/frontend pour la même heure.
 
 ---
 
@@ -118,11 +137,11 @@ Contraintes : `UNIQUE(user_id)` pour profil principal, `UNIQUE(user_id, profile_
 
 | Composant | Onglet | Rôle |
 |-----------|--------|------|
-| `Accueil.jsx` | `accueil` | Dashboard : KPI patrimoine, sparklines, camembert répartition, trophées |
+| `Accueil.jsx` | `accueil` | Dashboard : KPI patrimoine, sparklines, camembert répartition, trophées, graphique patrimoine_history |
 | `Patrimoine.jsx` | `patrimoine` | Inventaire complet : investissements, épargne, actifs matériels, prêts, immobilier |
 | `Budget.jsx` | `budget` | Suivi budgets catégories, objectifs avec countdown, taux d'endettement |
 | `Flux.jsx` | `flux` | Relevé transactions, import/export CSV, prévision trésorerie 90 jours |
-| `Investir.jsx` | `investir` | Recommandations courtiers/plateformes |
+| `Investir.jsx` | `investir` | Courtiers/plateformes recommandés avec liens affiliés et logos |
 | `IATab.jsx` | `ia` | Conseiller IA (Gemini) avec contexte portfolio complet |
 
 #### Outils (`src/components/outils/`)
@@ -133,22 +152,23 @@ Contraintes : `UNIQUE(user_id)` pour profil principal, `UNIQUE(user_id, profile_
 | `CalendrierDividendes.jsx` | `calendrier-dividendes` | Calendrier dividendes avec dates ex/paiement et montants |
 | `RecapFiscal.jsx` | `recap-fiscal` | Récap fiscal FR : dividendes bruts/nets, loyers, IFI, flat-tax crypto |
 | `Simulateur.jsx` | `simulateur` | Calculateurs : DCA, intérêts composés, amortissement prêt |
-| `Rebalancing.jsx` | `rebalancing` | Rééquilibrage : allocation cible (sliders), écart €/%, actions achat/vente |
-
-**Pages Coming Soon** (non implémentées) : `veille-marche`, `optimisation-fiscale`.
+| `SimulateurDividendes.jsx` | `simulateur-dividendes` | Simulation revenus dividendes passifs sur N années |
+| `SimulateurRetraite.jsx` | `simulateur-retraite` | Simulateur retraite FR (formules pension + analyse manque à gagner) |
+| `VeilleMarche.jsx` | `veille-marche` | Veille marchés financiers, actualités, indices |
+| `Rebalancing.jsx` | `rebalancing` | Rééquilibrage : allocation cible (sliders), vrais calculs €/%, ordres achat/vente |
 
 #### Modaux & layout
 
 | Composant | Rôle |
 |-----------|------|
 | `Modals.jsx` | Tous les formulaires CRUD (investissement, position, compte, dividende…) |
-| `PositionFormModal.jsx` | Formulaire spécialisé titres (recherche ticker, prix live) |
+| `PositionFormModal.jsx` | Formulaire spécialisé titres — barre de recherche universelle (ISIN/ticker/nom) avec fallback ISIN manuel |
 | `Sidebar.jsx` | Navigation gauche desktop (220px fixe) + sous-menu Outils |
 | `Navigation.jsx` | Nav mobile bas d'écran |
 | `Header.jsx` | Barre haut : thème, devise, langue, profil, export/import |
 | `AuthScreen.jsx` | Login / inscription Supabase + mode démo |
-| `ResetPassword.jsx` | Réinitialisation mot de passe |
-| `ProfilePage.jsx` | Paramètres profil utilisateur |
+| `ResetPassword.jsx` | Réinitialisation mot de passe (via Resend + capitaly.fr) |
+| `ProfilePage.jsx` | Paramètres profil utilisateur + code parrainage |
 | `TrophiesPage.jsx` | Page badges/trophées |
 | `Confetti.jsx` | Animation célébration achievements |
 | `Tutorial/TutorialSlides.jsx` | Onboarding slides |
@@ -160,7 +180,7 @@ Contraintes : `UNIQUE(user_id)` pour profil principal, `UNIQUE(user_id, profile_
 
 | Hook | Rôle |
 |------|------|
-| `useData.js` | Store central : charge/sauve Supabase, calcule patrimoine, dividendes, budget, récurrents |
+| `useData.js` | Store central : charge/sauve Supabase, calcule patrimoine, dividendes, budget, récurrents, envoie snapshot frontend |
 | `useTheme.js` | Thème dark/light, couleur accent, devise, format date, langue |
 | `useTranslation.js` | Accès au `t()` i18n depuis n'importe quel composant |
 
@@ -236,13 +256,14 @@ Toutes définies dans `.env` local et dans les **Environment Variables Vercel**.
 | `REACT_APP_VAPID_PUBLIC_KEY` | Clé publique Web Push | Frontend |
 | `SUPABASE_URL` | URL Supabase (fonctions serverless) | Backend |
 | `SUPABASE_ANON_KEY` | Clé anon (fonctions serverless) | Backend |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clé service role (écriture `dividend_events`, etc.) | Backend uniquement |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clé service role (écriture `dividend_events`, snapshots, etc.) | Backend uniquement |
 | `UPSTASH_REDIS_REST_URL` | Endpoint Upstash Redis | Backend |
 | `UPSTASH_REDIS_REST_TOKEN` | Token auth Upstash | Backend |
 | `VAPID_PUBLIC_KEY` | Clé pub VAPID (doit correspondre à REACT_APP_*) | Backend |
 | `VAPID_PRIVATE_KEY` | Clé privée VAPID (secret absolu) | Backend |
 | `VAPID_EMAIL` | Email expéditeur push | Backend |
 | `GEMINI_API_KEY` | Clé API Google Gemini | Backend |
+| `CRON_SECRET` | Secret Bearer pour protéger les endpoints cron | Backend |
 
 > **Règle** : jamais de `SUPABASE_SERVICE_ROLE_KEY` côté frontend. Jamais de `VAPID_PRIVATE_KEY` exposé.
 
@@ -251,7 +272,7 @@ Toutes définies dans `.env` local et dans les **Environment Variables Vercel**.
 ## Fonctionnalités implémentées
 
 ### Core
-- [x] Auth Supabase (email/password + reset)
+- [x] Auth Supabase (email/password + reset mot de passe via Resend + capitaly.fr)
 - [x] Multi-profils (profil principal + profils nommés)
 - [x] Mode démo (données fictives sans compte)
 - [x] Sauvegarde auto Supabase avec debounce 500ms
@@ -262,18 +283,21 @@ Toutes définies dans `.env` local et dans les **Environment Variables Vercel**.
 - [x] Format date configurable (dd/mm, mm/dd, yyyy-mm-dd)
 - [x] Tutorial onboarding (slides + tooltips interactifs)
 - [x] Système trophées/badges (6 niveaux, ~10 catégories)
+- [x] Système de parrainage (code unique, table referrals, 1 mois Pro par filleul)
 
 ### Patrimoine & Investissements
 - [x] 43 types d'enveloppes d'investissement
 - [x] Positions par enveloppe (titres, parts, lots)
+- [x] Barre de recherche universelle dans le formulaire d'ajout de position (ISIN/ticker/nom + fallback ISIN manuel)
 - [x] Prix live (Yahoo Finance pour actions/ETF/matières, CoinGecko pour crypto)
-- [x] Cache prix Supabase `prices_cache` (sync par cron)
-- [x] Logos actifs : Logo.dev ticker API + Yahoo Finance search (cascade)
+- [x] Cache prix Supabase `prices_cache` (alimenté par cron, lu par frontend via `/api/prices`)
+- [x] Logos actifs : favicons enveloppes + Logo.dev ticker API + Yahoo Finance search (cascade)
 - [x] Import wallet EVM (0x) : détection auto tokens ERC-20 + natifs, 6 réseaux Blockscout
 - [x] Sync wallet EVM (bouton dans drill-down Crypto)
 - [x] Import RealT (wallet Ethereum + historique loyers USDC)
-- [x] Bouton liquidités par enveloppe
-- [x] Snapshot mensuel patrimoine → `patrimoine_history`
+- [x] Bouton liquidités par enveloppe (cash flottant séparé des positions)
+- [x] Snapshots patrimoine double-source : frontend (précis, live) + cron server-side (toutes les heures)
+- [x] Graphique patrimoine historique depuis `patrimoine_history` Supabase
 - [x] Comptes épargne / livrets (Livret A, LDDS, PEL…)
 - [x] Actifs matériels (véhicules, bijoux, collections…)
 - [x] Prêts immobiliers (amortissement, coût total, date fin)
@@ -294,15 +318,25 @@ Toutes définies dans `.env` local et dans les **Environment Variables Vercel**.
 - [x] **Calendrier dividendes** : dates ex/paiement, montants, marquer comme reçu
 - [x] **Récap fiscal** : dividendes, loyers, IFI, flat-tax crypto
 - [x] **Simulateur** : DCA, intérêts composés, amortissement prêt
-- [x] **Rebalancing** : 9 catégories, camembert allocation, sliders cible (localStorage), tableau écarts, cards mobile
+- [x] **Simulateur Dividendes** : projection revenus passifs dividendes sur N années
+- [x] **Simulateur Retraite** : formules pension FR + analyse du manque à gagner + intégration patrimoine
+- [x] **Veille Marché** : actualités et indices financiers
+- [x] **Rebalancing** : allocation cible, vrais calculs €/%, ordres achat/vente générés
 
 ### Notifications
-- [x] Web Push (VAPID) via Service Worker
+- [x] Web Push (VAPID) via Service Worker — iPhone Safari + Chrome
 - [x] Souscription persistée en `push_subscriptions`
-- [x] Notifications push uniquement (in-app notifications supprimées)
+- [x] Push : rappel inactivité (3j/7j/14j/30j/60j/90j)
+- [x] Push : paliers patrimoine franchis (50k, 100k, 150k, 200k, 500k, 1M)
+- [x] Push : record patrimoine battu (+0.5% par rapport au max historique)
+- [x] Push : dividende imminent (J-3 avant ex-date)
+- [x] Push : alerte cours (variation > 5% sur une position détenue)
 
 ### IA
 - [x] Chat Gemini avec contexte portfolio complet injecté en system prompt
+
+### Page Investir
+- [x] Courtiers/plateformes avec liens affiliés et logos
 
 ---
 
@@ -310,12 +344,15 @@ Toutes définies dans `.env` local et dans les **Environment Variables Vercel**.
 
 | Sujet | Description | Statut |
 |-------|-------------|--------|
-| Blockscout `exchange_rate` null | Certains tokens stables (ex: USDC sur Gnosis) renvoient `exchange_rate: null` → fixé avec fallback stablecoin ($1) | Corrigé (`fix: USDC price on Gnosis`) |
-| Yahoo Finance rate limits | L'API non-officielle peut bloquer les requêtes (429) sous charge → Upstash cache atténue le problème | Contournement en place |
-| Vercel Hobby limit | Max 12 fonctions serverless (non-underscore) — actuellement 10 | Surveiller avant d'ajouter |
+| RealT community API | Retourne 403 depuis Vercel — prix via Blockscout `exchange_rate` | Contournement en place |
+| XDAI ticker | Non reconnu par Yahoo Finance — prix Gnosis natif non résolu | À corriger |
+| Brave browser | Bloque les notifications push (AbortError) — user doit whitelister | Connu, pas de fix |
+| Prix actions européennes | ISINs européens peuvent être en retard (cache 5 min `prices_cache`) | Normal |
+| Logos actions/ETF | Certains tickers absents de Logo.dev → pas de logo | Couverture ~95% |
+| Yahoo Finance rate limits | L'API non-officielle peut bloquer (429) sous charge → cache atténue | Contournement en place |
+| Vercel Hobby limit | Max 12 fonctions serverless (non-underscore) — actuellement 10 | Surveiller |
 | CoinGecko dépréciation | L'API v3 sans clé est de plus en plus limitée | À surveiller |
 | Capacitor mobile | Build Android/iOS déclaré dans package.json mais pas encore configuré/testé | Non validé |
-| Catégories Rebalancing | Basées sur `inv.type` exact — un type mal saisi ne sera pas catégorisé | Normal, pas de bug |
 
 ---
 
@@ -324,32 +361,45 @@ Toutes définies dans `.env` local et dans les **Environment Variables Vercel**.
 ### 1. `user_data` — une seule ligne JSON par profil
 Toutes les données (transactions, investissements, objectifs…) sont sérialisées en JSONB dans une seule ligne par utilisateur. Avantage : 0 JOIN, sauvegarde atomique. Inconvénient : pas de queries SQL partielles, taille limitée par Supabase (~1 MB recommandé).
 
-### 2. Prix live côté client via proxy Vercel
-Les prix ne sont pas stockés en temps réel (sauf `prices_cache` pour le cache court terme). `invLiveValue(inv)` utilise `currentPrice` stocké dans chaque position et mis à jour au chargement ou manuellement. Évite les coûts de WebSocket.
+### 2. Snapshots patrimoine — double source
+`patrimoine_history` reçoit des inserts de deux sources :
+- **`source: 'frontend'`** : envoyé par le frontend après calcul live (prix frais, toutes positions) — plus précis.
+- **`source: 'cron'`** : calculé par `cron-prices.js` STEP6 à partir de `prices_cache` — server-side, sans dépendance au client.
 
-### 3. Stablecoin fallback dans `crypto-wallet.js`
-Blockscout retourne parfois `exchange_rate: null` pour les stablecoins (USDC, USDT, DAI…). Le bug était masqué par `parseFloat(token.exchange_rate || '0')` qui forçait 0 au lieu de laisser NaN. Fix : `parseFloat(token.exchange_rate)` + liste `STABLECOINS` → fallback $1 si exchange_rate invalide.
+**Priorité** : si un snapshot `frontend` existe pour l'heure courante, le cron ne l'écrase pas. Le cron skip également si < 45 min depuis le dernier snapshot cron ET variation < 0.5%. Index unique `(user_id, recorded_at)` empêche les doublons.
 
-### 4. `formatCompact` local dans Projection
-Plutôt que modifier le `fEur` global (risque de régression), une fonction locale `formatCompact(n)` a été créée dans `Projection.jsx` pour afficher les grands nombres (M€, k€) dans les KPI et l'axe Y du graphe.
+### 3. Prix : cron → prices_cache → frontend
+Le cron rafraîchit `prices_cache` toutes les heures via Yahoo Finance/CoinGecko. Le frontend lit ces prix via `/api/prices?tickers=...` (avec cache Upstash 15 min). Évite d'appeler Yahoo Finance depuis le navigateur (CORS, rate limits).
 
-### 5. Wallet EVM — champ `adresse` de l'enveloppe
-Pour éviter d'ajouter un nouveau champ au modèle, l'adresse wallet EVM est stockée dans le champ existant `portfolioForm.adresse` (inutilisé pour le type Crypto). La validation `^0x[0-9a-fA-F]{40}$` détermine si le bouton "Sync wallet" doit apparaître.
+### 4. Logos — cascade
+Logos actifs : favicons Google (`https://www.google.com/s2/favicons?sz=32&domain=...`) pour les enveloppes → Logo.dev ticker API (`img.logo.dev/ticker/{ticker}`) pour les positions → Yahoo Finance search icon comme dernier fallback. Couvre ~95% des cas.
 
-### 6. Sync wallet — merge sans suppression
-`syncCwallet` dans `Patrimoine.jsx` ne supprime jamais de positions existantes. Elle met à jour `shares` + `currentPrice` pour les tickers déjà présents, et ajoute les nouveaux. Les positions manuelles (tickers introuvables on-chain) sont préservées.
+### 5. Notifications push — Web Push VAPID
+Service Worker `/service-worker.js` avec headers `no-cache` dans `vercel.json`. Abonnements stockés en `push_subscriptions`. Fonctionne sur iPhone Safari et Chrome desktop/Android. Brave bloque (AbortError côté client, pas de fix possible sans action user).
 
-### 7. Rebalancing — localStorage pour les cibles
-Les pourcentages cibles de rebalancing sont sauvegardés localement (`capitaly_rebalancing_target`) et non en base Supabase. Choix délibéré pour éviter une mise à jour du schéma `user_data`. À migrer vers Supabase si la feature devient critique.
+### 6. Parrainage — code unique à la connexion
+Code parrainage généré côté frontend au premier login (`referral_code` dans `user_data`). Persisté en base. Le filleul entre le code à l'inscription → `referred_by` renseigné → `referrals` row créée → `pro_bonus_months` incrémenté pour parrain et filleul.
 
-### 8. Vercel Functions — préfixe underscore
-Les fichiers `api/_*.js` (helpers) ne créent pas de routes HTTP et ne consomment pas de slots dans la limite de 12 fonctions Vercel Hobby.
+### 7. Stablecoin fallback dans `crypto-wallet.js`
+Blockscout retourne parfois `exchange_rate: null` pour les stablecoins (USDC, USDT, DAI…). Fix : `parseFloat(token.exchange_rate)` + liste `STABLECOINS` → fallback $1 si exchange_rate invalide.
 
-### 9. Notifications — push only
-Les notifications in-app (toasts) ont été supprimées. Seules les notifications Web Push (background) sont conservées, pour éviter la pollution visuelle dans l'UI.
+### 8. `formatCompact` local dans Projection
+Fonction locale `formatCompact(n)` dans `Projection.jsx` pour les grands nombres (M€, k€) sans modifier le `fEur` global.
 
-### 10. Logo.dev comme fallback universel
-Cascade pour les logos : Yahoo Finance search API → Logo.dev ticker API (`img.logo.dev/ticker/{ticker}?token=...`). Couvre ~95% des tickers actions/ETF. Les tokens crypto ont souvent une `iconUrl` Blockscout ou CoinGecko.
+### 9. Wallet EVM — champ `adresse` de l'enveloppe
+L'adresse wallet EVM est stockée dans `portfolioForm.adresse` (inutilisé pour Crypto). Validation `^0x[0-9a-fA-F]{40}$` conditionne l'affichage du bouton "Sync wallet".
+
+### 10. Sync wallet — merge sans suppression
+`syncCwallet` met à jour `shares` + `currentPrice` des tickers existants et ajoute les nouveaux. Les positions manuelles sont préservées.
+
+### 11. Rebalancing — localStorage pour les cibles
+Pourcentages cibles sauvegardés en `localStorage` (`capitaly_rebalancing_target`), pas en Supabase. Évite une migration de schéma. À migrer si la feature devient critique.
+
+### 12. Vercel Functions — préfixe underscore
+Les fichiers `api/_*.js` ne créent pas de routes HTTP et ne consomment pas de slots dans la limite de 12.
+
+### 13. Notifications — push only
+Les toasts in-app ont été supprimés. Seules les notifications Web Push (background) sont conservées.
 
 ---
 
@@ -416,10 +466,11 @@ Fonctionnalités Pro :
 - Export PDF/Excel
 
 ### Système de parrainage
-- Code unique par utilisateur (ex: ALEX2026)
+- Code unique par utilisateur (ex: ALEX2026), généré au premier login
 - Parrain → 1 mois Pro gratuit par filleul ayant souscrit
 - Filleul → 1 mois Pro gratuit à l'inscription
 - Pas de limite de parrainages cumulables
+- Persisté en `referrals` + `pro_bonus_months` dans `user_data`
 
 ### Paiement
 - Web (capitaly.fr) → Stripe
@@ -432,6 +483,5 @@ Fonctionnalités Pro :
 - App Store → PWABuilder ou Capacitor
 - À implémenter quand l'app sera stable et sans bugs majeurs
 
-### Tables Supabase à créer
-- `subscriptions` : `user_id, plan (free/pro_monthly/pro_annual/pro_lifetime), status, stripe_customer_id, stripe_subscription_id, current_period_end, referral_code, referred_by`
-- `referrals` : `referrer_id, referred_id, bonus_months, created_at`
+### Tables Supabase à créer (monétisation)
+- `subscriptions` : `user_id, plan (free/pro_monthly/pro_annual/pro_lifetime), status, stripe_customer_id, stripe_subscription_id, current_period_end`
