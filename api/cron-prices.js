@@ -107,7 +107,7 @@ module.exports = async function handler(req, res) {
     recordedAt.setMinutes(0, 0, 0);
     const { error: insErr } = await supabaseAdmin
       .from('patrimoine_history')
-      .insert({ user_id: user.id, valeur, recorded_at: recordedAt.toISOString() });
+      .insert({ user_id: user.id, valeur, recorded_at: recordedAt.toISOString(), source: 'frontend' });
     if (insErr) {
       console.error('[snapshot] insert error:', insErr.message);
       return res.status(500).json({ error: insErr.message });
@@ -396,7 +396,7 @@ module.exports = async function handler(req, res) {
 
       const { data: lastSnap } = await supabaseAdmin
         .from('patrimoine_history')
-        .select('valeur, recorded_at')
+        .select('valeur, recorded_at, source')
         .eq('user_id', row.user_id)
         .order('recorded_at', { ascending: false })
         .limit(1);
@@ -404,14 +404,19 @@ module.exports = async function handler(req, res) {
       const minutesSinceLast = last ? (Date.now() - new Date(last.recorded_at).getTime()) / 60000 : 999;
       const valueDiff = last && last.valeur > 0 ? Math.abs(total - last.valeur) / last.valeur : 1;
 
+      // Frontend snapshot is more precise — don't overwrite if recent
+      if (last?.source === 'frontend' && minutesSinceLast < 30) {
+        console.log('STEP6 user:', row.user_id, 'SKIP: recent frontend snapshot (more precise)', { min: Math.round(minutesSinceLast) });
+        continue;
+      }
       if (minutesSinceLast < 45 && valueDiff < 0.005) {
-        console.log('STEP6 user:', row.user_id, 'SKIP: recent snapshot, no significant change', { min: Math.round(minutesSinceLast), diff: valueDiff.toFixed(4) });
+        console.log('STEP6 user:', row.user_id, 'SKIP: recent cron snapshot, no significant change', { min: Math.round(minutesSinceLast), diff: valueDiff.toFixed(4) });
         continue;
       }
 
       const { error: insErr } = await supabaseAdmin
         .from('patrimoine_history')
-        .insert({ user_id: row.user_id, valeur: total, recorded_at: recordedAt });
+        .insert({ user_id: row.user_id, valeur: total, recorded_at: recordedAt, source: 'cron' });
       if (!insErr) {
         historyEntries.push({ user_id: row.user_id, valeur: total });
         snapshotted++;
