@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
 
-async function callGemini(contents, isAutoAnalysis = false) {
+async function callGemini(contents, isAutoAnalysis = false, userPlan = 'free') {
   const res = await fetch('/api/gemini', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-user-plan': userPlan },
     body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }, isAutoAnalysis }),
   });
   const json = await res.json().catch(() => ({}));
@@ -241,6 +241,8 @@ const SUGGESTIONS = [
 
 export default function IATab({ T, data }) {
   const { t } = useTranslation();
+  const isPro = Boolean(data?.preferences?.plan === 'pro' || data?.proActive);
+  const userPlan = isPro ? 'pro' : 'free';
   const [analysisState, setAnalysisState] = useState('loading'); // loading | done | error
   const [analysis, setAnalysis] = useState('');
   const [analysisError, setAnalysisError] = useState('');
@@ -260,7 +262,7 @@ export default function IATab({ T, data }) {
     setAnalysisState('loading');
     setAnalysisError('');
     try {
-      const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(ctx.current) }] }], true);
+      const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(ctx.current) }] }], true, userPlan);
       setAnalysis(text);
       setAnalysisState('done');
     } catch (err) {
@@ -284,7 +286,7 @@ export default function IATab({ T, data }) {
         { role: 'model', parts: [{ text: "Compris, je suis votre assistant financier Capitaly. Comment puis-je vous aider ?" }] },
         ...next.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
       ];
-      const reply = await callGemini(contents);
+      const reply = await callGemini(contents, false, userPlan);
       setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', text: `❌ Erreur : ${err.message}` }]);
