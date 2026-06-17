@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
 
-async function callGemini(contents, isAutoAnalysis = false, userPlan = 'free') {
+async function callGemini(contents, isAutoAnalysis = false, userPlan = 'free', userId = 'anon') {
   const res = await fetch('/api/gemini', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-user-plan': userPlan },
+    headers: { 'Content-Type': 'application/json', 'x-user-plan': userPlan, 'x-user-id': userId },
     body: JSON.stringify({ contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }, isAutoAnalysis }),
   });
   const json = await res.json().catch(() => ({}));
@@ -243,6 +243,7 @@ export default function IATab({ T, data }) {
   const { t } = useTranslation();
   const isPro = Boolean(data?.preferences?.plan === 'pro' || data?.proActive);
   const userPlan = isPro ? 'pro' : 'free';
+  const userId = data?.user?.id || data?.userId || 'anon';
   const [analysisState, setAnalysisState] = useState('loading'); // loading | done | error
   const [analysis, setAnalysis] = useState('');
   const [analysisError, setAnalysisError] = useState('');
@@ -250,7 +251,6 @@ export default function IATab({ T, data }) {
   const [input, setInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef(null);
-  const ctx = useRef(buildContext(data));
 
   useEffect(() => { runAnalysis(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -262,7 +262,7 @@ export default function IATab({ T, data }) {
     setAnalysisState('loading');
     setAnalysisError('');
     try {
-      const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(ctx.current) }] }], true, userPlan);
+      const text = await callGemini([{ role: 'user', parts: [{ text: ANALYSIS_PROMPT(buildContext(data)) }] }], true, userPlan, userId);
       setAnalysis(text);
       setAnalysisState('done');
     } catch (err) {
@@ -280,13 +280,14 @@ export default function IATab({ T, data }) {
     setMessages(next);
     setChatLoading(true);
     try {
-      const sys = `Tu es l'assistant financier expert de Capitaly. Tu réponds UNIQUEMENT EN FRANÇAIS, de façon concise et personnalisée (200 mots maximum par réponse).\n\nVoici la situation financière complète de l'utilisateur :\n${ctx.current}\nUtilise ces chiffres réels dans tes réponses quand c'est pertinent. Sois bienveillant, précis et actionnable.`;
+      const freshCtx = buildContext(data);
+      const sys = `Tu es l'assistant financier expert de Capitaly. Tu réponds UNIQUEMENT EN FRANÇAIS, de façon concise et personnalisée (200 mots maximum par réponse).\n\nVoici la situation financière complète de l'utilisateur :\n${freshCtx}\nUtilise ces chiffres réels dans tes réponses quand c'est pertinent. Sois bienveillant, précis et actionnable.`;
       const contents = [
         { role: 'user', parts: [{ text: sys }] },
         { role: 'model', parts: [{ text: "Compris, je suis votre assistant financier Capitaly. Comment puis-je vous aider ?" }] },
         ...next.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
       ];
-      const reply = await callGemini(contents, false, userPlan);
+      const reply = await callGemini(contents, false, userPlan, userId);
       setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', text: `❌ Erreur : ${err.message}` }]);
