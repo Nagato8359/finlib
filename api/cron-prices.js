@@ -357,21 +357,9 @@ module.exports = async function handler(req, res) {
     nowHour.setMinutes(0, 0, 0);
     const recordedAt = nowHour.toISOString();
 
-    // Skip users who already have a snapshot this hour (frontend or prior cron run)
-    const { data: recentSnaps } = await supabaseAdmin
-      .from('patrimoine_history')
-      .select('user_id')
-      .gte('recorded_at', recordedAt);
-    const recentSet = new Set((recentSnaps || []).map(r => r.user_id));
-    console.log('STEP6 recentSet size (already snapshotted this hour):', recentSet.size);
-
     let snapshotted = 0;
     for (const row of rows) {
       if (!row.user_id) continue;
-      if (recentSet.has(row.user_id)) {
-        console.log('STEP6 user:', row.user_id, 'SKIP: already in recentSet');
-        continue;
-      }
 
       // ── compute invTotal from priceMap (fresh prices from STEP4/5) ──────
       let invTotal = 0;
@@ -406,14 +394,20 @@ module.exports = async function handler(req, res) {
       console.log('STEP6 user:', row.user_id, 'invTotal:', invTotal, 'cashTotal:', cashTotal, 'healthTotal:', healthTotal, 'total:', total);
       if (total <= 0) { console.log('STEP6 user:', row.user_id, 'SKIP: total <= 0'); continue; }
 
-      // Skip if the last stored value is identical (no change to record)
-      const { data: last } = await supabaseAdmin
+      const { data: lastSnap } = await supabaseAdmin
         .from('patrimoine_history')
-        .select('valeur')
+        .select('valeur, recorded_at')
         .eq('user_id', row.user_id)
         .order('recorded_at', { ascending: false })
         .limit(1);
-      if (last?.length && last[0].valeur === total) { console.log('STEP6 user:', row.user_id, 'SKIP: valeur unchanged', total); continue; }
+      const last = lastSnap?.[0] ?? null;
+      const minutesSinceLast = last ? (Date.now() - new Date(last.recorded_at).getTime()) / 60000 : 999;
+      const valueDiff = last && last.valeur > 0 ? Math.abs(total - last.valeur) / last.valeur : 1;
+
+      if (minutesSinceLast < 45 && valueDiff < 0.005) {
+        console.log('STEP6 user:', row.user_id, 'SKIP: recent snapshot, no significant change', { min: Math.round(minutesSinceLast), diff: valueDiff.toFixed(4) });
+        continue;
+      }
 
       const { error: insErr } = await supabaseAdmin
         .from('patrimoine_history')
