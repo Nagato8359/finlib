@@ -1,6 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import logo from '../logo.png';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
+
+const BLOCKED_DOMAINS = new Set([
+  'ozsaip.com','mailinator.com','tempmail.com','guerrillamail.com','throwam.com',
+  'yopmail.com','sharklasers.com','trashmail.com','fakeinbox.com','maildrop.cc',
+  'dispostable.com','spamgourmet.com','mytemp.email','temp-mail.org','getnada.com',
+  'armyspy.com','cuvox.de','dayrep.com','einrot.com','fleckens.hu','gustr.com',
+  'rhyta.com','superrito.com','teleworm.us',
+]);
 
 export default function AuthScreen({ onDemo }) {
   const [mode, setMode] = useState('login');
@@ -11,6 +20,8 @@ export default function AuthScreen({ onDemo }) {
   const [success, setSuccess] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [referralCode, setReferralCode] = useState('');
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const captchaRef = useRef(null);
 
   useEffect(() => {
     const refParam = new URLSearchParams(window.location.search).get('ref');
@@ -41,7 +52,10 @@ export default function AuthScreen({ onDemo }) {
     setError(''); setSuccess(''); setLoading(true);
     try {
       if (mode === 'register') {
-        const { data: signUpData, error } = await supabase.auth.signUp({ email, password });
+        const domain = email.split('@')[1]?.toLowerCase() || '';
+        if (BLOCKED_DOMAINS.has(domain)) { setError("Cette adresse email n'est pas acceptée."); setLoading(false); return; }
+        if (!captchaToken) { setError('Veuillez compléter le CAPTCHA.'); setLoading(false); return; }
+        const { data: signUpData, error } = await supabase.auth.signUp({ email, password, options: { captchaToken } });
         if (error) throw error;
         if (referralCode.trim() && signUpData?.user?.id) {
           fetch('/api/referral', {
@@ -106,6 +120,17 @@ export default function AuthScreen({ onDemo }) {
               <div style={{ marginBottom: 22 }}>
                 <label style={lbl}>Code de parrainage <span style={{ color: '#4b5563', fontWeight: 400 }}>(optionnel)</span></label>
                 <input type="text" value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase())} placeholder="Code de parrainage (optionnel)" style={{ ...inp, textTransform: 'uppercase', letterSpacing: '.08em' }} maxLength={12} />
+              </div>
+            )}
+            {mode === 'register' && (
+              <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'center' }}>
+                <HCaptcha
+                  sitekey={process.env.REACT_APP_HCAPTCHA_SITE_KEY}
+                  onVerify={(token) => setCaptchaToken(token)}
+                  onExpire={() => setCaptchaToken(null)}
+                  ref={captchaRef}
+                  theme="dark"
+                />
               </div>
             )}
             {error && <div style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#f87171', marginBottom: 14 }}>{error}</div>}
