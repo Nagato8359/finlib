@@ -87,6 +87,9 @@ export default function AuthScreen({ onDemo }) {
     finally { setLoading(false); }
   };
 
+  // eslint-disable-next-line no-console
+  console.log('HCAPTCHA KEY:', process.env.REACT_APP_HCAPTCHA_SITE_KEY);
+
   const inp = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#f1f5f9', padding: '11px 14px', fontSize: 14, width: '100%', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' };
   const lbl = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' };
 
@@ -125,7 +128,7 @@ export default function AuthScreen({ onDemo }) {
             )}
             <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'center' }}>
               <HCaptcha
-                sitekey={process.env.REACT_APP_HCAPTCHA_SITE_KEY}
+                sitekey="2bd4d374-f866-4754-b5ac-14142b70ffce"
                 onVerify={(token) => setCaptchaToken(token)}
                 onExpire={() => setCaptchaToken(null)}
                 ref={captchaRef}
