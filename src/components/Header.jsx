@@ -33,6 +33,7 @@ export default function Header({
 }) {
   const { t } = useTranslation();
   const { user, demoMode, handleLogout, exportCSV, exportDataJSON, importJSON, deleteAccount, profiles, activeProfileId, switchProfile, addProfile, savePreferences, loadedPreferences } = data;
+  const isPro = data?.isPro || false;
 
   const [menuOpen, setMenuOpen]           = useState(false);
   const [profilePage, setProfilePage]     = useState(false);
@@ -95,6 +96,12 @@ export default function Header({
 
   const handleAddProfile = async () => {
     if (!addProfileLabel.trim() || addProfileLoading) return;
+    if (!isPro) {
+      alert('Les profils multiples sont réservés aux abonnés Pro. Passez en Pro pour gérer plusieurs profils (conjoint, enfant...).');
+      setAddProfileModal(false);
+      setAddProfileLabel('');
+      return;
+    }
     setAddProfileLoading(true);
     await addProfile(addProfileLabel.trim());
     setAddProfileLoading(false);
@@ -267,36 +274,45 @@ export default function Header({
               {user && !demoMode && (
                 <>
                   <SLabel>Changer de profil</SLabel>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, margin: '2px 0' }}>
-                    <button
-                      onClick={() => switchProfile(null)}
-                      style={{ width: '100%', background: activeProfileId === null ? accent + '18' : 'transparent', border: `1px solid ${activeProfileId === null ? accent + '44' : 'transparent'}`, borderRadius: 10, color: T.text, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
-                      onMouseEnter={e => { if (activeProfileId !== null) e.currentTarget.style.background = T.cardBg; }}
-                      onMouseLeave={e => { if (activeProfileId !== null) e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: accent + '28', border: `1px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, flexShrink: 0 }}>
-                        {initials}
+                  {isPro ? (
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, margin: '2px 0' }}>
+                        <button
+                          onClick={() => switchProfile(null)}
+                          style={{ width: '100%', background: activeProfileId === null ? accent + '18' : 'transparent', border: `1px solid ${activeProfileId === null ? accent + '44' : 'transparent'}`, borderRadius: 10, color: T.text, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
+                          onMouseEnter={e => { if (activeProfileId !== null) e.currentTarget.style.background = T.cardBg; }}
+                          onMouseLeave={e => { if (activeProfileId !== null) e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: accent + '28', border: `1px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, flexShrink: 0 }}>
+                            {initials}
+                          </div>
+                          <span style={{ flex: 1, fontSize: 13, textAlign: 'left', fontWeight: activeProfileId === null ? 600 : 400 }}>Principal</span>
+                          {activeProfileId === null && <span style={{ fontSize: 13, color: accent }}>✓</span>}
+                        </button>
+                        {(profiles || []).map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => switchProfile(p.id)}
+                            style={{ width: '100%', background: activeProfileId === p.id ? accent + '18' : 'transparent', border: `1px solid ${activeProfileId === p.id ? accent + '44' : 'transparent'}`, borderRadius: 10, color: T.text, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
+                            onMouseEnter={e => { if (activeProfileId !== p.id) e.currentTarget.style.background = T.cardBg; }}
+                            onMouseLeave={e => { if (activeProfileId !== p.id) e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: accent + '28', border: `1px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, flexShrink: 0 }}>
+                              {p.label.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span style={{ flex: 1, fontSize: 13, textAlign: 'left', fontWeight: activeProfileId === p.id ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span>
+                            {activeProfileId === p.id && <span style={{ fontSize: 13, color: accent }}>✓</span>}
+                          </button>
+                        ))}
                       </div>
-                      <span style={{ flex: 1, fontSize: 13, textAlign: 'left', fontWeight: activeProfileId === null ? 600 : 400 }}>Principal</span>
-                      {activeProfileId === null && <span style={{ fontSize: 13, color: accent }}>✓</span>}
-                    </button>
-                    {(profiles || []).map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => switchProfile(p.id)}
-                        style={{ width: '100%', background: activeProfileId === p.id ? accent + '18' : 'transparent', border: `1px solid ${activeProfileId === p.id ? accent + '44' : 'transparent'}`, borderRadius: 10, color: T.text, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
-                        onMouseEnter={e => { if (activeProfileId !== p.id) e.currentTarget.style.background = T.cardBg; }}
-                        onMouseLeave={e => { if (activeProfileId !== p.id) e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: accent + '28', border: `1px solid ${accent}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: accent, flexShrink: 0 }}>
-                          {p.label.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span style={{ flex: 1, fontSize: 13, textAlign: 'left', fontWeight: activeProfileId === p.id ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span>
-                        {activeProfileId === p.id && <span style={{ fontSize: 13, color: accent }}>✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                  <MBtn icon="＋" label="Ajouter un profil" onClick={() => setAddProfileModal(true)} muted />
+                      <MBtn icon="＋" label="Ajouter un profil" onClick={() => setAddProfileModal(true)} muted />
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', color: T.textMuted, fontSize: 13, margin: '2px 0' }}>
+                      <span>🔒</span>
+                      <span>Profils multiples — réservé Pro</span>
+                    </div>
+                  )}
                   <Divider />
                 </>
               )}
