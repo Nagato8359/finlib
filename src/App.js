@@ -117,7 +117,7 @@ function SplashScreen({ onDone }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: '#080e1a', zIndex: 9999,
+      position: 'fixed', inset: 0, minHeight: '100dvh', background: '#080e1a', zIndex: 9999,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       animation: phase === 'out' ? 'splashOut 0.7s ease forwards' : 'none',
     }}>
