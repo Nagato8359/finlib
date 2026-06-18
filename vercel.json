@@ -10,7 +10,7 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline';" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.hcaptcha.com https://hcaptcha.com; connect-src 'self' https: https://api.hcaptcha.com https://hcaptcha.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://hcaptcha.com; frame-src https://newassets.hcaptcha.com https://hcaptcha.com;" }
       ]
     }
   ]
