@@ -3,6 +3,7 @@ import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { makeS, fEur } from '../../utils/constants';
+import UpgradeWall from '../UpgradeWall';
 
 const TRIMESTRES_REQUIS = 172;
 const VIE_ESTIMEE = 85;
@@ -198,6 +199,9 @@ export default function SimulateurRetraite({ T, data, setTab }) {
   const trimestresPct = Math.min(100, (trimestres / TRIMESTRES_REQUIS) * 100);
   const trimestresRestants = Math.max(0, TRIMESTRES_REQUIS - trimestres);
   const ageTauxPlein = trimestres >= TRIMESTRES_REQUIS ? currentAge : currentAge + Math.ceil(trimestresRestants / 4);
+
+  const isPro = data?.isPro || false;
+  if (!isPro) return <UpgradeWall T={T} featureName="Le Simulateur Retraite" />;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>

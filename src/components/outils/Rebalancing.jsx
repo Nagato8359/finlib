@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { makeS, fEur } from '../../utils/constants';
+import UpgradeWall from '../UpgradeWall';
 
 const isCrypto     = (inv) => inv.type?.toLowerCase().includes('crypto');
 const isActions    = (inv) => ['pea','cto','compte-titres','assurance-vie','épargne salariale']
@@ -111,6 +112,9 @@ export default function Rebalancing({ T, data }) {
   const totalToSell = rows.filter(r => r.gapEur < -10).reduce((s, r) => s + Math.abs(r.gapEur), 0);
 
   const resetTargets = () => { const d = { ...DEFAULT_TARGETS }; setTargets(d); saveTargets(d); };
+
+  const isPro = data?.isPro || false;
+  if (!isPro) return <UpgradeWall T={T} featureName="Le Rebalancing" />;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>

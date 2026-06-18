@@ -4,6 +4,7 @@ import {
   PieChart, Pie, Cell,
 } from 'recharts';
 import { makeS, fEur } from '../../utils/constants';
+import UpgradeWall from '../UpgradeWall';
 
 const FREQ_OPTIONS = [
   { v: 'mensuel',     l: 'Mensuel',     n: 12 },
@@ -215,6 +216,9 @@ export default function SimulateurDividendes({ T, data }) {
     { id: 'calc',          label: '🧮 Calculateur' },
     { id: 'portefeuilles', label: '📦 Exemples de portefeuilles' },
   ];
+
+  const isPro = data?.isPro || false;
+  if (!isPro) return <UpgradeWall T={T} featureName="Le Simulateur Dividendes" />;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>

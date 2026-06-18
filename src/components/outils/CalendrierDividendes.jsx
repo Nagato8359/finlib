@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { makeS, fEur } from '../../utils/constants';
 import { AssetLogo, stockLogoSources, scpiLogoSources } from '../Modals';
+import UpgradeWall from '../UpgradeWall';
 
 const DAYS_SHORT  = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -236,6 +237,9 @@ export default function CalendrierDividendes({ T, data }) {
       </div>
     );
   };
+
+  const isPro = data?.isPro || false;
+  if (!isPro) return <UpgradeWall T={T} featureName="Le Calendrier Dividendes" />;
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (

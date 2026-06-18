@@ -80,6 +80,8 @@ export default function Patrimoine({ T, data }) {
     setPosForm, mkPos, setInvestments, setTransactions,
   } = data;
 
+  const isPro = data?.isPro || false;
+
   const syncCwallet = useCallback(async (inv) => {
     const addr = (inv.adresse || '').trim();
     if (!addr || !/^0x[0-9a-fA-F]{40}$/i.test(addr)) return;
@@ -578,7 +580,7 @@ export default function Patrimoine({ T, data }) {
             {priceStatus === 'error' && <span style={{ fontSize: 11, color: '#f87171' }}>{t('inv_live_error')}</span>}
             <button onClick={fetchPrices} style={{ ...S.btnS, fontSize: 12, padding: '4px 10px' }}>⟳</button>
           </div>
-          <button data-tutorial="pat-add" onClick={() => setModal('addInvestment')} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Ajouter un investissement</button>
+          <button data-tutorial="pat-add" onClick={() => { if (!isPro && investments.length >= 3) { alert('Limite de 3 enveloppes en version gratuite. Passez en Pro pour un accès illimité.'); return; } setModal('addInvestment'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>+ Ajouter un investissement</button>
         </div>
 
         <div className="g4">
@@ -825,7 +827,7 @@ export default function Patrimoine({ T, data }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => { setEditItem(null); data.setHealthForm && data.setHealthForm(data.mkHealth()); setModal('health'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>{t('mat_add_asset')}</button>
+          <button onClick={() => { if (!isPro && healthAssets.length >= 5) { alert('Limite de 5 actifs matériels en version gratuite. Passez en Pro pour un accès illimité.'); return; } setEditItem(null); data.setHealthForm && data.setHealthForm(data.mkHealth()); setModal('health'); }} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>{t('mat_add_asset')}</button>
           <button onClick={() => { setEditItem(null); data.setListingForm && data.setListingForm(data.mkListing()); setModal('listing'); }} style={{ ...S.btnS, fontSize: 12, padding: '7px 16px' }}>{t('mat_add_listing')}</button>
         </div>
 

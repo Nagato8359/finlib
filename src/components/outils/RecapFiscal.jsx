@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { makeS, fEur } from '../../utils/constants';
+import UpgradeWall from '../UpgradeWall';
 
 export default function RecapFiscal({ T, data }) {
   const S = makeS(T);
@@ -41,6 +42,9 @@ export default function RecapFiscal({ T, data }) {
   const Empty = ({ msg }) => (
     <div style={{ fontSize: 12, color: T.textFaint, fontStyle: 'italic' }}>{msg}</div>
   );
+
+  const isPro = data?.isPro || false;
+  if (!isPro) return <UpgradeWall T={T} featureName="Le Récap Fiscal" />;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

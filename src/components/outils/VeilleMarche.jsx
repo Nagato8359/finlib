@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { makeS, fEur, fDate } from '../../utils/constants';
 import { AssetLogo, stockLogoSources } from '../Modals';
+import UpgradeWall from '../UpgradeWall';
 
 const INDICES = [
   { ticker: '^FCHI', label: 'CAC 40',  color: '#60a5fa' },
@@ -159,6 +160,9 @@ export default function VeilleMarche({ T, data }) {
       </span>
     );
   };
+
+  const isPro = data?.isPro || false;
+  if (!isPro) return <UpgradeWall T={T} featureName="La Veille Marché" />;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
