@@ -203,6 +203,8 @@ export function useData() {
   const [referralCode, setReferralCode] = useState('');
   const [referrals, setReferrals] = useState([]);
   const [proBonusMonths, setProBonusMonths] = useState(0);
+  const [isPro, setIsPro] = useState(false);
+  const [proData, setProData] = useState(null);
   const activeProfileIdRef = useRef(null);
   useEffect(() => { activeProfileIdRef.current = activeProfileId; }, [activeProfileId]);
   const dataLoaded = useRef(false);
@@ -327,6 +329,22 @@ export function useData() {
     });
     return () => subscription.unsubscribe();
   }, [loadUserData, loadProfiles]);
+
+  useEffect(() => {
+    if (!user) { setIsPro(false); setProData(null); return; }
+    (async () => {
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      setProData(sub || null);
+      setIsPro(
+        (sub?.plan === 'pro_lifetime' && sub?.status === 'active') ||
+        (sub?.status === 'active' && sub?.current_period_end > new Date().toISOString())
+      );
+    })();
+  }, [user]);
 
   useEffect(() => {
     if (!userRef.current || !dataLoaded.current) return;
@@ -1018,5 +1036,6 @@ export function useData() {
     loadedPreferences, savePreferences,
     profiles, activeProfileId, switchProfile, addProfile,
     referralCode, referrals, proBonusMonths, updateReferralCode,
+    isPro, proData,
   };
 }
