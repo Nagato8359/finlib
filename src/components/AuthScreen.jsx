@@ -66,11 +66,12 @@ export default function AuthScreen({ onDemo }) {
         }
         setSuccess('Compte créé ! Vérifiez votre email pour activer votre compte.');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (!captchaToken) { setError('Veuillez compléter le CAPTCHA.'); setLoading(false); return; }
+        const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
         if (error) throw error;
       }
     } catch (err) { setError(translateError(err.message)); }
-    finally { setLoading(false); }
+    finally { setLoading(false); captchaRef.current?.resetCaptcha(); setCaptchaToken(null); }
   };
 
   const handleForgot = async () => {
@@ -122,17 +123,15 @@ export default function AuthScreen({ onDemo }) {
                 <input type="text" value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase())} placeholder="Code de parrainage (optionnel)" style={{ ...inp, textTransform: 'uppercase', letterSpacing: '.08em' }} maxLength={12} />
               </div>
             )}
-            {mode === 'register' && (
-              <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'center' }}>
-                <HCaptcha
-                  sitekey={process.env.REACT_APP_HCAPTCHA_SITE_KEY}
-                  onVerify={(token) => setCaptchaToken(token)}
-                  onExpire={() => setCaptchaToken(null)}
-                  ref={captchaRef}
-                  theme="dark"
-                />
-              </div>
-            )}
+            <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'center' }}>
+              <HCaptcha
+                sitekey={process.env.REACT_APP_HCAPTCHA_SITE_KEY}
+                onVerify={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken(null)}
+                ref={captchaRef}
+                theme="dark"
+              />
+            </div>
             {error && <div style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#f87171', marginBottom: 14 }}>{error}</div>}
             {success && <div style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.2)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#4ade80', marginBottom: 14 }}>{success}</div>}
             <button type="submit" disabled={loading} style={{ width: '100%', background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', borderRadius: 10, color: '#fff', padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: loading ? 0.7 : 1 }}>
