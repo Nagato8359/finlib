@@ -361,7 +361,7 @@ export default function Accueil({ T, data, setTab }) {
                 {linkedLoanDebt > 0 && <span style={{ marginLeft: 6, fontSize: 10, color: T.textFaint }}>{t('accueil_net_value')}</span>}
               </div>
               <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-.04em', color: T.text, lineHeight: 1.1 }}>
-                {histLast != null ? fEur(histLast) : '—'}
+                {fEur(displayPatrimoine)}
               </div>
               {histFirst != null && histLast != null && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
