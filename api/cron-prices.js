@@ -415,10 +415,9 @@ module.exports = async function handler(req, res) {
         .limit(1);
       const last = lastSnap?.[0] ?? null;
       const minutesSinceLast = last ? (Date.now() - new Date(last.recorded_at).getTime()) / 60000 : 999;
-      const valueDiff = last && last.valeur > 0 ? Math.abs(total - last.valeur) / last.valeur : 1;
 
-      if (minutesSinceLast < 30 && valueDiff < 0.001) {
-        console.log('STEP6 user:', row.user_id, 'SKIP: recent cron snapshot, no significant change', { min: Math.round(minutesSinceLast), diff: valueDiff.toFixed(4) });
+      if (minutesSinceLast < 30) {
+        console.log('STEP6 user:', row.user_id, 'SKIP: snapshot already taken in last 30min', { min: Math.round(minutesSinceLast) });
         continue;
       }
 
