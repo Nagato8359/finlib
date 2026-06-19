@@ -1090,6 +1090,19 @@ export default function Modals({ T, data }) {
             <FRow cols={1}>
               <FField style={f} label={`${t('portfolio_address')} (optionnel)`}><input type="text" placeholder="12 rue des Lilas, 75011 Paris" style={S.inp} value={portfolioForm.adresse} onChange={e => setPortfolioForm(p => ({ ...p, adresse: e.target.value }))} /></FField>
             </FRow>
+            {portfolioForm.immoBien === 'Locatif' && (
+              <FRow cols={1}>
+                <FField style={f} label="Loyer mensuel (€) — optionnel">
+                  <input
+                    type="number"
+                    placeholder="Ex : 850"
+                    style={S.inp}
+                    value={portfolioForm.loyerMensuel || ''}
+                    onChange={e => setPortfolioForm(p => ({ ...p, loyerMensuel: parseFloat(e.target.value) || 0 }))}
+                  />
+                </FField>
+              </FRow>
+            )}
           </>
         )}
 
