@@ -658,12 +658,12 @@ export function useData() {
     });
   }, [goals, patrimoine]);
 
-  // ── Patrimoine snapshot (every 30min when app is open) ───────────────────
+  // ── Patrimoine snapshot (on price update or patrimoine change, throttled 15min) ─
   useEffect(() => {
     if (!user || !dataLoaded.current || patrimoine <= 0) return;
     const now = Date.now();
     const last = parseInt(localStorage.getItem('lastPatrimoineSnapshot') || '0', 10);
-    if (now - last < 1800000) return;
+    if (now - last < 900000) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.access_token) return;
       fetch('/api/cron-prices?action=snapshot', {
@@ -675,7 +675,7 @@ export function useData() {
       }).catch(() => {});
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, patrimoine]);
+  }, [user, patrimoine, prices]);
 
   // ── Cash-flow forecast ────────────────────────────────────────────────────
   const computeForecast = useCallback((days) => {
