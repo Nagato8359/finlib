@@ -76,6 +76,13 @@ export default function Patrimoine({ T, data }) {
   const [showBienForm, setShowBienForm] = useState(false);
   const [bienForm, setBienForm] = useState(INIT_BIEN_FORM);
   const [selectedBienId, setSelectedBienId] = useState(null);
+  const [showTravauxForm, setShowTravauxForm] = useState(false);
+  const [travauxForm, setTravauxForm] = useState({ description: '', montant: '', date: today() });
+  const [showBienLoyerForm, setShowBienLoyerForm] = useState(false);
+  const [bienLoyerForm, setBienLoyerForm] = useState({ montant: '', date: today(), compteId: '' });
+  const [bienEstimation, setBienEstimation] = useState(null);
+  const [bienEstimationLoading, setBienEstimationLoading] = useState(false);
+  const [bienEstimationError, setBienEstimationError] = useState('');
 
   const SECTIONS = [
     { id: 'invest',   label: t('pat_invest')   },
@@ -171,6 +178,15 @@ export default function Patrimoine({ T, data }) {
     }));
   }, [drillInv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    setShowTravauxForm(false);
+    setTravauxForm({ description: '', montant: '', date: today() });
+    setShowBienLoyerForm(false);
+    setBienLoyerForm({ montant: '', date: today(), compteId: '' });
+    setBienEstimation(null);
+    setBienEstimationError('');
+  }, [selectedBienId]);
+
   const handleEstimer = useCallback(async () => {
     if (!estForm.adresse || !estForm.surface) return;
     setEstimationLoading(true);
@@ -239,6 +255,60 @@ export default function Patrimoine({ T, data }) {
     setShowBienForm(false);
     setBienForm(INIT_BIEN_FORM());
   }, [bienForm, drillInv, setInvestments]);
+
+  const handleAddTravaux = useCallback(() => {
+    if (!travauxForm.description || !travauxForm.montant || !selectedBienId || !drillInv) return;
+    const travail = { id: crypto.randomUUID(), date: travauxForm.date, description: travauxForm.description, montant: parseFloat(travauxForm.montant) || 0 };
+    setInvestments(prev => prev.map(inv => {
+      if (inv.id !== drillInv.id) return inv;
+      return { ...inv, biens: (inv.biens || []).map(b => b.id !== selectedBienId ? b : { ...b, travaux: [...(b.travaux || []), travail] }) };
+    }));
+    setTravauxForm({ description: '', montant: '', date: today() });
+    setShowTravauxForm(false);
+  }, [travauxForm, selectedBienId, drillInv, setInvestments]);
+
+  const handleAddBienLoyer = useCallback(() => {
+    const { montant, date, compteId } = bienLoyerForm;
+    if (!montant || !date || !selectedBienId || !drillInv) return;
+    const montantNum = parseFloat(montant);
+    if (!montantNum || montantNum <= 0) return;
+    const compte = computedSavings.find(c => c.id === compteId);
+    const loyer = { id: uid(), date, montant: montantNum, compteId: compteId || null, compteNom: compte?.name || null };
+    setInvestments(prev => prev.map(inv => {
+      if (inv.id !== drillInv.id) return inv;
+      return { ...inv, biens: (inv.biens || []).map(b => b.id !== selectedBienId ? b : { ...b, loyers: [...(b.loyers || []), loyer] }) };
+    }));
+    if (compteId && compte) {
+      setSavings(prev => prev.map(a => a.id !== compteId ? a : { ...a, balance: (parseFloat(a.balance) || 0) + montantNum }));
+    }
+    setBienLoyerForm(f => ({ ...f, show: false, montant: '', date: today() }));
+    setShowBienLoyerForm(false);
+  }, [bienLoyerForm, selectedBienId, drillInv, computedSavings, setInvestments, setSavings]);
+
+  const handleBienEstimer = useCallback(async (bien) => {
+    if (!bien?.adresse?.ville || !bien?.surface) return;
+    const adresseStr = [bien.adresse.numero, bien.adresse.rue, bien.adresse.ville].filter(Boolean).join(' ');
+    setBienEstimationLoading(true);
+    setBienEstimationError('');
+    setBienEstimation(null);
+    try {
+      const params = new URLSearchParams({ adresse: adresseStr, surface: bien.surface, type: (bien.type || 'Appartement').toLowerCase(), etat: bien.etat || 'bon' });
+      const res = await fetch(`/api/prices?action=estimate&${params}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      setBienEstimation(d);
+    } catch (e) { setBienEstimationError(e.message); }
+    finally { setBienEstimationLoading(false); }
+  }, []);
+
+  const handleUseBienEstimation = useCallback((valeur) => {
+    if (!valeur || !selectedBienId || !drillInv) return;
+    setInvestments(prev => prev.map(inv => {
+      if (inv.id !== drillInv.id) return inv;
+      return { ...inv, biens: (inv.biens || []).map(b => b.id !== selectedBienId ? b : { ...b, valeurEstimee: valeur }) };
+    }));
+    setBienEstimation(null);
+  }, [selectedBienId, drillInv, setInvestments]);
 
   const SubNav = () => (
     <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
@@ -441,22 +511,170 @@ export default function Patrimoine({ T, data }) {
                             style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}
                           >{isSelected ? '✕ Fermer' : 'Voir le détail'}</button>
                         </div>
-                        {isSelected && (
-                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}`, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                            {bien.adresse?.rue && <span style={{ fontSize: 11, color: T.textMuted }}>Adresse : <strong style={{ color: T.text }}>{[bien.adresse.numero, bien.adresse.rue, bien.adresse.codePostal, bien.adresse.ville].filter(Boolean).join(' ')}</strong></span>}
-                            {bien.etat && <span style={{ fontSize: 11, color: T.textMuted }}>État : <strong style={{ color: T.text }}>{{ renover: 'À rénover', bon: 'Bon état', renove: 'Rénové', neuf: 'Neuf' }[bien.etat] || bien.etat}</strong></span>}
-                            {bien.dateAcquisition && <span style={{ fontSize: 11, color: T.textMuted }}>Acquisition : <strong style={{ color: T.text }}>{fDate(bien.dateAcquisition)}</strong></span>}
-                            {bien.taxeFonciere > 0 && <span style={{ fontSize: 11, color: T.textMuted }}>Taxe foncière : <strong style={{ color: '#f87171' }}>{fEur(bien.taxeFonciere)}/an</strong></span>}
-                            {bien.loyerMensuel > 0 && <span style={{ fontSize: 11, color: T.textMuted }}>Loyer : <strong style={{ color: '#4ade80' }}>{fEur(bien.loyerMensuel)}/mois</strong></span>}
-                            {bien.creditId && computedLoans.find(l => l.id === bien.creditId) && (
-                              <span style={{ fontSize: 11, color: T.textMuted }}>Crédit : <strong style={{ color: '#fb923c' }}>{computedLoans.find(l => l.id === bien.creditId)?.name}</strong></span>
-                            )}
-                            <button
-                              onClick={() => setConfirmDel({ msg: `Supprimer "${bien.nom}" ? Cette action est irréversible.`, fn: () => { setSelectedBienId(null); setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, biens: inv.biens.filter(b => b.id !== bien.id) })); } })}
-                              style={{ ...S.btnD, fontSize: 10, padding: '2px 8px' }}
-                            >Supprimer</button>
-                          </div>
-                        )}
+                        {isSelected && (() => {
+                          const plusValue = bien.valeurEstimee != null ? (bien.valeurEstimee - prixRevient) : null;
+                          const rendBrut = bien.usage === 'locatif' && prixRevient > 0 ? ((bien.loyerMensuel || 0) * 12 / prixRevient * 100) : null;
+                          const twelveMonthsAgo = new Date(); twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+                          const total12m = (bien.loyers || []).filter(l => new Date(l.date) >= twelveMonthsAgo).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0);
+                          const linkedCredit = bien.creditId ? computedLoans.find(l => l.id === bien.creditId) : null;
+                          const canEstimate = !!(bien.adresse?.ville && bien.surface);
+                          return (
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                              {/* Infos rapides */}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11 }}>
+                                {bien.adresse?.rue && <span style={{ color: T.textMuted }}>📍 {[bien.adresse.numero, bien.adresse.rue, bien.adresse.codePostal, bien.adresse.ville].filter(Boolean).join(' ')}</span>}
+                                {bien.etat && <span style={{ color: T.textMuted }}>État : <strong style={{ color: T.text }}>{{ renover: 'À rénover', bon: 'Bon état', renove: 'Rénové', neuf: 'Neuf' }[bien.etat] || bien.etat}</strong></span>}
+                                {bien.dateAcquisition && <span style={{ color: T.textMuted }}>Acq. : <strong style={{ color: T.text }}>{fDate(bien.dateAcquisition)}</strong></span>}
+                                {bien.taxeFonciere > 0 && <span style={{ color: T.textMuted }}>TF : <strong style={{ color: '#f87171' }}>{fEur(bien.taxeFonciere)}/an</strong></span>}
+                              </div>
+
+                              {/* KPIs */}
+                              <div className="g4">
+                                <KPI T={T} label="Prix de revient" value={fEur(prixRevient)} icon="🏷️" />
+                                <KPI T={T} label="Valeur estimée" value={bien.valeurEstimee != null ? fEur(bien.valeurEstimee) : 'Non estimée'} accent={bien.valeurEstimee != null ? T.accent : T.textFaint} icon="🏡" />
+                                <KPI T={T} label="Plus-value latente" value={plusValue !== null ? fEur(plusValue) : '—'} accent={plusValue === null ? T.textFaint : plusValue >= 0 ? '#4ade80' : '#f87171'} icon="📈" />
+                                {rendBrut !== null && <KPI T={T} label="Rendement brut" value={fPct(rendBrut)} accent="#4ade80" icon="💰" />}
+                              </div>
+
+                              {/* Travaux */}
+                              <div style={{ ...S.card }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                  <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>🔧 Travaux</h4>
+                                  <button onClick={() => setShowTravauxForm(s => !s)} style={{ ...S.btnG, fontSize: 10, padding: '3px 10px' }}>+ Ajouter</button>
+                                </div>
+                                {showTravauxForm && (
+                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                                    <input type="text" placeholder="Description" value={travauxForm.description}
+                                      onChange={e => setTravauxForm(f => ({ ...f, description: e.target.value }))} style={{ ...S.inp, flex: '2 1 160px' }} />
+                                    <input type="number" placeholder="Montant (€)" value={travauxForm.montant}
+                                      onChange={e => setTravauxForm(f => ({ ...f, montant: e.target.value }))} style={{ ...S.inp, flex: '1 1 100px' }} />
+                                    <input type="date" value={travauxForm.date}
+                                      onChange={e => setTravauxForm(f => ({ ...f, date: e.target.value }))} style={{ ...S.inp, flex: '0 0 130px', width: 130 }} />
+                                    <button onClick={handleAddTravaux} disabled={!travauxForm.description || !travauxForm.montant}
+                                      style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', opacity: travauxForm.description && travauxForm.montant ? 1 : 0.6 }}>Ajouter</button>
+                                    <button onClick={() => setShowTravauxForm(false)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕</button>
+                                  </div>
+                                )}
+                                {(bien.travaux || []).length === 0 ? (
+                                  <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun travaux enregistré</div>
+                                ) : (
+                                  <>
+                                    {[...(bien.travaux || [])].sort((a, b) => (a.date > b.date ? -1 : 1)).map(tr => (
+                                      <div key={tr.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: `1px solid ${T.cardBorder}`, fontSize: 12 }}>
+                                        <span style={{ color: T.textMuted, flexShrink: 0, marginRight: 10 }}>{fDate(tr.date)}</span>
+                                        <span style={{ color: T.text, flex: 1 }}>{tr.description}</span>
+                                        <span style={{ color: '#f87171', fontWeight: 600, marginLeft: 10 }}>{fEur(tr.montant)}</span>
+                                      </div>
+                                    ))}
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 6, fontSize: 12, fontWeight: 700, color: '#f87171' }}>
+                                      Total : {fEur((bien.travaux || []).reduce((s, t) => s + (parseFloat(t.montant) || 0), 0))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Loyers perçus */}
+                              {bien.usage === 'locatif' && (
+                                <div style={{ ...S.card }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                    <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>💶 Loyers perçus</h4>
+                                    <button onClick={() => { setShowBienLoyerForm(true); setBienLoyerForm(f => ({ ...f, montant: String(bien.loyerMensuel || '') })); }} style={{ ...S.btnG, fontSize: 10, padding: '3px 10px' }}>+ Loyer reçu</button>
+                                  </div>
+                                  {showBienLoyerForm && (
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                                      <input type="number" placeholder="Montant (€)" value={bienLoyerForm.montant}
+                                        onChange={e => setBienLoyerForm(f => ({ ...f, montant: e.target.value }))} style={{ ...S.inp, flex: '1 1 100px' }} />
+                                      <input type="date" value={bienLoyerForm.date}
+                                        onChange={e => setBienLoyerForm(f => ({ ...f, date: e.target.value }))} style={{ ...S.inp, flex: '0 0 130px', width: 130 }} />
+                                      <select value={bienLoyerForm.compteId} onChange={e => setBienLoyerForm(f => ({ ...f, compteId: e.target.value }))} style={{ ...S.inp, flex: '2 1 160px' }}>
+                                        <option value="">— Compte destination —</option>
+                                        {computedSavings.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                      </select>
+                                      <button onClick={handleAddBienLoyer} disabled={!bienLoyerForm.montant}
+                                        style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', opacity: bienLoyerForm.montant ? 1 : 0.6 }}>Enregistrer</button>
+                                      <button onClick={() => setShowBienLoyerForm(false)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕</button>
+                                    </div>
+                                  )}
+                                  {(bien.loyers || []).length > 0 && (
+                                    <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
+                                      Total 12 mois glissants : <strong style={{ color: '#4ade80' }}>{fEur(total12m)}</strong>
+                                    </div>
+                                  )}
+                                  {(bien.loyers || []).length === 0 ? (
+                                    <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun loyer enregistré</div>
+                                  ) : (
+                                    [...(bien.loyers || [])].sort((a, b) => (a.date > b.date ? -1 : 1)).map(l => (
+                                      <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: `1px solid ${T.cardBorder}`, fontSize: 12 }}>
+                                        <span style={{ color: T.textMuted, flexShrink: 0, marginRight: 10 }}>{fDate(l.date)}</span>
+                                        <span style={{ color: T.text, flex: 1 }}>{l.compteNom || '—'}</span>
+                                        <span style={{ color: '#4ade80', fontWeight: 600, marginLeft: 10 }}>{fEur(l.montant)}</span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Estimation DVF */}
+                              <div style={{ ...S.card }}>
+                                <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>🔍 Estimation DVF</h4>
+                                {bienEstimationLoading ? (
+                                  <div style={{ fontSize: 12, color: T.textMuted }}>Calcul en cours…</div>
+                                ) : bienEstimation ? (
+                                  <div>
+                                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette basse</div>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#fb923c' }}>{fEur(bienEstimation.fourchetteBasse)}</div>
+                                      </div>
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Estimation</div>
+                                        <div style={{ fontSize: 18, fontWeight: 800, color: T.accent }}>{fEur(bienEstimation.estimation)}</div>
+                                      </div>
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette haute</div>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{fEur(bienEstimation.fourchetteHaute)}</div>
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                      <button onClick={() => handleUseBienEstimation(bienEstimation.estimation)}
+                                        style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>Utiliser cette valeur</button>
+                                      <button onClick={() => setBienEstimation(null)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕ Fermer</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <button onClick={() => handleBienEstimer(bien)} disabled={!canEstimate}
+                                      style={{ ...S.btnG, fontSize: 12, padding: '7px 14px', opacity: canEstimate ? 1 : 0.5 }}>
+                                      Estimer la valeur
+                                    </button>
+                                    {!canEstimate && <div style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>Renseignez la ville et la surface pour estimer</div>}
+                                  </>
+                                )}
+                                {bienEstimationError && <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{bienEstimationError}</div>}
+                              </div>
+
+                              {/* Crédit lié */}
+                              {linkedCredit && (
+                                <div style={{ ...S.card }}>
+                                  <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>🏦 Crédit lié</h4>
+                                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+                                    <span style={{ color: T.textMuted }}>Nom : <strong style={{ color: T.text }}>{linkedCredit.name}</strong></span>
+                                    <span style={{ color: T.textMuted }}>Capital restant : <strong style={{ color: '#f87171' }}>{fEur(linkedCredit.computedRemaining)}</strong></span>
+                                    {linkedCredit.monthlyPayment > 0 && <span style={{ color: T.textMuted }}>Mensualité : <strong style={{ color: T.text }}>{fEur(linkedCredit.monthlyPayment)}</strong></span>}
+                                    {linkedCredit.rate > 0 && <span style={{ color: T.textMuted }}>Taux : <strong style={{ color: T.text }}>{fPct(linkedCredit.rate)}</strong></span>}
+                                  </div>
+                                  <button onClick={() => setSection('loans')} style={{ ...S.btnS, fontSize: 11, padding: '4px 10px', marginTop: 10 }}>Voir dans Crédits immo →</button>
+                                </div>
+                              )}
+
+                              {/* Supprimer */}
+                              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button onClick={() => setConfirmDel({ msg: `Supprimer "${bien.nom}" ? Cette action est irréversible.`, fn: () => { setSelectedBienId(null); setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, biens: inv.biens.filter(b => b.id !== bien.id) })); } })}
+                                  style={{ ...S.btnD, fontSize: 11, padding: '5px 12px' }}>Supprimer ce bien</button>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
