@@ -78,9 +78,9 @@ export default function Patrimoine({ T, data }) {
   const [travauxForm, setTravauxForm] = useState({ description: '', montant: '', date: today() });
   const [showBienLoyerForm, setShowBienLoyerForm] = useState(false);
   const [bienLoyerForm, setBienLoyerForm] = useState({ montant: '', date: today(), compteId: '' });
-  const [bienEstimation, setBienEstimation] = useState(null);
-  const [bienEstimationLoading, setBienEstimationLoading] = useState(false);
-  const [bienEstimationError, setBienEstimationError] = useState('');
+  const [manualValeurInput, setManualValeurInput] = useState('');
+  const [adresseSuggestions, setAdresseSuggestions] = useState([]);
+  const [showAdresseSuggestions, setShowAdresseSuggestions] = useState(false);
 
   const SECTIONS = [
     { id: 'invest',   label: t('pat_invest')   },
@@ -174,10 +174,18 @@ export default function Patrimoine({ T, data }) {
     setTravauxForm({ description: '', montant: '', date: today() });
     setShowBienLoyerForm(false);
     setBienLoyerForm({ montant: '', date: today(), compteId: '' });
-    setBienEstimation(null);
-    setBienEstimationError('');
     setAccordionOpen({ situation: true, travaux: false, loyers: false, estimation: false });
-  }, [selectedBienId]);
+    setAdresseSuggestions([]);
+    setShowAdresseSuggestions(false);
+    // Pre-fill manual valeur from selected bien
+    if (selectedBienId) {
+      const inv = investments.find(i => drillInv && i.id === drillInv.id);
+      const b = (inv?.biens || []).find(bx => bx.id === selectedBienId);
+      setManualValeurInput(b?.valeurEstimee != null ? String(b.valeurEstimee) : '');
+    } else {
+      setManualValeurInput('');
+    }
+  }, [selectedBienId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveLoyer = useCallback(() => {
     const { montant, date, compteId } = loyerForm;
@@ -260,30 +268,25 @@ export default function Patrimoine({ T, data }) {
     setShowBienLoyerForm(false);
   }, [bienLoyerForm, selectedBienId, drillInv, computedSavings, setInvestments, setSavings]);
 
-  const handleBienEstimer = useCallback(async (bien) => {
-    if (!bien?.adresse?.ville || !bien?.surface) return;
-    const adresseStr = [bien.adresse.numero, bien.adresse.rue, bien.adresse.ville].filter(Boolean).join(' ');
-    setBienEstimationLoading(true);
-    setBienEstimationError('');
-    setBienEstimation(null);
-    try {
-      const params = new URLSearchParams({ adresse: adresseStr, surface: bien.surface, type: (bien.type || 'Appartement').toLowerCase(), etat: bien.etat || 'bon' });
-      const res = await fetch(`/api/prices?action=estimate&${params}`);
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
-      setBienEstimation(d);
-    } catch (e) { setBienEstimationError(e.message); }
-    finally { setBienEstimationLoading(false); }
-  }, []);
-
   const handleUseBienEstimation = useCallback((valeur) => {
     if (!valeur || !selectedBienId || !drillInv) return;
     setInvestments(prev => prev.map(inv => {
       if (inv.id !== drillInv.id) return inv;
       return { ...inv, biens: (inv.biens || []).map(b => b.id !== selectedBienId ? b : { ...b, valeurEstimee: valeur }) };
     }));
-    setBienEstimation(null);
   }, [selectedBienId, drillInv, setInvestments]);
+
+  const fetchAdresseSuggestions = useCallback(async (numero, rue, codePostal) => {
+    if ((rue || '').length < 3) { setAdresseSuggestions([]); setShowAdresseSuggestions(false); return; }
+    const q = [numero, rue, codePostal].filter(Boolean).join(' ');
+    try {
+      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5`);
+      const d = await res.json();
+      const feats = d.features || [];
+      setAdresseSuggestions(feats);
+      setShowAdresseSuggestions(feats.length > 0);
+    } catch { setAdresseSuggestions([]); setShowAdresseSuggestions(false); }
+  }, []);
 
   const SubNav = () => (
     <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
@@ -328,7 +331,6 @@ export default function Patrimoine({ T, data }) {
         const bTwelveAgo = new Date(); bTwelveAgo.setMonth(bTwelveAgo.getMonth() - 12);
         const bTotal12m = (bien.loyers || []).filter(l => new Date(l.date) >= bTwelveAgo).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0);
         const bLinkedCredit = bien.creditId ? computedLoans.find(l => l.id === bien.creditId) : null;
-        const bCanEstimate = !!(bien.adresse?.ville && bien.surface);
         const bTotalTravaux = (bien.travaux || []).reduce((s, tr) => s + (parseFloat(tr.montant) || 0), 0);
         const bUsageColor = USAGE_COLOR[bien.usage] || '#94a3b8';
         const toggle = key => setAccordionOpen(o => ({ ...o, [key]: !o[key] }));
@@ -509,45 +511,64 @@ export default function Patrimoine({ T, data }) {
                 </div>
               )}
 
-              {/* 4 — Estimation DVF */}
+              {/* 4 — Estimation */}
               <div>
-                {accHeader('estimation', '🔍 Estimation DVF')}
+                {accHeader('estimation', '🔍 Estimation')}
                 {accBody('estimation', (
                   <>
-                    {bienEstimationLoading ? (
-                      <div style={{ fontSize: 12, color: T.textMuted }}>Calcul en cours…</div>
-                    ) : bienEstimation ? (
-                      <div>
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.bg2, borderRadius: 8, padding: '10px 8px' }}>
-                            <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette basse</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#fb923c' }}>{fEur(bienEstimation.fourchetteBasse)}</div>
-                          </div>
-                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.accent + '18', borderRadius: 8, padding: '10px 8px' }}>
-                            <div style={{ fontSize: 10, color: T.accent, marginBottom: 4 }}>Estimation</div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: T.accent }}>{fEur(bienEstimation.estimation)}</div>
-                          </div>
-                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.bg2, borderRadius: 8, padding: '10px 8px' }}>
-                            <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette haute</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{fEur(bienEstimation.fourchetteHaute)}</div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => handleUseBienEstimation(bienEstimation.estimation)}
-                            style={{ ...S.btnG, fontSize: 12, padding: '8px 14px', flex: 1 }}>Utiliser cette valeur</button>
-                          <button onClick={() => setBienEstimation(null)} style={{ ...S.btnS, fontSize: 12, padding: '8px 12px' }}>✕</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <button onClick={() => handleBienEstimer(bien)} disabled={!bCanEstimate}
-                          style={{ ...S.btnG, fontSize: 13, padding: '10px 0', width: '100%', opacity: bCanEstimate ? 1 : 0.5 }}>
-                          Estimer la valeur
+                    {/* Saisie manuelle */}
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>Valeur estimée (€)</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input type="number" placeholder="Ex: 280000" value={manualValeurInput}
+                          onChange={e => setManualValeurInput(e.target.value)}
+                          style={{ ...S.inp, flex: 1 }} />
+                        <button
+                          onClick={() => { const v = parseFloat(manualValeurInput); if (v > 0) handleUseBienEstimation(v); }}
+                          disabled={!manualValeurInput || parseFloat(manualValeurInput) <= 0}
+                          style={{ ...S.btnG, fontSize: 12, padding: '6px 14px', opacity: manualValeurInput && parseFloat(manualValeurInput) > 0 ? 1 : 0.5 }}>
+                          💾 Enregistrer
                         </button>
-                        {!bCanEstimate && <div style={{ fontSize: 11, color: T.textFaint, marginTop: 6, textAlign: 'center' }}>Renseignez la ville et la surface pour estimer</div>}
-                      </>
+                      </div>
+                    </div>
+
+                    {/* Résultats si valeurEstimee définie */}
+                    {bien.valeurEstimee > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                        <div style={{ flex: '1 1 130px', background: T.bg2, borderRadius: 8, padding: '10px 14px' }}>
+                          <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Plus-value latente</div>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: bPlusValue != null && bPlusValue >= 0 ? '#4ade80' : '#f87171' }}>
+                            {bPlusValue != null ? (bPlusValue >= 0 ? '+' : '') + fEur(bPlusValue) : '—'}
+                          </div>
+                        </div>
+                        {bien.usage === 'locatif' && (() => {
+                          const rendNet = ((bien.loyerMensuel || 0) * 12 - (bien.taxeFonciere || 0)) / bien.valeurEstimee * 100;
+                          return (
+                            <div style={{ flex: '1 1 130px', background: T.bg2, borderRadius: 8, padding: '10px 14px' }}>
+                              <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Rendement net estimé</div>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: '#4ade80' }}>{fPct(rendNet)}</div>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     )}
-                    {bienEstimationError && <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{bienEstimationError}</div>}
+
+                    {/* Liens externes */}
+                    <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8 }}>Estimer avec des sources externes :</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <a href="https://dvf.data.gouv.fr/" target="_blank" rel="noreferrer"
+                        style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', textDecoration: 'none', display: 'inline-block' }}>
+                        📊 DVF officiel
+                      </a>
+                      <a href="https://www.meilleursagents.com/prix-immobilier/" target="_blank" rel="noreferrer"
+                        style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', textDecoration: 'none', display: 'inline-block' }}>
+                        🏠 Meilleurs Agents
+                      </a>
+                      <a href="https://www.seloger.com/prix-de-l-immo/" target="_blank" rel="noreferrer"
+                        style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', textDecoration: 'none', display: 'inline-block' }}>
+                        📍 SeLoger
+                      </a>
+                    </div>
                   </>
                 ))}
               </div>
@@ -610,9 +631,31 @@ export default function Patrimoine({ T, data }) {
                     <input type="text" placeholder="N°" value={bienForm.adresse.numero}
                       onChange={e => setBienForm(f => ({ ...f, adresse: { ...f.adresse, numero: e.target.value } }))}
                       style={{ ...S.inp, flex: '0 0 60px', width: 60 }} />
-                    <input type="text" placeholder="Rue" value={bienForm.adresse.rue}
-                      onChange={e => setBienForm(f => ({ ...f, adresse: { ...f.adresse, rue: e.target.value } }))}
-                      style={{ ...S.inp, flex: '2 1 180px' }} />
+                    <div style={{ position: 'relative', flex: '2 1 180px' }}>
+                      <input type="text" placeholder="Rue" value={bienForm.adresse.rue}
+                        onChange={e => {
+                          setBienForm(f => ({ ...f, adresse: { ...f.adresse, rue: e.target.value } }));
+                          fetchAdresseSuggestions(bienForm.adresse.numero, e.target.value, bienForm.adresse.codePostal);
+                        }}
+                        onFocus={() => adresseSuggestions.length > 0 && setShowAdresseSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowAdresseSuggestions(false), 150)}
+                        style={{ ...S.inp, width: '100%' }} />
+                      {showAdresseSuggestions && adresseSuggestions.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, zIndex: 200, boxShadow: '0 4px 16px rgba(0,0,0,.25)', maxHeight: 200, overflowY: 'auto', marginTop: 2 }}>
+                          {adresseSuggestions.map((feat, fi) => (
+                            <button key={fi} onMouseDown={() => {
+                              const p = feat.properties;
+                              setBienForm(f => ({ ...f, adresse: { ...f.adresse, rue: p.name || f.adresse.rue, ville: p.city || f.adresse.ville, codePostal: p.postcode || f.adresse.codePostal } }));
+                              setAdresseSuggestions([]);
+                              setShowAdresseSuggestions(false);
+                            }}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', borderBottom: fi < adresseSuggestions.length - 1 ? `1px solid ${T.cardBorder}` : 'none', cursor: 'pointer', fontSize: 12, color: T.text, fontFamily: 'inherit' }}>
+                              {feat.properties.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <input type="text" placeholder="Ville" value={bienForm.adresse.ville}
                       onChange={e => setBienForm(f => ({ ...f, adresse: { ...f.adresse, ville: e.target.value } }))}
                       style={{ ...S.inp, flex: '1 1 120px' }} />
