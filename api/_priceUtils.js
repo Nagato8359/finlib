@@ -110,26 +110,13 @@ async function fetchStock(ticker) {
   return { price: priceEur, source: 'Yahoo Finance' };
 }
 
-// Try ISIN directly on Yahoo, then search API for symbol resolution
+// Resolve ISIN → correct exchange ticker via Yahoo Finance search API
 async function isinToTicker(isin) {
   const now = Date.now();
   if (isinCache[isin] && now - isinCache[isin].ts < ISIN_TTL) {
     return isinCache[isin].ticker;
   }
 
-  // Step 1 — ISIN directly (works on some exchanges)
-  try {
-    const data = await yfGetWithFallback(
-      `/v8/finance/chart/${isin}?interval=1d&range=1d`
-    );
-    const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    if (price != null) {
-      isinCache[isin] = { ticker: isin, ts: now };
-      return isin;
-    }
-  } catch {}
-
-  // Step 2 — Yahoo Finance search: ISIN → symbol
   const search = await yfGet(
     `https://query2.finance.yahoo.com/v1/finance/search?q=${isin}&quotesCount=1&newsCount=0`
   );
