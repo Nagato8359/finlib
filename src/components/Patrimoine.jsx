@@ -949,6 +949,67 @@ export default function Patrimoine({ T, data }) {
             </ResponsiveContainer>
           </div>
         )}
+
+        {/* Loyers globaux — toutes enveloppes Immobilier */}
+        {(() => {
+          const allLoyers = investments
+            .filter(inv => inv.type === 'Immobilier')
+            .flatMap(inv => (inv.loyers || []).map(l => ({ ...l, bienNom: inv.name })));
+          if (!allLoyers.length) return null;
+
+          const cutoff12m = Date.now() - 365 * 86400000;
+          const total12m = allLoyers
+            .filter(l => new Date(l.date).getTime() >= cutoff12m)
+            .reduce((s, l) => s + (parseFloat(l.montant) || 0), 0);
+
+          const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+          const now = new Date();
+          const chartData = Array.from({ length: 12 }, (_, i) => {
+            const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const total = allLoyers
+              .filter(l => l.date?.slice(0, 7) === key)
+              .reduce((s, l) => s + (parseFloat(l.montant) || 0), 0);
+            return { month: MONTHS_FR[d.getMonth()], Loyers: Math.round(total) };
+          });
+
+          return (
+            <div style={{ ...S.card }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>🏠 Loyers perçus — toutes propriétés</h3>
+                <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>12 mois glissants</p>
+              </div>
+              <div className="g3" style={{ marginBottom: 16 }}>
+                {[
+                  { label: 'Total 12 mois', value: fEur(total12m, true), accent: '#4ade80', icon: '💶' },
+                  { label: 'Versements', value: allLoyers.filter(l => new Date(l.date).getTime() >= cutoff12m).length, icon: '📅' },
+                  { label: 'Moy. mensuelle', value: fEur(total12m / 12), icon: '⌀' },
+                ].map(kpi => <KPI key={kpi.label} T={T} label={kpi.label} value={kpi.value} accent={kpi.accent} icon={kpi.icon} />)}
+              </div>
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={chartData} barSize={14}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.cardBorder} />
+                  <XAxis dataKey="month" tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: T.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => v > 0 ? fEur(v, true) : ''} width={44} />
+                  <Tooltip formatter={v => [fEur(v), 'Loyers']} contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }} />
+                  <Bar dataKey="Loyers" fill="#8B5CF6" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                {[...allLoyers].sort((a, b) => b.date.localeCompare(a.date)).map(l => (
+                  <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, color: T.text }}>{l.bienNom}</span>
+                      <span style={{ color: T.textFaint }}>{fDate(l.date)}</span>
+                      {l.compteNom && <span style={{ color: T.textMuted, fontSize: 11 }}>→ {l.compteNom}</span>}
+                    </div>
+                    <span style={{ fontWeight: 700, color: '#4ade80' }}>+{fEur(l.montant)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   };
