@@ -230,7 +230,7 @@ async function handleSearch(req, res) {
 // ── action=estimate ───────────────────────────────────────────────────────────
 const ETAT_MULT    = { renover: 0.75, bon: 1.0, renove: 1.12, neuf: 1.22 };
 const OPTION_BONUS = { parking: 0.03, jardin: 0.05, cave: 0.02, ascenseur: 0.02 };
-const TYPE_LOCAL_MAP = { appartement: 'Appartement', maison: 'Maison', immeuble: 'Immeuble' };
+const TYPE_LOCAL_MAP = { appartement: 'Appartement', maison: 'Maison', immeuble: "Immeuble d'habitation" };
 
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -308,7 +308,9 @@ async function handleEstimate(req, res) {
     return res.status(502).json({ error: `Géocodage impossible : ${e.message}` });
   }
 
-  const cacheKey = `estimate:${citycode}:${type}`;
+  // DOM-TOM departments have 3-digit codes (971–976); metropolitan France uses 2 digits
+  const dept = citycode.startsWith('97') ? citycode.slice(0, 3) : citycode.slice(0, 2);
+  const cacheKey = `estimate:dept:${dept}:${type}`;
   let mutations;
   const cachedDvf = await getCached(cacheKey);
   if (cachedDvf) {
@@ -316,13 +318,11 @@ async function handleEstimate(req, res) {
   }
   if (!mutations) {
     try {
-      const dvfRes = await fetch(
-        `https://api.cquest.org/dvf?code_commune=${encodeURIComponent(citycode)}&section=&numero=`,
-        { signal: AbortSignal.timeout(20000) }
-      );
+      const dvfUrl = `https://api-dvf.etalab.gouv.fr/api/1.0/departement/${encodeURIComponent(dept)}/mutations?type_local=${encodeURIComponent(typeLocal)}&nature_mutation=Vente&page_size=10000`;
+      const dvfRes = await fetch(dvfUrl, { signal: AbortSignal.timeout(30000) });
       if (!dvfRes.ok) throw new Error(`DVF HTTP ${dvfRes.status}`);
       const dvfData = await dvfRes.json();
-      mutations = dvfData?.resultats || dvfData?.features?.map(f => f.properties) || dvfData || [];
+      mutations = dvfData?.results || [];
       if (!Array.isArray(mutations)) mutations = [];
       await setCached(cacheKey, JSON.stringify(mutations), 86400);
     } catch (e) {
