@@ -129,7 +129,7 @@ export default function Accueil({ T, data, setTab }) {
 
     Promise.allSettled(
       toFetch.map(({ key, cacheKey }) =>
-        fetch(`/api/performance?key=${encodeURIComponent(key)}&tf=${perfTf}`)
+        fetch(`/api/prices?action=performance&key=${encodeURIComponent(key)}&tf=${perfTf}`)
           .then(r => r.json())
           .then(data => {
             perfPricesCache.current[cacheKey] = data.error

@@ -177,7 +177,7 @@ export default function PositionFormModal({ T, data }) {
     if (!query || query.length < 2) return;
     setSearching(true);
     try {
-      const res = await fetch(`/api/search?type=stock&q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/prices?action=search&type=stock&q=${encodeURIComponent(query)}`);
       const results = await res.json();
       if (results?.length) {
         const first = results[0];
@@ -198,7 +198,7 @@ export default function PositionFormModal({ T, data }) {
   const fetchDivInfo = async (ticker) => {
     if (!ticker) return;
     try {
-      const res = await fetch(`/api/search?type=divinfo&q=${encodeURIComponent(ticker)}`);
+      const res = await fetch(`/api/prices?action=search&type=divinfo&q=${encodeURIComponent(ticker)}`);
       if (!res.ok) return;
       const info = await res.json();
       const updates = {};
@@ -229,7 +229,7 @@ export default function PositionFormModal({ T, data }) {
       setSearching(true);
       try {
         const searchType = formType === 'crypto' ? 'crypto' : 'stock';
-        const res = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/api/prices?action=search&type=${searchType}&q=${encodeURIComponent(q)}`);
         const list = await res.json();
         setUniversalResults(list || []);
         setShowUniversalResults(true);

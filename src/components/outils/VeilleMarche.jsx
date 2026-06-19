@@ -92,7 +92,7 @@ export default function VeilleMarche({ T, data }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/performance?action=news');
+        const res = await fetch('/api/prices?action=news');
         const json = await res.json();
         if (!cancelled) setNews(json.items || []);
       } catch {
@@ -115,8 +115,8 @@ export default function VeilleMarche({ T, data }) {
 
         const entries = await Promise.all(allTickers.map(async ticker => {
           const [r1j, r1s] = await Promise.all([
-            fetch(`/api/performance?key=${encodeURIComponent(ticker)}&tf=1J`).then(r => r.json()).catch(() => ({})),
-            fetch(`/api/performance?key=${encodeURIComponent(ticker)}&tf=1S`).then(r => r.json()).catch(() => ({})),
+            fetch(`/api/prices?action=performance&key=${encodeURIComponent(ticker)}&tf=1J`).then(r => r.json()).catch(() => ({})),
+            fetch(`/api/prices?action=performance&key=${encodeURIComponent(ticker)}&tf=1S`).then(r => r.json()).catch(() => ({})),
           ]);
           return [ticker, {
             price: priceMap[ticker] ?? null,

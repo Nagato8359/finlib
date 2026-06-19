@@ -515,8 +515,8 @@ export default function Modals({ T, data }) {
       setAddInvLoading(true);
       try {
         const [sr, cr] = await Promise.allSettled([
-          fetch(`/api/search?type=stock&q=${encodeURIComponent(q)}`).then(r => r.json()),
-          fetch(`/api/search?type=crypto&q=${encodeURIComponent(q)}`).then(r => r.json()),
+          fetch(`/api/prices?action=search&type=stock&q=${encodeURIComponent(q)}`).then(r => r.json()),
+          fetch(`/api/prices?action=search&type=crypto&q=${encodeURIComponent(q)}`).then(r => r.json()),
         ]);
         const stocks  = (sr.status === 'fulfilled' && Array.isArray(sr.value))  ? sr.value.map(r => ({ ...r, _kind: 'stock'  })) : [];
         const cryptos = (cr.status === 'fulfilled' && Array.isArray(cr.value))  ? cr.value.map(r => ({ ...r, _kind: 'crypto' })) : [];

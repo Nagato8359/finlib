@@ -166,7 +166,7 @@ export default function Patrimoine({ T, data }) {
         etat: estForm.etat,
         ...(estForm.options.length ? { options: estForm.options.join(',') } : {}),
       });
-      const res = await fetch(`/api/estimate-immo?${params}`);
+      const res = await fetch(`/api/prices?action=estimate&${params}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
       setEstimationImmo(d);
