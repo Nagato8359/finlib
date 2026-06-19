@@ -159,9 +159,11 @@ export default function Patrimoine({ T, data }) {
   }, [drillInv?.id, loadRents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setShowBienForm(false);
     setSelectedBienId(null);
     setBienForm(INIT_BIEN_FORM());
+    const inv = drillInv ? (investments.find(i => i.id === drillInv.id) || drillInv) : null;
+    const autoOpen = inv?.type === 'Immobilier' && !(inv.biens?.length);
+    setShowBienForm(autoOpen);
   }, [drillInv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

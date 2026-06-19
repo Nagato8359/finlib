@@ -801,8 +801,10 @@ export function useData() {
       positions: editItem?.positions || [],
       dividends: editItem?.dividends || [],
     };
-    setInvestments(p => editItem ? p.map(i => i.id === editItem.id ? item : i) : [...p, item]);
+    const isNew = !editItem;
+    setInvestments(p => isNew ? [...p, item] : p.map(i => i.id === editItem.id ? item : i));
     setPortfolioForm(mkPortfolio()); setEditItem(null); setModal(null);
+    if (isNew && portfolioForm.type === 'Immobilier') setDrillInv(item);
   };
   const openEditPortfolio = inv => {
     setEditItem(inv);
