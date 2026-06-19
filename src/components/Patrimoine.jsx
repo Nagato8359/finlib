@@ -73,6 +73,7 @@ export default function Patrimoine({ T, data }) {
   const [bienForm, setBienForm] = useState(INIT_BIEN_FORM);
   const [selectedBienId, setSelectedBienId] = useState(null);
   const [editBienId, setEditBienId] = useState(null);
+  const [accordionOpen, setAccordionOpen] = useState({ situation: true, travaux: false, loyers: false, estimation: false });
   const [showTravauxForm, setShowTravauxForm] = useState(false);
   const [travauxForm, setTravauxForm] = useState({ description: '', montant: '', date: today() });
   const [showBienLoyerForm, setShowBienLoyerForm] = useState(false);
@@ -175,6 +176,7 @@ export default function Patrimoine({ T, data }) {
     setBienLoyerForm({ montant: '', date: today(), compteId: '' });
     setBienEstimation(null);
     setBienEstimationError('');
+    setAccordionOpen({ situation: true, travaux: false, loyers: false, estimation: false });
   }, [selectedBienId]);
 
   const handleSaveLoyer = useCallback(() => {
@@ -316,6 +318,251 @@ export default function Patrimoine({ T, data }) {
       const now = new Date();
       const cy = now.getFullYear();
 
+      // ── Bien detail page (replaces drill-down when a bien is selected) ────────
+      if (selectedBienId && type === 'Immobilier') {
+        const bien = (cur.biens || []).find(b => b.id === selectedBienId);
+        if (!bien) return null;
+        const bPrixRevient = (parseFloat(bien.prixAchat) || 0) + (parseFloat(bien.fraisNotaire) || 0) + (bien.travaux || []).reduce((s, tr) => s + (parseFloat(tr.montant) || 0), 0);
+        const bPlusValue = bien.valeurEstimee != null ? (bien.valeurEstimee - bPrixRevient) : null;
+        const bRendBrut = bien.usage === 'locatif' && bPrixRevient > 0 ? ((bien.loyerMensuel || 0) * 12 / bPrixRevient * 100) : null;
+        const bTwelveAgo = new Date(); bTwelveAgo.setMonth(bTwelveAgo.getMonth() - 12);
+        const bTotal12m = (bien.loyers || []).filter(l => new Date(l.date) >= bTwelveAgo).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0);
+        const bLinkedCredit = bien.creditId ? computedLoans.find(l => l.id === bien.creditId) : null;
+        const bCanEstimate = !!(bien.adresse?.ville && bien.surface);
+        const bTotalTravaux = (bien.travaux || []).reduce((s, tr) => s + (parseFloat(tr.montant) || 0), 0);
+        const bUsageColor = USAGE_COLOR[bien.usage] || '#94a3b8';
+        const toggle = key => setAccordionOpen(o => ({ ...o, [key]: !o[key] }));
+        const accHeader = (sKey, label, badge) => (
+          <button onClick={() => toggle(sKey)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+              {label}{badge ? <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 400, marginLeft: 8 }}>{badge}</span> : null}
+            </span>
+            <span style={{ color: T.textMuted, fontSize: 12 }}>{accordionOpen[sKey] ? '▲' : '▼'}</span>
+          </button>
+        );
+        const accBody = (sKey, children) => (
+          <div style={{ maxHeight: accordionOpen[sKey] ? 2000 : 0, overflow: 'hidden', opacity: accordionOpen[sKey] ? 1 : 0, transition: 'max-height .3s ease, opacity .2s ease' }}>
+            <div style={{ padding: '0 16px 16px' }}>{children}</div>
+          </div>
+        );
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Back + title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setSelectedBienId(null)} style={{ ...S.btnS, fontSize: 12, padding: '5px 12px' }}>← Biens</button>
+              <span style={{ fontSize: 15, fontWeight: 700, color: T.text, flex: 1 }}>{bien.nom}</span>
+              <span style={{ fontSize: 11, background: bUsageColor + '22', color: bUsageColor, padding: '3px 10px', borderRadius: 12, fontWeight: 600 }}>{USAGE_LABEL[bien.usage] || bien.usage}</span>
+            </div>
+
+            {/* Header summary card */}
+            <div style={{ ...S.card }}>
+              {bien.adresse?.ville && (
+                <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 12 }}>
+                  📍 {[bien.adresse.numero, bien.adresse.rue, bien.adresse.codePostal, bien.adresse.ville].filter(Boolean).join(' ')}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 130px', background: T.bg2, borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Prix de revient</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{fEur(bPrixRevient)}</div>
+                </div>
+                <div style={{ flex: '1 1 130px', background: T.bg2, borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Valeur estimée</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: bien.valeurEstimee != null ? T.accent : T.textFaint }}>
+                    {bien.valeurEstimee != null ? fEur(bien.valeurEstimee) : 'Non estimée'}
+                  </div>
+                </div>
+                {bPlusValue !== null && (
+                  <div style={{ flex: '1 1 130px', background: T.bg2, borderRadius: 8, padding: '10px 14px' }}>
+                    <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Plus-value latente</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: bPlusValue >= 0 ? '#4ade80' : '#f87171' }}>{fEur(bPlusValue)}</div>
+                  </div>
+                )}
+              </div>
+              {bRendBrut !== null && (
+                <div style={{ marginTop: 10, background: T.bg2, borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Rendement brut annuel</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#4ade80' }}>{fPct(bRendBrut)}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Accordion sections */}
+            <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
+
+              {/* 1 — Situation */}
+              <div style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                {accHeader('situation', '📊 Situation')}
+                {accBody('situation', (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    {bien.etat && (
+                      <div style={{ flex: '1 1 100px' }}>
+                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 3 }}>État</div>
+                        <div style={{ fontSize: 13, color: T.text, fontWeight: 600 }}>{{ renover: 'À rénover', bon: 'Bon état', renove: 'Rénové', neuf: 'Neuf' }[bien.etat] || bien.etat}</div>
+                      </div>
+                    )}
+                    {bien.dateAcquisition && (
+                      <div style={{ flex: '1 1 120px' }}>
+                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 3 }}>Acquisition</div>
+                        <div style={{ fontSize: 13, color: T.text, fontWeight: 600 }}>{fDate(bien.dateAcquisition)}</div>
+                      </div>
+                    )}
+                    {bien.surface && (
+                      <div style={{ flex: '1 1 80px' }}>
+                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 3 }}>Surface</div>
+                        <div style={{ fontSize: 13, color: T.text, fontWeight: 600 }}>{bien.surface} m²</div>
+                      </div>
+                    )}
+                    {bien.taxeFonciere > 0 && (
+                      <div style={{ flex: '1 1 100px' }}>
+                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 3 }}>Taxe foncière</div>
+                        <div style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>{fEur(bien.taxeFonciere)}/an</div>
+                      </div>
+                    )}
+                    {bLinkedCredit && (
+                      <div style={{ width: '100%', paddingTop: 12, marginTop: 4, borderTop: `1px solid ${T.cardBorder}` }}>
+                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>Crédit lié</div>
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12 }}>
+                          <span><span style={{ color: T.textMuted }}>Nom : </span><strong style={{ color: T.text }}>{bLinkedCredit.name}</strong></span>
+                          <span><span style={{ color: T.textMuted }}>Capital restant : </span><strong style={{ color: '#f87171' }}>{fEur(bLinkedCredit.computedRemaining)}</strong></span>
+                          {bLinkedCredit.monthlyPayment > 0 && <span><span style={{ color: T.textMuted }}>Mensualité : </span><strong style={{ color: T.text }}>{fEur(bLinkedCredit.monthlyPayment)}</strong></span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* 2 — Travaux */}
+              <div style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                {accHeader('travaux', '🔧 Travaux', bTotalTravaux > 0 ? fEur(bTotalTravaux) : null)}
+                {accBody('travaux', (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                      <button onClick={() => setShowTravauxForm(s => !s)} style={{ ...S.btnG, fontSize: 11, padding: '4px 12px' }}>+ Ajouter</button>
+                    </div>
+                    {showTravauxForm && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                        <input type="text" placeholder="Description" value={travauxForm.description}
+                          onChange={e => setTravauxForm(f => ({ ...f, description: e.target.value }))} style={{ ...S.inp, flex: '2 1 160px' }} />
+                        <input type="number" placeholder="Montant (€)" value={travauxForm.montant}
+                          onChange={e => setTravauxForm(f => ({ ...f, montant: e.target.value }))} style={{ ...S.inp, flex: '1 1 100px' }} />
+                        <input type="date" value={travauxForm.date}
+                          onChange={e => setTravauxForm(f => ({ ...f, date: e.target.value }))} style={{ ...S.inp, flex: '0 0 130px', width: 130 }} />
+                        <button onClick={handleAddTravaux} disabled={!travauxForm.description || !travauxForm.montant}
+                          style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', opacity: travauxForm.description && travauxForm.montant ? 1 : 0.6 }}>Ajouter</button>
+                        <button onClick={() => setShowTravauxForm(false)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕</button>
+                      </div>
+                    )}
+                    {(bien.travaux || []).length === 0 ? (
+                      <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '8px 0' }}>Aucun travaux enregistré</div>
+                    ) : (
+                      [...(bien.travaux || [])].sort((a, b) => (a.date > b.date ? -1 : 1)).map(tr => (
+                        <div key={tr.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.cardBorder}`, fontSize: 12 }}>
+                          <span style={{ color: T.textMuted, flexShrink: 0, marginRight: 10 }}>{fDate(tr.date)}</span>
+                          <span style={{ color: T.text, flex: 1 }}>{tr.description}</span>
+                          <span style={{ color: '#f87171', fontWeight: 600, marginLeft: 10 }}>{fEur(tr.montant)}</span>
+                        </div>
+                      ))
+                    )}
+                  </>
+                ))}
+              </div>
+
+              {/* 3 — Loyers (locatif seulement) */}
+              {bien.usage === 'locatif' && (
+                <div style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                  {accHeader('loyers', '💰 Loyers', bTotal12m > 0 ? `${fEur(bTotal12m)} / 12 mois` : null)}
+                  {accBody('loyers', (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                        <button onClick={() => { setShowBienLoyerForm(true); setBienLoyerForm(f => ({ ...f, montant: String(bien.loyerMensuel || '') })); }} style={{ ...S.btnG, fontSize: 11, padding: '4px 12px' }}>+ Loyer reçu</button>
+                      </div>
+                      {showBienLoyerForm && (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                          <input type="number" placeholder="Montant (€)" value={bienLoyerForm.montant}
+                            onChange={e => setBienLoyerForm(f => ({ ...f, montant: e.target.value }))} style={{ ...S.inp, flex: '1 1 100px' }} />
+                          <input type="date" value={bienLoyerForm.date}
+                            onChange={e => setBienLoyerForm(f => ({ ...f, date: e.target.value }))} style={{ ...S.inp, flex: '0 0 130px', width: 130 }} />
+                          <select value={bienLoyerForm.compteId} onChange={e => setBienLoyerForm(f => ({ ...f, compteId: e.target.value }))} style={{ ...S.inp, flex: '2 1 160px' }}>
+                            <option value="">— Compte destination —</option>
+                            {computedSavings.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <button onClick={handleAddBienLoyer} disabled={!bienLoyerForm.montant}
+                            style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', opacity: bienLoyerForm.montant ? 1 : 0.6 }}>Enregistrer</button>
+                          <button onClick={() => setShowBienLoyerForm(false)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕</button>
+                        </div>
+                      )}
+                      {(bien.loyers || []).length === 0 ? (
+                        <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '8px 0' }}>Aucun loyer enregistré</div>
+                      ) : (
+                        [...(bien.loyers || [])].sort((a, b) => (a.date > b.date ? -1 : 1)).map(l => (
+                          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.cardBorder}`, fontSize: 12 }}>
+                            <span style={{ color: T.textMuted, flexShrink: 0, marginRight: 10 }}>{fDate(l.date)}</span>
+                            <span style={{ color: T.text, flex: 1 }}>{l.compteNom || '—'}</span>
+                            <span style={{ color: '#4ade80', fontWeight: 600, marginLeft: 10 }}>{fEur(l.montant)}</span>
+                          </div>
+                        ))
+                      )}
+                    </>
+                  ))}
+                </div>
+              )}
+
+              {/* 4 — Estimation DVF */}
+              <div>
+                {accHeader('estimation', '🔍 Estimation DVF')}
+                {accBody('estimation', (
+                  <>
+                    {bienEstimationLoading ? (
+                      <div style={{ fontSize: 12, color: T.textMuted }}>Calcul en cours…</div>
+                    ) : bienEstimation ? (
+                      <div>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.bg2, borderRadius: 8, padding: '10px 8px' }}>
+                            <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette basse</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#fb923c' }}>{fEur(bienEstimation.fourchetteBasse)}</div>
+                          </div>
+                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.accent + '18', borderRadius: 8, padding: '10px 8px' }}>
+                            <div style={{ fontSize: 10, color: T.accent, marginBottom: 4 }}>Estimation</div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: T.accent }}>{fEur(bienEstimation.estimation)}</div>
+                          </div>
+                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.bg2, borderRadius: 8, padding: '10px 8px' }}>
+                            <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette haute</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{fEur(bienEstimation.fourchetteHaute)}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => handleUseBienEstimation(bienEstimation.estimation)}
+                            style={{ ...S.btnG, fontSize: 12, padding: '8px 14px', flex: 1 }}>Utiliser cette valeur</button>
+                          <button onClick={() => setBienEstimation(null)} style={{ ...S.btnS, fontSize: 12, padding: '8px 12px' }}>✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <button onClick={() => handleBienEstimer(bien)} disabled={!bCanEstimate}
+                          style={{ ...S.btnG, fontSize: 13, padding: '10px 0', width: '100%', opacity: bCanEstimate ? 1 : 0.5 }}>
+                          Estimer la valeur
+                        </button>
+                        {!bCanEstimate && <div style={{ fontSize: 11, color: T.textFaint, marginTop: 6, textAlign: 'center' }}>Renseignez la ville et la surface pour estimer</div>}
+                      </>
+                    )}
+                    {bienEstimationError && <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{bienEstimationError}</div>}
+                  </>
+                ))}
+              </div>
+            </div>
+
+            {/* Delete */}
+            <button
+              onClick={() => setConfirmDel({ msg: `Supprimer "${bien.nom}" ? Cette action est irréversible.`, fn: () => { setSelectedBienId(null); setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, biens: inv.biens.filter(b => b.id !== bien.id) })); } })}
+              style={{ ...S.btnD, width: '100%', padding: '12px 0', fontSize: 13 }}>
+              🗑️ Supprimer ce bien
+            </button>
+          </div>
+        );
+      }
+
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Header */}
@@ -333,22 +580,17 @@ export default function Patrimoine({ T, data }) {
                   {syncMsg && <span style={{ fontSize: 10, color: syncMsg.startsWith('✓') ? '#4ade80' : '#f87171' }}>{syncMsg}</span>}
                 </>
               )}
-              {type === 'Immobilier' && (
-                <button onClick={() => { setShowBienForm(true); setSelectedBienId(null); setEditBienId(null); setBienForm(INIT_BIEN_FORM()); }} style={{ ...S.btnG, fontSize: 11, padding: '4px 10px' }}>+ Ajouter un bien</button>
-              )}
               <button onClick={() => openEditPortfolio(cur)} style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}>{t('inv_edit')}</button>
               <button onClick={() => setConfirmDel({ msg: `Supprimer l'enveloppe "${cur.name}" ? Cette action est irréversible et supprimera tous les actifs associés.`, fn: () => { setDrillInv(null); delInv(cur.id); } })} style={{ ...S.btnD, fontSize: 11, padding: '4px 10px' }}>✕</button>
             </div>
           </div>
 
-          {/* Biens immobiliers */}
+          {/* Biens immobiliers — liste */}
           {type === 'Immobilier' && (
             <div style={{ ...S.card }}>
               <h3 style={{ fontSize: 12, color: T.textMuted, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '.04em' }}>🏡 Biens de l'enveloppe</h3>
-
-              {/* Formulaire ajout / édition */}
-              {showBienForm && (
-                <div style={{ background: T.bg2, borderRadius: 10, padding: '16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {showBienForm ? (
+                <div style={{ background: T.bg2, borderRadius: 10, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>{editBienId ? '✏️ Modifier le bien' : '+ Nouveau bien'}</div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ flex: '2 1 200px' }}>
@@ -363,7 +605,6 @@ export default function Patrimoine({ T, data }) {
                       </select>
                     </div>
                   </div>
-
                   <div style={{ fontSize: 11, color: T.textMuted, marginBottom: -4 }}>Adresse</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <input type="text" placeholder="N°" value={bienForm.adresse.numero}
@@ -379,7 +620,6 @@ export default function Patrimoine({ T, data }) {
                       onChange={e => setBienForm(f => ({ ...f, adresse: { ...f.adresse, codePostal: e.target.value } }))}
                       style={{ ...S.inp, flex: '0 0 100px', width: 100 }} />
                   </div>
-
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ flex: '1 1 80px' }}>
                       <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Surface (m²)</div>
@@ -405,7 +645,6 @@ export default function Patrimoine({ T, data }) {
                       </select>
                     </div>
                   </div>
-
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ flex: '1 1 120px' }}>
                       <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Prix d'achat (€)</div>
@@ -428,7 +667,6 @@ export default function Patrimoine({ T, data }) {
                         onChange={e => setBienForm(f => ({ ...f, dateAcquisition: e.target.value }))} style={{ ...S.inp }} />
                     </div>
                   </div>
-
                   {bienForm.usage === 'locatif' && (
                     <div style={{ flex: '1 1 120px' }}>
                       <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Loyer mensuel (€)</div>
@@ -436,7 +674,6 @@ export default function Patrimoine({ T, data }) {
                         onChange={e => setBienForm(f => ({ ...f, loyerMensuel: e.target.value }))} style={{ ...S.inp }} />
                     </div>
                   )}
-
                   <div>
                     <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Crédit lié (optionnel)</div>
                     <select value={bienForm.creditId} onChange={e => setBienForm(f => ({ ...f, creditId: e.target.value }))} style={{ ...S.inp }}>
@@ -444,7 +681,6 @@ export default function Patrimoine({ T, data }) {
                       {computedLoans.map(l => <option key={l.id} value={l.id}>{l.name} ({fEur(l.computedRemaining)} restants)</option>)}
                     </select>
                   </div>
-
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={handleAddBien} disabled={!bienForm.nom}
                       style={{ ...S.btnG, fontSize: 12, padding: '7px 16px', opacity: bienForm.nom ? 1 : 0.6 }}>
@@ -453,228 +689,65 @@ export default function Patrimoine({ T, data }) {
                     <button onClick={() => { setShowBienForm(false); setEditBienId(null); setBienForm(INIT_BIEN_FORM()); }} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>Annuler</button>
                   </div>
                 </div>
-              )}
-
-              {/* Liste des biens */}
-              {(cur.biens || []).length === 0 && !showBienForm ? (
-                <div style={{ textAlign: 'center', padding: '16px 0', color: T.textFaint, fontSize: 13 }}>Aucun bien ajouté — cliquez sur "+ Ajouter un bien"</div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(cur.biens || []).map(bien => {
-                    const prixRevient = (parseFloat(bien.prixAchat) || 0) + (parseFloat(bien.fraisNotaire) || 0) + (bien.travaux || []).reduce((s, t) => s + (parseFloat(t.montant) || 0), 0);
-                    const usageColor = USAGE_COLOR[bien.usage] || '#94a3b8';
-                    const isSelected = selectedBienId === bien.id;
-                    return (
-                      <div key={bien.id} style={{ background: T.bg2, borderRadius: 10, padding: '12px 14px', borderLeft: isSelected ? `3px solid ${usageColor}` : '3px solid transparent' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{bien.nom}</span>
-                              <span style={{ fontSize: 11, color: T.textMuted }}>{bien.type}</span>
-                              {bien.adresse?.ville && <span style={{ fontSize: 11, color: T.textFaint }}>{bien.adresse.ville}</span>}
-                              <span style={{ fontSize: 10, background: usageColor + '22', color: usageColor, padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>{USAGE_LABEL[bien.usage] || bien.usage}</span>
+                <>
+                  {(cur.biens || []).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '16px 0', color: T.textFaint, fontSize: 13 }}>Aucun bien ajouté</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {(cur.biens || []).map((bien, bIdx) => {
+                        const prixRevient = (parseFloat(bien.prixAchat) || 0) + (parseFloat(bien.fraisNotaire) || 0) + (bien.travaux || []).reduce((s, tr) => s + (parseFloat(tr.montant) || 0), 0);
+                        const plusValue = bien.valeurEstimee != null ? (bien.valeurEstimee - prixRevient) : null;
+                        const usageColor = USAGE_COLOR[bien.usage] || '#94a3b8';
+                        const isLast = bIdx === (cur.biens || []).length - 1;
+                        return (
+                          <div key={bien.id} style={{ padding: '14px 0', borderBottom: isLast ? 'none' : `1px solid ${T.cardBorder}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{bien.nom}</span>
+                              <span style={{ fontSize: 11, background: usageColor + '22', color: usageColor, padding: '3px 10px', borderRadius: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{USAGE_LABEL[bien.usage] || bien.usage}</span>
                             </div>
-                            <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 11, color: T.textMuted }}>Prix de revient : <strong style={{ color: T.text }}>{fEur(prixRevient)}</strong></span>
-                              {bien.valeurEstimee && <span style={{ fontSize: 11, color: T.textMuted }}>Estimé : <strong style={{ color: T.accent }}>{fEur(bien.valeurEstimee)}</strong></span>}
-                              {bien.surface && <span style={{ fontSize: 11, color: T.textFaint }}>{bien.surface} m²</span>}
+                            <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 6 }}>
+                              {bien.type}{bien.adresse?.ville ? ` · ${bien.adresse.ville}` : ''}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                              <span style={{ color: T.textMuted }}>Prix de revient : <strong style={{ color: T.text }}>{fEur(prixRevient)}</strong></span>
+                              {bien.surface && <span style={{ color: T.textFaint }}>{bien.surface} m²</span>}
+                            </div>
+                            {bien.valeurEstimee != null && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                                <span style={{ color: T.textMuted }}>Valeur estimée : <strong style={{ color: T.accent }}>{fEur(bien.valeurEstimee)}</strong></span>
+                                {plusValue !== null && <span style={{ color: plusValue >= 0 ? '#4ade80' : '#f87171', fontWeight: 600 }}>{plusValue >= 0 ? '+' : ''}{fEur(plusValue)}</span>}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                              <button
+                                onClick={() => {
+                                  setEditBienId(bien.id);
+                                  setBienForm({
+                                    nom: bien.nom, type: bien.type, adresse: { ...bien.adresse },
+                                    surface: bien.surface != null ? String(bien.surface) : '',
+                                    etat: bien.etat, usage: bien.usage,
+                                    prixAchat: bien.prixAchat ? String(bien.prixAchat) : '',
+                                    fraisNotaire: bien.fraisNotaire ? String(bien.fraisNotaire) : '',
+                                    taxeFonciere: bien.taxeFonciere ? String(bien.taxeFonciere) : '',
+                                    loyerMensuel: bien.loyerMensuel ? String(bien.loyerMensuel) : '',
+                                    dateAcquisition: bien.dateAcquisition || today(), creditId: bien.creditId || '',
+                                  });
+                                  setShowBienForm(true); setSelectedBienId(null);
+                                }}
+                                style={{ ...S.btnS, fontSize: 12, padding: '6px 14px' }}>✏ Modifier</button>
+                              <button onClick={() => setSelectedBienId(bien.id)} style={{ ...S.btnS, fontSize: 12, padding: '6px 14px' }}>📂 Détail</button>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              onClick={() => {
-                                setEditBienId(bien.id);
-                                setBienForm({
-                                  nom: bien.nom, type: bien.type,
-                                  adresse: { ...bien.adresse },
-                                  surface: bien.surface != null ? String(bien.surface) : '',
-                                  etat: bien.etat, usage: bien.usage,
-                                  prixAchat: bien.prixAchat ? String(bien.prixAchat) : '',
-                                  fraisNotaire: bien.fraisNotaire ? String(bien.fraisNotaire) : '',
-                                  taxeFonciere: bien.taxeFonciere ? String(bien.taxeFonciere) : '',
-                                  loyerMensuel: bien.loyerMensuel ? String(bien.loyerMensuel) : '',
-                                  dateAcquisition: bien.dateAcquisition || today(),
-                                  creditId: bien.creditId || '',
-                                });
-                                setShowBienForm(true);
-                                setSelectedBienId(null);
-                              }}
-                              style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}
-                            >✏️ Modifier</button>
-                            <button
-                              onClick={() => setSelectedBienId(isSelected ? null : bien.id)}
-                              style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}
-                            >{isSelected ? '✕ Fermer' : 'Voir le détail'}</button>
-                          </div>
-                        </div>
-                        {isSelected && (() => {
-                          const plusValue = bien.valeurEstimee != null ? (bien.valeurEstimee - prixRevient) : null;
-                          const rendBrut = bien.usage === 'locatif' && prixRevient > 0 ? ((bien.loyerMensuel || 0) * 12 / prixRevient * 100) : null;
-                          const twelveMonthsAgo = new Date(); twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-                          const total12m = (bien.loyers || []).filter(l => new Date(l.date) >= twelveMonthsAgo).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0);
-                          const linkedCredit = bien.creditId ? computedLoans.find(l => l.id === bien.creditId) : null;
-                          const canEstimate = !!(bien.adresse?.ville && bien.surface);
-                          return (
-                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.cardBorder}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                              {/* Infos rapides */}
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11 }}>
-                                {bien.adresse?.rue && <span style={{ color: T.textMuted }}>📍 {[bien.adresse.numero, bien.adresse.rue, bien.adresse.codePostal, bien.adresse.ville].filter(Boolean).join(' ')}</span>}
-                                {bien.etat && <span style={{ color: T.textMuted }}>État : <strong style={{ color: T.text }}>{{ renover: 'À rénover', bon: 'Bon état', renove: 'Rénové', neuf: 'Neuf' }[bien.etat] || bien.etat}</strong></span>}
-                                {bien.dateAcquisition && <span style={{ color: T.textMuted }}>Acq. : <strong style={{ color: T.text }}>{fDate(bien.dateAcquisition)}</strong></span>}
-                                {bien.taxeFonciere > 0 && <span style={{ color: T.textMuted }}>TF : <strong style={{ color: '#f87171' }}>{fEur(bien.taxeFonciere)}/an</strong></span>}
-                              </div>
-
-                              {/* KPIs */}
-                              <div className="g4">
-                                <KPI T={T} label="Prix de revient" value={fEur(prixRevient)} icon="🏷️" />
-                                <KPI T={T} label="Valeur estimée" value={bien.valeurEstimee != null ? fEur(bien.valeurEstimee) : 'Non estimée'} accent={bien.valeurEstimee != null ? T.accent : T.textFaint} icon="🏡" />
-                                <KPI T={T} label="Plus-value latente" value={plusValue !== null ? fEur(plusValue) : '—'} accent={plusValue === null ? T.textFaint : plusValue >= 0 ? '#4ade80' : '#f87171'} icon="📈" />
-                                {rendBrut !== null && <KPI T={T} label="Rendement brut" value={fPct(rendBrut)} accent="#4ade80" icon="💰" />}
-                              </div>
-
-                              {/* Travaux */}
-                              <div style={{ ...S.card }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                                  <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>🔧 Travaux</h4>
-                                  <button onClick={() => setShowTravauxForm(s => !s)} style={{ ...S.btnG, fontSize: 10, padding: '3px 10px' }}>+ Ajouter</button>
-                                </div>
-                                {showTravauxForm && (
-                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                                    <input type="text" placeholder="Description" value={travauxForm.description}
-                                      onChange={e => setTravauxForm(f => ({ ...f, description: e.target.value }))} style={{ ...S.inp, flex: '2 1 160px' }} />
-                                    <input type="number" placeholder="Montant (€)" value={travauxForm.montant}
-                                      onChange={e => setTravauxForm(f => ({ ...f, montant: e.target.value }))} style={{ ...S.inp, flex: '1 1 100px' }} />
-                                    <input type="date" value={travauxForm.date}
-                                      onChange={e => setTravauxForm(f => ({ ...f, date: e.target.value }))} style={{ ...S.inp, flex: '0 0 130px', width: 130 }} />
-                                    <button onClick={handleAddTravaux} disabled={!travauxForm.description || !travauxForm.montant}
-                                      style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', opacity: travauxForm.description && travauxForm.montant ? 1 : 0.6 }}>Ajouter</button>
-                                    <button onClick={() => setShowTravauxForm(false)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕</button>
-                                  </div>
-                                )}
-                                {(bien.travaux || []).length === 0 ? (
-                                  <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun travaux enregistré</div>
-                                ) : (
-                                  <>
-                                    {[...(bien.travaux || [])].sort((a, b) => (a.date > b.date ? -1 : 1)).map(tr => (
-                                      <div key={tr.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: `1px solid ${T.cardBorder}`, fontSize: 12 }}>
-                                        <span style={{ color: T.textMuted, flexShrink: 0, marginRight: 10 }}>{fDate(tr.date)}</span>
-                                        <span style={{ color: T.text, flex: 1 }}>{tr.description}</span>
-                                        <span style={{ color: '#f87171', fontWeight: 600, marginLeft: 10 }}>{fEur(tr.montant)}</span>
-                                      </div>
-                                    ))}
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 6, fontSize: 12, fontWeight: 700, color: '#f87171' }}>
-                                      Total : {fEur((bien.travaux || []).reduce((s, t) => s + (parseFloat(t.montant) || 0), 0))}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-
-                              {/* Loyers perçus */}
-                              {bien.usage === 'locatif' && (
-                                <div style={{ ...S.card }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                                    <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>💶 Loyers perçus</h4>
-                                    <button onClick={() => { setShowBienLoyerForm(true); setBienLoyerForm(f => ({ ...f, montant: String(bien.loyerMensuel || '') })); }} style={{ ...S.btnG, fontSize: 10, padding: '3px 10px' }}>+ Loyer reçu</button>
-                                  </div>
-                                  {showBienLoyerForm && (
-                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                                      <input type="number" placeholder="Montant (€)" value={bienLoyerForm.montant}
-                                        onChange={e => setBienLoyerForm(f => ({ ...f, montant: e.target.value }))} style={{ ...S.inp, flex: '1 1 100px' }} />
-                                      <input type="date" value={bienLoyerForm.date}
-                                        onChange={e => setBienLoyerForm(f => ({ ...f, date: e.target.value }))} style={{ ...S.inp, flex: '0 0 130px', width: 130 }} />
-                                      <select value={bienLoyerForm.compteId} onChange={e => setBienLoyerForm(f => ({ ...f, compteId: e.target.value }))} style={{ ...S.inp, flex: '2 1 160px' }}>
-                                        <option value="">— Compte destination —</option>
-                                        {computedSavings.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                      </select>
-                                      <button onClick={handleAddBienLoyer} disabled={!bienLoyerForm.montant}
-                                        style={{ ...S.btnG, fontSize: 11, padding: '5px 12px', opacity: bienLoyerForm.montant ? 1 : 0.6 }}>Enregistrer</button>
-                                      <button onClick={() => setShowBienLoyerForm(false)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕</button>
-                                    </div>
-                                  )}
-                                  {(bien.loyers || []).length > 0 && (
-                                    <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
-                                      Total 12 mois glissants : <strong style={{ color: '#4ade80' }}>{fEur(total12m)}</strong>
-                                    </div>
-                                  )}
-                                  {(bien.loyers || []).length === 0 ? (
-                                    <div style={{ fontSize: 12, color: T.textFaint, textAlign: 'center', padding: '6px 0' }}>Aucun loyer enregistré</div>
-                                  ) : (
-                                    [...(bien.loyers || [])].sort((a, b) => (a.date > b.date ? -1 : 1)).map(l => (
-                                      <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: `1px solid ${T.cardBorder}`, fontSize: 12 }}>
-                                        <span style={{ color: T.textMuted, flexShrink: 0, marginRight: 10 }}>{fDate(l.date)}</span>
-                                        <span style={{ color: T.text, flex: 1 }}>{l.compteNom || '—'}</span>
-                                        <span style={{ color: '#4ade80', fontWeight: 600, marginLeft: 10 }}>{fEur(l.montant)}</span>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Estimation DVF */}
-                              <div style={{ ...S.card }}>
-                                <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>🔍 Estimation DVF</h4>
-                                {bienEstimationLoading ? (
-                                  <div style={{ fontSize: 12, color: T.textMuted }}>Calcul en cours…</div>
-                                ) : bienEstimation ? (
-                                  <div>
-                                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
-                                      <div style={{ textAlign: 'center' }}>
-                                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette basse</div>
-                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#fb923c' }}>{fEur(bienEstimation.fourchetteBasse)}</div>
-                                      </div>
-                                      <div style={{ textAlign: 'center' }}>
-                                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Estimation</div>
-                                        <div style={{ fontSize: 18, fontWeight: 800, color: T.accent }}>{fEur(bienEstimation.estimation)}</div>
-                                      </div>
-                                      <div style={{ textAlign: 'center' }}>
-                                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette haute</div>
-                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{fEur(bienEstimation.fourchetteHaute)}</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                      <button onClick={() => handleUseBienEstimation(bienEstimation.estimation)}
-                                        style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}>Utiliser cette valeur</button>
-                                      <button onClick={() => setBienEstimation(null)} style={{ ...S.btnS, fontSize: 11, padding: '5px 10px' }}>✕ Fermer</button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <button onClick={() => handleBienEstimer(bien)} disabled={!canEstimate}
-                                      style={{ ...S.btnG, fontSize: 12, padding: '7px 14px', opacity: canEstimate ? 1 : 0.5 }}>
-                                      Estimer la valeur
-                                    </button>
-                                    {!canEstimate && <div style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>Renseignez la ville et la surface pour estimer</div>}
-                                  </>
-                                )}
-                                {bienEstimationError && <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{bienEstimationError}</div>}
-                              </div>
-
-                              {/* Crédit lié */}
-                              {linkedCredit && (
-                                <div style={{ ...S.card }}>
-                                  <h4 style={{ fontSize: 12, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>🏦 Crédit lié</h4>
-                                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
-                                    <span style={{ color: T.textMuted }}>Nom : <strong style={{ color: T.text }}>{linkedCredit.name}</strong></span>
-                                    <span style={{ color: T.textMuted }}>Capital restant : <strong style={{ color: '#f87171' }}>{fEur(linkedCredit.computedRemaining)}</strong></span>
-                                    {linkedCredit.monthlyPayment > 0 && <span style={{ color: T.textMuted }}>Mensualité : <strong style={{ color: T.text }}>{fEur(linkedCredit.monthlyPayment)}</strong></span>}
-                                    {linkedCredit.rate > 0 && <span style={{ color: T.textMuted }}>Taux : <strong style={{ color: T.text }}>{fPct(linkedCredit.rate)}</strong></span>}
-                                  </div>
-                                  <button onClick={() => setSection('loans')} style={{ ...S.btnS, fontSize: 11, padding: '4px 10px', marginTop: 10 }}>Voir dans Crédits immo →</button>
-                                </div>
-                              )}
-
-                              {/* Supprimer */}
-                              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <button onClick={() => setConfirmDel({ msg: `Supprimer "${bien.nom}" ? Cette action est irréversible.`, fn: () => { setSelectedBienId(null); setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, biens: inv.biens.filter(b => b.id !== bien.id) })); } })}
-                                  style={{ ...S.btnD, fontSize: 11, padding: '5px 12px' }}>Supprimer ce bien</button>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    );
-                  })}
-                </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <button onClick={() => { setShowBienForm(true); setBienForm(INIT_BIEN_FORM()); setEditBienId(null); }}
+                    style={{ ...S.btnG, width: '100%', padding: '10px 0', fontSize: 13, marginTop: 12 }}>
+                    + Ajouter un bien
+                  </button>
+                </>
               )}
             </div>
           )}
