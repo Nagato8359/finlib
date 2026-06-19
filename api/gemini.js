@@ -21,11 +21,18 @@ const OFF_TOPIC_KEYWORDS = [
   'sport', 'football', 'tennis', 'match', 'équipe', 'joueur',
   'film', 'cinéma', 'série', 'acteur', 'réalisateur',
   'musique', 'chanson', 'artiste', 'album', 'concert',
-  'jeu', 'jeux vidéo', 'gaming', 'console',
-  'météo', 'temps', 'température',
+  'jeux vidéo', 'gaming', 'console',
+  'météo', 'température',
   'politique', 'élection', 'président',
   'blague', 'histoire drôle', 'humour',
   'poème', 'roman', 'littérature',
+];
+
+const FINANCIAL_CONTEXT_KEYWORDS = [
+  'estimation', 'immobilier', 'bien immobilier', 'm²', "prix d'achat",
+  'loyer', 'crédit', 'patrimoine', 'investissement', 'rendement',
+  'achat', 'logement', 'appartement', 'maison', 'surface', 'locatif',
+  'épargne', 'budget', 'fiscalité', 'placement', 'portefeuille',
 ];
 
 const OFF_TOPIC_REPLY = "Je suis spécialisé uniquement dans les finances personnelles. Je ne peux pas répondre à cette question. Posez-moi une question sur votre patrimoine, vos investissements ou votre budget.";
@@ -34,6 +41,7 @@ function isOffTopic(contents) {
   const lastUserMsg = [...contents].reverse().find(m => m.role === 'user');
   if (!lastUserMsg) return false;
   const text = (lastUserMsg.parts?.[0]?.text || '').toLowerCase();
+  if (FINANCIAL_CONTEXT_KEYWORDS.some(kw => text.includes(kw))) return false;
   return OFF_TOPIC_KEYWORDS.some(kw => text.includes(kw));
 }
 
