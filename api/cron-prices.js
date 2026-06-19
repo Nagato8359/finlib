@@ -268,6 +268,30 @@ module.exports = async function handler(req, res) {
   // ── STEP 4: Prices ───────────────────────────────────────────────────────
   console.log('STEP4 START: fetching prices');
   try {
+    // ── Major crypto refresh (always, regardless of user holdings) ──────────
+    const MAJOR_CRYPTOS = ['BTC', 'ETH', 'SOL', 'BNB', 'USDC', 'USDT'];
+    await Promise.allSettled(
+      MAJOR_CRYPTOS.map(async (ticker) => {
+        const coinId = CRYPTO_MAP[ticker];
+        if (!coinId) return;
+        try {
+          const entry = await fetchCryptoEntry(coinId);
+          if (entry.price == null) return;
+          const { error: upsErr } = await supabaseAdmin.from('prices_cache').upsert({
+            ticker,
+            price:      parseFloat(entry.price.toFixed(4)),
+            change_pct: entry.change_pct != null ? parseFloat(entry.change_pct.toFixed(3)) : null,
+            currency:   'EUR',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'ticker' });
+          if (!upsErr) priceMap[ticker] = entry.price;
+          else console.error(`[cron] major crypto upsert ${ticker}:`, upsErr.message);
+        } catch (e) {
+          console.error(`[cron] major crypto ${ticker}:`, e.message);
+        }
+      })
+    );
+
     if (keys.length) {
       settled = await Promise.allSettled(
         keys.map(async (key) => {
