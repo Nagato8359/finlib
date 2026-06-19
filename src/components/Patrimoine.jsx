@@ -72,6 +72,7 @@ export default function Patrimoine({ T, data }) {
   const [showBienForm, setShowBienForm] = useState(false);
   const [bienForm, setBienForm] = useState(INIT_BIEN_FORM);
   const [selectedBienId, setSelectedBienId] = useState(null);
+  const [editBienId, setEditBienId] = useState(null);
   const [showTravauxForm, setShowTravauxForm] = useState(false);
   const [travauxForm, setTravauxForm] = useState({ description: '', montant: '', date: today() });
   const [showBienLoyerForm, setShowBienLoyerForm] = useState(false);
@@ -160,6 +161,7 @@ export default function Patrimoine({ T, data }) {
 
   useEffect(() => {
     setSelectedBienId(null);
+    setEditBienId(null);
     setBienForm(INIT_BIEN_FORM());
     const inv = drillInv ? (investments.find(i => i.id === drillInv.id) || drillInv) : null;
     const autoOpen = inv?.type === 'Immobilier' && !(inv.biens?.length);
@@ -195,8 +197,7 @@ export default function Patrimoine({ T, data }) {
 
   const handleAddBien = useCallback(() => {
     if (!bienForm.nom || !drillInv) return;
-    const bien = {
-      id: crypto.randomUUID(),
+    const fields = {
       nom: bienForm.nom,
       type: bienForm.type,
       adresse: { ...bienForm.adresse },
@@ -209,16 +210,24 @@ export default function Patrimoine({ T, data }) {
       loyerMensuel: bienForm.usage === 'locatif' ? (parseFloat(bienForm.loyerMensuel) || 0) : 0,
       dateAcquisition: bienForm.dateAcquisition || null,
       creditId: bienForm.creditId || null,
-      travaux: [],
-      loyers: [],
-      valeurEstimee: null,
     };
-    setInvestments(prev => prev.map(inv =>
-      inv.id !== drillInv.id ? inv : { ...inv, biens: [...(inv.biens || []), bien] }
-    ));
+    if (editBienId) {
+      setInvestments(prev => prev.map(inv =>
+        inv.id !== drillInv.id ? inv : {
+          ...inv,
+          biens: (inv.biens || []).map(b => b.id !== editBienId ? b : { ...b, ...fields }),
+        }
+      ));
+    } else {
+      const bien = { id: crypto.randomUUID(), ...fields, travaux: [], loyers: [], valeurEstimee: null };
+      setInvestments(prev => prev.map(inv =>
+        inv.id !== drillInv.id ? inv : { ...inv, biens: [...(inv.biens || []), bien] }
+      ));
+    }
     setShowBienForm(false);
+    setEditBienId(null);
     setBienForm(INIT_BIEN_FORM());
-  }, [bienForm, drillInv, setInvestments]);
+  }, [bienForm, editBienId, drillInv, setInvestments]);
 
   const handleAddTravaux = useCallback(() => {
     if (!travauxForm.description || !travauxForm.montant || !selectedBienId || !drillInv) return;
@@ -325,7 +334,7 @@ export default function Patrimoine({ T, data }) {
                 </>
               )}
               {type === 'Immobilier' && (
-                <button onClick={() => { setShowBienForm(true); setSelectedBienId(null); }} style={{ ...S.btnG, fontSize: 11, padding: '4px 10px' }}>+ Ajouter un bien</button>
+                <button onClick={() => { setShowBienForm(true); setSelectedBienId(null); setEditBienId(null); setBienForm(INIT_BIEN_FORM()); }} style={{ ...S.btnG, fontSize: 11, padding: '4px 10px' }}>+ Ajouter un bien</button>
               )}
               <button onClick={() => openEditPortfolio(cur)} style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}>{t('inv_edit')}</button>
               <button onClick={() => setConfirmDel({ msg: `Supprimer l'enveloppe "${cur.name}" ? Cette action est irréversible et supprimera tous les actifs associés.`, fn: () => { setDrillInv(null); delInv(cur.id); } })} style={{ ...S.btnD, fontSize: 11, padding: '4px 10px' }}>✕</button>
@@ -337,9 +346,10 @@ export default function Patrimoine({ T, data }) {
             <div style={{ ...S.card }}>
               <h3 style={{ fontSize: 12, color: T.textMuted, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '.04em' }}>🏡 Biens de l'enveloppe</h3>
 
-              {/* Formulaire ajout */}
+              {/* Formulaire ajout / édition */}
               {showBienForm && (
                 <div style={{ background: T.bg2, borderRadius: 10, padding: '16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.04em' }}>{editBienId ? '✏️ Modifier le bien' : '+ Nouveau bien'}</div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ flex: '2 1 200px' }}>
                       <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Nom du bien *</div>
@@ -438,9 +448,9 @@ export default function Patrimoine({ T, data }) {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={handleAddBien} disabled={!bienForm.nom}
                       style={{ ...S.btnG, fontSize: 12, padding: '7px 16px', opacity: bienForm.nom ? 1 : 0.6 }}>
-                      Ajouter le bien
+                      {editBienId ? 'Enregistrer les modifications' : 'Ajouter le bien'}
                     </button>
-                    <button onClick={() => setShowBienForm(false)} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>Annuler</button>
+                    <button onClick={() => { setShowBienForm(false); setEditBienId(null); setBienForm(INIT_BIEN_FORM()); }} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>Annuler</button>
                   </div>
                 </div>
               )}
@@ -470,10 +480,32 @@ export default function Patrimoine({ T, data }) {
                               {bien.surface && <span style={{ fontSize: 11, color: T.textFaint }}>{bien.surface} m²</span>}
                             </div>
                           </div>
-                          <button
-                            onClick={() => setSelectedBienId(isSelected ? null : bien.id)}
-                            style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}
-                          >{isSelected ? '✕ Fermer' : 'Voir le détail'}</button>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => {
+                                setEditBienId(bien.id);
+                                setBienForm({
+                                  nom: bien.nom, type: bien.type,
+                                  adresse: { ...bien.adresse },
+                                  surface: bien.surface != null ? String(bien.surface) : '',
+                                  etat: bien.etat, usage: bien.usage,
+                                  prixAchat: bien.prixAchat ? String(bien.prixAchat) : '',
+                                  fraisNotaire: bien.fraisNotaire ? String(bien.fraisNotaire) : '',
+                                  taxeFonciere: bien.taxeFonciere ? String(bien.taxeFonciere) : '',
+                                  loyerMensuel: bien.loyerMensuel ? String(bien.loyerMensuel) : '',
+                                  dateAcquisition: bien.dateAcquisition || today(),
+                                  creditId: bien.creditId || '',
+                                });
+                                setShowBienForm(true);
+                                setSelectedBienId(null);
+                              }}
+                              style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}
+                            >✏️ Modifier</button>
+                            <button
+                              onClick={() => setSelectedBienId(isSelected ? null : bien.id)}
+                              style={{ ...S.btnS, fontSize: 11, padding: '4px 10px' }}
+                            >{isSelected ? '✕ Fermer' : 'Voir le détail'}</button>
+                          </div>
                         </div>
                         {isSelected && (() => {
                           const plusValue = bien.valeurEstimee != null ? (bien.valeurEstimee - prixRevient) : null;
