@@ -312,11 +312,12 @@ JSON attendu (exactement ce format) :
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-plan': 'free', 'x-user-id': 'anon' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 512 }, isAutoAnalysis: true }),
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }, isAutoAnalysis: true }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `Erreur API (${res.status})`);
       const text = json.cached ? json.text : (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '');
+      console.log('[AI Estimation raw]', text);
       const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const firstBrace = clean.indexOf('{');
       const lastBrace  = clean.lastIndexOf('}');
