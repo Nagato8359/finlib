@@ -301,24 +301,13 @@ export default function Patrimoine({ T, data }) {
     setAiEstimation(null);
     const etatLabel = { renover: 'À rénover', bon: 'Bon état', renove: 'Rénové', neuf: 'Neuf' }[bien.etat] || bien.etat || 'Bon état';
     const adresseStr = [bien.adresse.numero, bien.adresse.rue, bien.adresse.codePostal, bien.adresse.ville].filter(Boolean).join(' ');
-    const prompt = `Tu es un expert immobilier français. Estime la valeur marchande actuelle de ce bien immobilier en te basant sur ta connaissance des prix du marché français en 2026.
+    const prompt = `Tu es un expert immobilier français. Réponds UNIQUEMENT avec du JSON brut, sans aucun texte avant ou après, sans markdown, sans backticks.
 
-Bien à estimer :
-- Type : ${bien.type}
-- Adresse : ${adresseStr}
-- Surface : ${bien.surface} m²
-- État : ${etatLabel}
-- Date d'acquisition : ${bien.dateAcquisition || 'Non renseignée'}
-- Prix d'achat : ${bien.prixAchat || 'Non renseigné'} €
+Bien : ${bien.type}, ${bien.surface}m², ${etatLabel}, ${adresseStr}
+Prix d'achat : ${bien.prixAchat || 'Non renseigné'}€
 
-Réponds UNIQUEMENT avec un objet JSON valide, rien d'autre, pas de texte avant ou après :
-{
-  "estimation": 280000,
-  "fourchetteBasse": 260000,
-  "fourchetteHaute": 300000,
-  "prixM2": 6222,
-  "commentaire": "Explication courte en 1-2 phrases"
-}`;
+JSON attendu (exactement ce format) :
+{"estimation":280000,"fourchetteBasse":260000,"fourchetteHaute":300000,"prixM2":6222,"commentaire":"phrase courte"}`;
     try {
       const res = await fetch('/api/gemini', {
         method: 'POST',
@@ -328,7 +317,10 @@ Réponds UNIQUEMENT avec un objet JSON valide, rien d'autre, pas de texte avant 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `Erreur API (${res.status})`);
       const text = json.cached ? json.text : (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '');
-      const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const firstBrace = clean.indexOf('{');
+      const lastBrace  = clean.lastIndexOf('}');
+      const jsonStr    = clean.slice(firstBrace, lastBrace + 1);
       setAiEstimation(JSON.parse(jsonStr));
     } catch (e) { setAiEstimationError(e.message); }
     finally { setAiEstimationLoading(false); }
@@ -647,22 +639,6 @@ Réponds UNIQUEMENT avec un objet JSON valide, rien d'autre, pas de texte avant 
                       </div>
                     )}
 
-                    {/* Liens externes */}
-                    <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8 }}>Estimer avec des sources externes :</div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <a href="https://dvf.data.gouv.fr/" target="_blank" rel="noreferrer"
-                        style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', textDecoration: 'none', display: 'inline-block' }}>
-                        📊 DVF officiel
-                      </a>
-                      <a href="https://www.meilleursagents.com/prix-immobilier/" target="_blank" rel="noreferrer"
-                        style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', textDecoration: 'none', display: 'inline-block' }}>
-                        🏠 Meilleurs Agents
-                      </a>
-                      <a href="https://www.seloger.com/prix-de-l-immo/" target="_blank" rel="noreferrer"
-                        style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', textDecoration: 'none', display: 'inline-block' }}>
-                        📍 SeLoger
-                      </a>
-                    </div>
                   </>
                 ))}
               </div>
