@@ -996,7 +996,7 @@ export function useData() {
   return {
     user, authLoading, demoMode, handleLogout, activateDemo,
     transactions, investments, healthAssets, budgets, setBudgets,
-    goals, savings, computedSavings, listings, soldHistory, setSoldHistory,
+    goals, savings, setSavings, computedSavings, listings, soldHistory, setSoldHistory,
     loans, computedLoans, debts,
     allAccounts,
     projYears, setProjYears, projRate, setProjRate, projMonthly, setProjMonthly,

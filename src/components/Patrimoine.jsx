@@ -61,6 +61,7 @@ export default function Patrimoine({ T, data }) {
   const [estimationLoading, setEstimationLoading] = useState(false);
   const [estimationError, setEstimationError] = useState('');
   const [estForm, setEstForm] = useState({ adresse: '', surface: '', type: 'appartement', etat: 'bon', options: [] });
+  const [loyerForm, setLoyerForm] = useState({ show: false, montant: '', date: today(), compteId: '' });
 
   const SECTIONS = [
     { id: 'invest',   label: t('pat_invest')   },
@@ -71,7 +72,7 @@ export default function Patrimoine({ T, data }) {
 
   const {
     investments, invTotal, invInvested, invLiveValue, invLiveInvested, priceStatus, lastUpdated, fetchPrices,
-    computedSavings, cashTotal, annualInterests, avgRate,
+    computedSavings, setSavings, cashTotal, annualInterests, avgRate,
     healthAssets, healthTotal, healthCost,
     listings, soldHistory, setSoldHistory, listingsExpectedProfit, soldProfit, soldProfitThisYear,
     computedLoans, totalLoanDebt, linkedLoanDebt,
@@ -176,6 +177,24 @@ export default function Patrimoine({ T, data }) {
       setEstimationLoading(false);
     }
   }, [estForm]);
+
+  const handleSaveLoyer = useCallback(() => {
+    const { montant, date, compteId } = loyerForm;
+    if (!montant || !date || !drillInv) return;
+    const montantNum = parseFloat(montant);
+    if (!montantNum || montantNum <= 0) return;
+    const compte = computedSavings.find(c => c.id === compteId);
+    const loyer = { id: uid(), date, montant: montantNum, compteId: compteId || null, compteNom: compte?.name || null };
+    setInvestments(prev => prev.map(inv =>
+      inv.id !== drillInv.id ? inv : { ...inv, loyers: [...(inv.loyers || []), loyer] }
+    ));
+    if (compteId && compte) {
+      setSavings(prev => prev.map(a =>
+        a.id !== compteId ? a : { ...a, balance: (parseFloat(a.balance) || 0) + montantNum }
+      ));
+    }
+    setLoyerForm(f => ({ ...f, show: false, montant: '', date: today() }));
+  }, [loyerForm, drillInv, computedSavings, setInvestments, setSavings]);
 
   const SubNav = () => (
     <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
@@ -660,8 +679,100 @@ export default function Patrimoine({ T, data }) {
             </div>
           )}
 
-          {/* Dividendes — scoped à cette enveloppe (masqué pour RealT : loyers via Blockscout) */}
-          {cur.type !== 'RealT' && <div style={{ ...S.card }}>
+          {/* Loyers — section spécifique Immobilier */}
+          {type === 'Immobilier' && (() => {
+            const loyers = cur.loyers || [];
+            const cutoff12m = Date.now() - 365 * 86400000;
+            const total12m = loyers
+              .filter(l => new Date(l.date).getTime() >= cutoff12m)
+              .reduce((s, l) => s + (parseFloat(l.montant) || 0), 0);
+            return (
+              <div style={{ ...S.card }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Loyers perçus</h3>
+                    {total12m > 0 && (
+                      <div style={{ fontSize: 11, color: '#4ade80', marginTop: 2 }}>
+                        12 mois glissants : <strong>{fEur(total12m)}</strong>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setLoyerForm({ show: true, montant: String(parseFloat(cur.loyerMensuel) || ''), date: today(), compteId: '' })}
+                    style={{ ...S.btnG, fontSize: 11, padding: '5px 12px' }}
+                  >+ Loyer reçu</button>
+                </div>
+
+                {loyerForm.show && (
+                  <div style={{ background: T.bg2, borderRadius: 10, padding: '14px 16px', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 120px' }}>
+                        <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Montant (€)</div>
+                        <input
+                          type="number"
+                          placeholder="Montant"
+                          value={loyerForm.montant}
+                          onChange={e => setLoyerForm(f => ({ ...f, montant: e.target.value }))}
+                          style={{ ...S.inp }}
+                        />
+                      </div>
+                      <div style={{ flex: '1 1 140px' }}>
+                        <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Date de réception</div>
+                        <input
+                          type="date"
+                          value={loyerForm.date}
+                          onChange={e => setLoyerForm(f => ({ ...f, date: e.target.value }))}
+                          style={{ ...S.inp }}
+                        />
+                      </div>
+                      <div style={{ flex: '1 1 160px' }}>
+                        <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4 }}>Compte destination</div>
+                        <select
+                          value={loyerForm.compteId}
+                          onChange={e => setLoyerForm(f => ({ ...f, compteId: e.target.value }))}
+                          style={{ ...S.inp }}
+                        >
+                          <option value="">— Aucun —</option>
+                          {computedSavings.map(c => (
+                            <option key={c.id} value={c.id}>{c.name} ({fEur(c.balance)})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={handleSaveLoyer} style={{ ...S.btnG, fontSize: 12, padding: '7px 16px' }}>Enregistrer</button>
+                      <button onClick={() => setLoyerForm(f => ({ ...f, show: false }))} style={{ ...S.btnS, fontSize: 12, padding: '7px 14px' }}>Annuler</button>
+                    </div>
+                  </div>
+                )}
+
+                {loyers.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '16px 0', color: T.textFaint, fontSize: 13 }}>Aucun loyer enregistré</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                    {[...loyers].sort((a, b) => b.date.localeCompare(a.date)).map(l => (
+                      <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: T.bg2, borderRadius: 8, fontSize: 12 }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <span style={{ color: T.textFaint }}>{fDate(l.date)}</span>
+                          {l.compteNom && <span style={{ color: T.textMuted, fontSize: 11 }}>→ {l.compteNom}</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 700, color: '#4ade80' }}>+{fEur(l.montant)}</span>
+                          <button
+                            onClick={() => setConfirmDel({ msg: `Supprimer ce loyer de ${fEur(l.montant)} ? Cette action est irréversible.`, fn: () => setInvestments(p => p.map(inv => inv.id !== cur.id ? inv : { ...inv, loyers: inv.loyers.filter(x => x.id !== l.id) })) })}
+                            style={{ ...S.btnD, padding: '1px 6px', fontSize: 10 }}
+                          >✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Dividendes — masqué pour RealT (loyers Blockscout) et Immobilier (loyers propres) */}
+          {cur.type !== 'RealT' && cur.type !== 'Immobilier' && <div style={{ ...S.card }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h3 style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t('inv_dividends')}</h3>
               <button onClick={() => { setDivInvId(cur.id); setModal('div'); }} style={{ ...S.btnS, fontSize: 11, padding: '5px 12px', color: '#4ade80', borderColor: 'rgba(74,222,128,.3)' }}>{t('inv_add_dividend')}</button>
