@@ -188,7 +188,7 @@ module.exports = async function handler(req, res) {
         else console.error(`[snapshot-all] ${user_id}:`, insErr.message);
       }
       console.log(`[snapshot-all] snapshotted ${snapshotted} users`);
-      return res.json({ ok: true, snapshotted });
+      // falls through to full price-refresh pipeline (STEP1-9)
     } catch (e) {
       console.error('[snapshot-all] error:', e.message);
       return res.status(500).json({ error: e.message });
