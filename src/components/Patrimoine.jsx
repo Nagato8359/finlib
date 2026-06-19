@@ -68,10 +68,6 @@ export default function Patrimoine({ T, data }) {
   const [rentTf, setRentTf]           = useState('12M');
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg, setSyncMsg]         = useState('');
-  const [estimationImmo, setEstimationImmo] = useState(null);
-  const [estimationLoading, setEstimationLoading] = useState(false);
-  const [estimationError, setEstimationError] = useState('');
-  const [estForm, setEstForm] = useState({ adresse: '', surface: '', type: 'appartement', etat: 'bon', options: [] });
   const [loyerForm, setLoyerForm] = useState({ show: false, montant: '', date: today(), compteId: '' });
   const [showBienForm, setShowBienForm] = useState(false);
   const [bienForm, setBienForm] = useState(INIT_BIEN_FORM);
@@ -163,19 +159,9 @@ export default function Patrimoine({ T, data }) {
   }, [drillInv?.id, loadRents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setEstimationImmo(null);
-    setEstimationError('');
     setShowBienForm(false);
     setSelectedBienId(null);
     setBienForm(INIT_BIEN_FORM());
-    if (!drillInv) return;
-    const inv = data.investments?.find(i => i.id === drillInv.id) || drillInv;
-    if (inv.type !== 'Immobilier') return;
-    setEstForm(f => ({
-      ...f,
-      adresse: inv.adresse || f.adresse,
-      surface: inv.surface ? String(inv.surface) : f.surface,
-    }));
   }, [drillInv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -186,30 +172,6 @@ export default function Patrimoine({ T, data }) {
     setBienEstimation(null);
     setBienEstimationError('');
   }, [selectedBienId]);
-
-  const handleEstimer = useCallback(async () => {
-    if (!estForm.adresse || !estForm.surface) return;
-    setEstimationLoading(true);
-    setEstimationError('');
-    setEstimationImmo(null);
-    try {
-      const params = new URLSearchParams({
-        adresse: estForm.adresse,
-        surface: estForm.surface,
-        type: estForm.type,
-        etat: estForm.etat,
-        ...(estForm.options.length ? { options: estForm.options.join(',') } : {}),
-      });
-      const res = await fetch(`/api/prices?action=estimate&${params}`);
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
-      setEstimationImmo(d);
-    } catch (e) {
-      setEstimationError(e.message);
-    } finally {
-      setEstimationLoading(false);
-    }
-  }, [estForm]);
 
   const handleSaveLoyer = useCallback(() => {
     const { montant, date, compteId } = loyerForm;
@@ -852,99 +814,6 @@ export default function Patrimoine({ T, data }) {
               </div>
             );
           })()}
-
-          {/* Estimation immobilière */}
-          {type === 'Immobilier' && (
-            <div style={{ ...S.card }}>
-              <h3 style={{ fontSize: 12, color: T.textMuted, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '.04em' }}>🏠 Estimation du marché</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input
-                  type="text"
-                  placeholder="Ex: 12 rue de la Paix, Paris"
-                  value={estForm.adresse}
-                  onChange={e => setEstForm(f => ({ ...f, adresse: e.target.value }))}
-                  style={{ ...S.inp }}
-                />
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <input
-                    type="number"
-                    placeholder="Surface en m²"
-                    value={estForm.surface}
-                    onChange={e => setEstForm(f => ({ ...f, surface: e.target.value }))}
-                    style={{ ...S.inp, flex: '1 1 100px' }}
-                  />
-                  <select
-                    value={estForm.type}
-                    onChange={e => setEstForm(f => ({ ...f, type: e.target.value }))}
-                    style={{ ...S.inp, flex: '1 1 120px' }}
-                  >
-                    <option value="appartement">Appartement</option>
-                    <option value="maison">Maison</option>
-                    <option value="immeuble">Immeuble</option>
-                  </select>
-                  <select
-                    value={estForm.etat}
-                    onChange={e => setEstForm(f => ({ ...f, etat: e.target.value }))}
-                    style={{ ...S.inp, flex: '1 1 120px' }}
-                  >
-                    <option value="renover">À rénover</option>
-                    <option value="bon">Bon état</option>
-                    <option value="renove">Rénové</option>
-                    <option value="neuf">Neuf</option>
-                  </select>
-                </div>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                  {[['parking', 'Parking'], ['jardin', 'Jardin'], ['cave', 'Cave'], ['ascenseur', 'Ascenseur']].map(([val, label]) => (
-                    <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: T.text, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={estForm.options.includes(val)}
-                        onChange={e => setEstForm(f => ({ ...f, options: e.target.checked ? [...f.options, val] : f.options.filter(o => o !== val) }))}
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-                <button
-                  onClick={handleEstimer}
-                  disabled={estimationLoading || !estForm.adresse || !estForm.surface}
-                  style={{ ...S.btnG, opacity: (estimationLoading || !estForm.adresse || !estForm.surface) ? 0.6 : 1 }}
-                >
-                  {estimationLoading ? 'Estimation en cours…' : '🏠 Estimer'}
-                </button>
-              </div>
-
-              {estimationError && (
-                <div style={{ color: '#f87171', fontSize: 13, marginTop: 12 }}>{estimationError}</div>
-              )}
-
-              {estimationImmo && (
-                <div style={{ marginTop: 16, background: T.bg2, borderRadius: 12, padding: '16px 20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-                    <div style={{ textAlign: 'center', flex: 1 }}>
-                      <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Fourchette basse</div>
-                      <div style={{ fontSize: 17, fontWeight: 700, color: T.textMuted }}>{fEur(estimationImmo.fourchetteBasse, true)}</div>
-                    </div>
-                    <div style={{ textAlign: 'center', flex: 1 }}>
-                      <div style={{ fontSize: 10, color: T.accent, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4, fontWeight: 600 }}>Estimation</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: T.accent }}>{fEur(estimationImmo.estimation, true)}</div>
-                    </div>
-                    <div style={{ textAlign: 'center', flex: 1 }}>
-                      <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Fourchette haute</div>
-                      <div style={{ fontSize: 17, fontWeight: 700, color: T.textMuted }}>{fEur(estimationImmo.fourchetteHaute, true)}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, borderTop: `1px solid ${T.cardBorder}`, paddingTop: 12 }}>
-                    <div style={{ fontSize: 12, color: T.textMuted }}>Prix au m² du secteur : <strong style={{ color: T.text }}>{fEur(estimationImmo.prixM2)}/m²</strong></div>
-                    <div style={{ fontSize: 12, color: T.textMuted }}>Basé sur <strong style={{ color: T.text }}>{estimationImmo.nbTransactions} ventes récentes</strong> à {estimationImmo.commune}</div>
-                    {estimationImmo.dateDerniereVente && (
-                      <div style={{ fontSize: 12, color: T.textFaint }}>Dernière vente : {estimationImmo.dateDerniereVente}</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Positions */}
           {showPositions && (
