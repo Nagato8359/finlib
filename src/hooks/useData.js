@@ -38,6 +38,7 @@ const mkPortfolio = () => ({
   name: '', type: 'PEA', courtier: '', openDate: '', devise: 'EUR',
   assureur: '', avType: 'Fonds euros', platform: '', walletType: 'CEX',
   immoBien: 'Locatif', adresse: '', acquisitionDate: '', loanId: '', loyerMensuel: '', chargesMensuelles: '',
+  structureJuridique: 'Nom propre',
   employeur: '', peType: 'PEE', disponibiliteDate: '',
   value: '', invested: '', cash: '', notes: '',
 });

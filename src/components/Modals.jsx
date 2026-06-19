@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { makeS, fEur, fDate, today, uid, mLeft, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_IMMO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
+import { makeS, fEur, fDate, today, uid, mLeft, CAT_COLORS, HEALTH_CATS, CASH_TYPES, CASH_TYPE_INFO, ITEM_CONDITIONS, PORTFOLIO_TYPES, PORTFOLIO_TYPE_ICON, PORTFOLIO_BROKERS_PEA, PORTFOLIO_BROKERS_CTO, PORTFOLIO_AV_TYPES, PORTFOLIO_AV_INSURERS, PORTFOLIO_CRYPTO_PLATFORMS, PORTFOLIO_CRYPTO_TYPES, PORTFOLIO_PE_TYPES } from '../utils/constants';
 import { useTranslation } from '../hooks/useTranslation';
 // modal === 'drill' (position form) is handled by PositionFormModal in App.js
 
@@ -1076,34 +1076,15 @@ export default function Modals({ T, data }) {
           </FRow>
         )}
 
-        {/* ── Immobilier physique — contenant uniquement ────────────────────── */}
+        {/* ── Immobilier physique ───────────────────────────────────────────── */}
         {isImmo && (
-          <>
-            <FRow cols={2}>
-              <FField style={f} label={t('portfolio_immo_type')}>
-                <select style={S.inp} value={portfolioForm.immoBien} onChange={e => setPortfolioForm(p => ({ ...p, immoBien: e.target.value }))}>
-                  {PORTFOLIO_IMMO_TYPES.map(it => <option key={it}>{it}</option>)}
-                </select>
-              </FField>
-              <FField style={f} label={t('portfolio_acq_date')}><input type="date" style={S.inp} value={portfolioForm.acquisitionDate} onChange={e => setPortfolioForm(p => ({ ...p, acquisitionDate: e.target.value }))} /></FField>
-            </FRow>
-            <FRow cols={1}>
-              <FField style={f} label={`${t('portfolio_address')} (optionnel)`}><input type="text" placeholder="12 rue des Lilas, 75011 Paris" style={S.inp} value={portfolioForm.adresse} onChange={e => setPortfolioForm(p => ({ ...p, adresse: e.target.value }))} /></FField>
-            </FRow>
-            {portfolioForm.immoBien === 'Locatif' && (
-              <FRow cols={1}>
-                <FField style={f} label="Loyer mensuel (€) — optionnel">
-                  <input
-                    type="number"
-                    placeholder="Ex : 850"
-                    style={S.inp}
-                    value={portfolioForm.loyerMensuel || ''}
-                    onChange={e => setPortfolioForm(p => ({ ...p, loyerMensuel: parseFloat(e.target.value) || 0 }))}
-                  />
-                </FField>
-              </FRow>
-            )}
-          </>
+          <FRow cols={1}>
+            <FField style={f} label="Structure juridique">
+              <select style={S.inp} value={portfolioForm.structureJuridique || 'Nom propre'} onChange={e => setPortfolioForm(p => ({ ...p, structureJuridique: e.target.value }))}>
+                {['Nom propre', 'SCI', 'Indivision', 'SCPI', 'Nue-propriété'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </FField>
+          </FRow>
         )}
 
         {/* ── Crowdfunding immobilier (LPB, Tantiem, Bricks…) ─────────────── */}
