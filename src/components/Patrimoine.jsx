@@ -81,6 +81,9 @@ export default function Patrimoine({ T, data }) {
   const [manualValeurInput, setManualValeurInput] = useState('');
   const [adresseSuggestions, setAdresseSuggestions] = useState([]);
   const [showAdresseSuggestions, setShowAdresseSuggestions] = useState(false);
+  const [aiEstimation, setAiEstimation] = useState(null);
+  const [aiEstimationLoading, setAiEstimationLoading] = useState(false);
+  const [aiEstimationError, setAiEstimationError] = useState('');
 
   const SECTIONS = [
     { id: 'invest',   label: t('pat_invest')   },
@@ -177,6 +180,9 @@ export default function Patrimoine({ T, data }) {
     setAccordionOpen({ situation: true, travaux: false, loyers: false, estimation: false });
     setAdresseSuggestions([]);
     setShowAdresseSuggestions(false);
+    setAiEstimation(null);
+    setAiEstimationLoading(false);
+    setAiEstimationError('');
     // Pre-fill manual valeur from selected bien
     if (selectedBienId) {
       const inv = investments.find(i => drillInv && i.id === drillInv.id);
@@ -286,6 +292,46 @@ export default function Patrimoine({ T, data }) {
       setAdresseSuggestions(feats);
       setShowAdresseSuggestions(feats.length > 0);
     } catch { setAdresseSuggestions([]); setShowAdresseSuggestions(false); }
+  }, []);
+
+  const handleAIEstimer = useCallback(async (bien) => {
+    if (!bien?.adresse?.ville || !bien?.surface) return;
+    setAiEstimationLoading(true);
+    setAiEstimationError('');
+    setAiEstimation(null);
+    const etatLabel = { renover: 'À rénover', bon: 'Bon état', renove: 'Rénové', neuf: 'Neuf' }[bien.etat] || bien.etat || 'Bon état';
+    const adresseStr = [bien.adresse.numero, bien.adresse.rue, bien.adresse.codePostal, bien.adresse.ville].filter(Boolean).join(' ');
+    const prompt = `Tu es un expert immobilier français. Estime la valeur marchande actuelle de ce bien immobilier en te basant sur ta connaissance des prix du marché français en 2026.
+
+Bien à estimer :
+- Type : ${bien.type}
+- Adresse : ${adresseStr}
+- Surface : ${bien.surface} m²
+- État : ${etatLabel}
+- Date d'acquisition : ${bien.dateAcquisition || 'Non renseignée'}
+- Prix d'achat : ${bien.prixAchat || 'Non renseigné'} €
+
+Réponds UNIQUEMENT avec un objet JSON valide, rien d'autre, pas de texte avant ou après :
+{
+  "estimation": 280000,
+  "fourchetteBasse": 260000,
+  "fourchetteHaute": 300000,
+  "prixM2": 6222,
+  "commentaire": "Explication courte en 1-2 phrases"
+}`;
+    try {
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-plan': 'free', 'x-user-id': 'anon' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 512 }, isAutoAnalysis: true }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Erreur API (${res.status})`);
+      const text = json.cached ? json.text : (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '');
+      const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      setAiEstimation(JSON.parse(jsonStr));
+    } catch (e) { setAiEstimationError(e.message); }
+    finally { setAiEstimationLoading(false); }
   }, []);
 
   const SubNav = () => (
@@ -516,9 +562,57 @@ export default function Patrimoine({ T, data }) {
                 {accHeader('estimation', '🔍 Estimation')}
                 {accBody('estimation', (
                   <>
+                    {/* Estimation IA */}
+                    {aiEstimationLoading ? (
+                      <div style={{ fontSize: 13, color: T.textMuted, textAlign: 'center', padding: '12px 0', marginBottom: 14 }}>🤖 Analyse en cours…</div>
+                    ) : aiEstimation ? (
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.bg2, borderRadius: 8, padding: '10px 8px' }}>
+                            <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette basse</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#fb923c' }}>{fEur(aiEstimation.fourchetteBasse)}</div>
+                          </div>
+                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.accent + '18', borderRadius: 8, padding: '10px 8px' }}>
+                            <div style={{ fontSize: 10, color: T.accent, marginBottom: 4 }}>Estimation IA</div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: T.accent }}>{fEur(aiEstimation.estimation)}</div>
+                          </div>
+                          <div style={{ flex: '1 1 90px', textAlign: 'center', background: T.bg2, borderRadius: 8, padding: '10px 8px' }}>
+                            <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>Fourchette haute</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{fEur(aiEstimation.fourchetteHaute)}</div>
+                          </div>
+                        </div>
+                        {aiEstimation.prixM2 && (
+                          <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
+                            Prix au m² estimé : <strong style={{ color: T.text }}>{fEur(aiEstimation.prixM2)}/m²</strong>
+                          </div>
+                        )}
+                        {aiEstimation.commentaire && (
+                          <div style={{ fontSize: 12, color: T.textMuted, fontStyle: 'italic', marginBottom: 12, padding: '8px 10px', background: T.bg2, borderRadius: 6 }}>
+                            {aiEstimation.commentaire}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => { handleUseBienEstimation(aiEstimation.estimation); setManualValeurInput(String(aiEstimation.estimation)); setAiEstimation(null); }}
+                            style={{ ...S.btnG, fontSize: 12, padding: '7px 14px', flex: 1 }}>
+                            ✅ Utiliser cette valeur
+                          </button>
+                          <button onClick={() => setAiEstimation(null)} style={{ ...S.btnS, fontSize: 12, padding: '7px 10px' }}>✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleAIEstimer(bien)}
+                        disabled={!bien.adresse?.ville || !bien.surface}
+                        style={{ ...S.btnG, width: '100%', padding: '10px 0', fontSize: 13, marginBottom: 14, opacity: (bien.adresse?.ville && bien.surface) ? 1 : 0.5 }}>
+                        🤖 Estimer automatiquement
+                      </button>
+                    )}
+                    {aiEstimationError && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>{aiEstimationError}</div>}
+
                     {/* Saisie manuelle */}
                     <div style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>Valeur estimée (€)</div>
+                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>Ou entrer manuellement :</div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <input type="number" placeholder="Ex: 280000" value={manualValeurInput}
                           onChange={e => setManualValeurInput(e.target.value)}
