@@ -463,9 +463,25 @@ export function useData() {
   }, []);
 
   // ── Computed ──────────────────────────────────────────────────────────────
+  const bienPrixRevient = bien =>
+    (parseFloat(bien.prixAchat) || 0) +
+    (parseFloat(bien.fraisNotaire) || 0) +
+    (bien.travaux || []).reduce((s, t) => s + (parseFloat(t.montant) || 0), 0);
+
   const invLiveValue = inv => {
     const cash = parseFloat(inv.cash) || 0;
-    if (inv.type === 'Immobilier' || !inv.positions?.length) return (parseFloat(inv.value) || 0) + cash;
+    if (inv.type === 'Immobilier') {
+      const biens = inv.biens || [];
+      if (biens.length > 0) {
+        const total = biens.reduce((s, b) => {
+          const val = b.valeurEstimee > 0 ? b.valeurEstimee : bienPrixRevient(b);
+          return s + val;
+        }, 0);
+        return total + cash;
+      }
+      return (parseFloat(inv.value) || 0) + cash;
+    }
+    if (!inv.positions?.length) return (parseFloat(inv.value) || 0) + cash;
     const v = inv.positions.reduce((s, p) => {
       if (p.posType === 'commodity') {
         const ticker = COMMODITY_TICKER_MAP[p.commodityType];
@@ -486,6 +502,11 @@ export function useData() {
   };
 
   const invLiveInvested = inv => {
+    if (inv.type === 'Immobilier') {
+      const biens = inv.biens || [];
+      if (biens.length > 0) return biens.reduce((s, b) => s + bienPrixRevient(b), 0);
+      return parseFloat(inv.invested) || 0;
+    }
     if (inv.positions?.length) return inv.positions.reduce((s, p) => s + p.shares * p.buyPrice, 0);
     return parseFloat(inv.invested) || 0;
   };

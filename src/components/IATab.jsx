@@ -47,6 +47,24 @@ function buildContext(data) {
       pv_pct:  li > 0 ? p1((pv / li) * 100) : 0,
     };
     if (positions.length) obj.positions = positions;
+    if (inv.type === 'Immobilier' && (inv.biens || []).length > 0) {
+      obj.biens = (inv.biens || []).map(b => {
+        const prixDeRevient = (parseFloat(b.prixAchat) || 0) + (parseFloat(b.fraisNotaire) || 0) + (b.travaux || []).reduce((s, t) => s + (parseFloat(t.montant) || 0), 0);
+        const plusValue = b.valeurEstimee != null ? b.valeurEstimee - prixDeRevient : null;
+        const entry = {
+          nom:           b.nom,
+          type:          b.type,
+          usage:         b.usage,
+          surface:       b.surface || null,
+          prixDeRevient: r(prixDeRevient),
+          valeurEstimee: b.valeurEstimee ? r(b.valeurEstimee) : null,
+          plusValue:     plusValue !== null ? r(plusValue) : null,
+          loyerMensuel:  b.loyerMensuel || 0,
+        };
+        if (b.creditId) entry.creditId = b.creditId;
+        return entry;
+      });
+    }
     return obj;
   });
 
