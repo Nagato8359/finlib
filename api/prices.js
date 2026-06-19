@@ -274,6 +274,37 @@ function filterAndComputeMedian(mutations, typeLocal, refLat, refLon, radiusKm) 
   return { prixM2s: matched, latestDate };
 }
 
+function parseDvfCsv(csvText) {
+  const lines = csvText.split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const col = name => headers.indexOf(name);
+  const iDate    = col('date_mutation');
+  const iNature  = col('nature_mutation');
+  const iValeur  = col('valeur_fonciere');
+  const iType    = col('type_local');
+  const iSurface = col('surface_reelle_bati');
+  const iLat     = col('latitude');
+  const iLon     = col('longitude');
+  if ([iDate, iNature, iValeur, iType, iSurface, iLat, iLon].some(i => i < 0)) return [];
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const c = line.split(',');
+    out.push({
+      date_mutation:       (c[iDate]    || '').trim(),
+      nature_mutation:     (c[iNature]  || '').trim(),
+      valeur_fonciere:     (c[iValeur]  || '').trim(),
+      type_local:          (c[iType]    || '').trim(),
+      surface_reelle_bati: (c[iSurface] || '').trim(),
+      latitude:            (c[iLat]     || '').trim(),
+      longitude:           (c[iLon]     || '').trim(),
+    });
+  }
+  return out;
+}
+
 async function handleEstimate(req, res) {
   const { adresse, surface: surfaceStr, type, etat, options: optionsStr } = req.query;
   if (!adresse || !surfaceStr || !type || !etat) {
@@ -310,24 +341,48 @@ async function handleEstimate(req, res) {
 
   // DOM-TOM departments have 3-digit codes (971–976); metropolitan France uses 2 digits
   const dept = citycode.startsWith('97') ? citycode.slice(0, 3) : citycode.slice(0, 2);
-  const cacheKey = `estimate:dept:${dept}:${type}`;
-  let mutations;
-  const cachedDvf = await getCached(cacheKey);
-  if (cachedDvf) {
-    try { mutations = JSON.parse(cachedDvf); } catch { mutations = null; }
-  }
+  const deptCacheKey = `estimate:dept:${dept}:${type}`;
+  const csvCacheKey  = `estimate:csv:${citycode}`;
+
+  let mutations = null;
+
+  // Check caches: dept-scoped API result first, then commune CSV
+  const cachedDept = await getCached(deptCacheKey);
+  if (cachedDept) { try { mutations = JSON.parse(cachedDept); } catch {} }
   if (!mutations) {
+    const cachedCsv = await getCached(csvCacheKey);
+    if (cachedCsv) { try { mutations = JSON.parse(cachedCsv); } catch {} }
+  }
+
+  if (!mutations) {
+    // Source 1: Etalab API (dept-level, pre-filtered by type_local)
+    const url1 = `https://api-dvf.etalab.gouv.fr/api/1.0/departement/${encodeURIComponent(dept)}/mutations?type_local=${encodeURIComponent(typeLocal)}&nature_mutation=Vente&page_size=500`;
     try {
-      const dvfUrl = `https://api-dvf.etalab.gouv.fr/api/1.0/departement/${encodeURIComponent(dept)}/mutations?type_local=${encodeURIComponent(typeLocal)}&nature_mutation=Vente&page_size=10000`;
-      const dvfRes = await fetch(dvfUrl, { signal: AbortSignal.timeout(30000) });
-      if (!dvfRes.ok) throw new Error(`DVF HTTP ${dvfRes.status}`);
+      const dvfRes = await fetch(url1, { signal: AbortSignal.timeout(15000) });
+      if (!dvfRes.ok) throw new Error(`HTTP ${dvfRes.status}`);
       const dvfData = await dvfRes.json();
-      mutations = dvfData?.results || [];
-      if (!Array.isArray(mutations)) mutations = [];
-      await setCached(cacheKey, JSON.stringify(mutations), 86400);
-    } catch (e) {
-      console.error('[prices] estimate DVF:', e.message);
-      return res.status(502).json({ error: `DVF inaccessible : ${e.message}` });
+      const results = dvfData?.results;
+      if (!Array.isArray(results)) throw new Error('Réponse invalide');
+      mutations = results;
+      console.log('[dvf] source utilisée:', url1);
+      await setCached(deptCacheKey, JSON.stringify(mutations), 86400);
+    } catch (e1) {
+      console.warn('[dvf] source 1 (Etalab) indisponible:', e1.message);
+
+      // Source 2: data.gouv.fr commune CSV (all types, filtered later by filterAndComputeMedian)
+      const url2 = `https://files.data.gouv.fr/geo-dvf/latest/csv/${dept}/communes/${citycode}.csv`;
+      try {
+        const csvRes = await fetch(url2, { signal: AbortSignal.timeout(15000) });
+        if (!csvRes.ok) throw new Error(`HTTP ${csvRes.status}`);
+        const csvText = await csvRes.text();
+        mutations = parseDvfCsv(csvText);
+        if (!mutations.length) throw new Error('CSV vide ou non parseable');
+        console.log('[dvf] source utilisée:', url2);
+        await setCached(csvCacheKey, JSON.stringify(mutations), 86400);
+      } catch (e2) {
+        console.error('[dvf] source 2 (CSV data.gouv) indisponible:', e2.message);
+        return res.status(502).json({ error: 'Données DVF indisponibles pour cette commune' });
+      }
     }
   }
 
